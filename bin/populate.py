@@ -24,8 +24,12 @@ from urllib3.util.retry import Retry
 from requests.adapters import HTTPAdapter
 import xml.etree.ElementTree as ET
 import gzip
+import readline
 import base64
-import boto3
+try:
+    import boto3
+except ImportError:
+    pass
 
 class cbrelease(object):
 
@@ -131,6 +135,10 @@ class params(object):
         parser.add_argument('--locals', action='store', help="Local variables file")
         parser.add_argument('--debug', action='store', help="Debug level", type=int, default=3)
         parser.add_argument('--packer', action='store_true', help="Packer file", default=False)
+        # parser.add_argument('--aws', action='store_true', help="Enable AWS Support", default=False)
+        # parser.add_argument('--gcp', action='store_true', help="Enable GCP Support", default=False)
+        # parser.add_argument('--azure', action='store_true', help="Enable Azure Support", default=False)
+        # parser.add_argument('--vmware', action='store_true', help="Enable VMware Support", default=False)
         self.parser = parser
 
 class processTemplate(object):
@@ -145,11 +153,13 @@ class processTemplate(object):
         self.linux_release = None
         self.linux_pkgmgr = None
         self.cb_version = None
+        self.cb_index_mem_type = None
         self.aws_image_name = None
         self.aws_image_owner = None
         self.aws_image_user = None
         self.aws_region = None
         self.aws_ami_id = None
+        self.aws_instance_type = None
         self.global_var_json = {}
         self.local_var_json = {}
 
@@ -278,6 +288,22 @@ class processTemplate(object):
                         print("Error: %s" % str(e))
                         sys.exit(1)
                 self.logger.info("AWS_AMI_ID = %s" % self.aws_ami_id)
+            elif item == 'AWS_INSTANCE_TYPE':
+                if not self.aws_instance_type:
+                    try:
+                        self.aws_get_instance_type()
+                    except Exception as e:
+                        print("Error: %s" % str(e))
+                        sys.exit(1)
+                self.logger.info("AWS_INSTANCE_TYPE = %s" % self.aws_instance_type)
+            elif item == 'CB_INDEX_MEM_TYPE':
+                if not self.cb_index_mem_type:
+                    try:
+                        self.get_cb_index_mem_setting()
+                    except Exception as e:
+                        print("Error: %s" % str(e))
+                        sys.exit(1)
+                self.logger.info("CB_INDEX_MEM_TYPE = %s" % self.cb_index_mem_type)
 
         raw_template = jinja2.Template(raw_input)
         format_template = raw_template.render(
@@ -289,8 +315,9 @@ class processTemplate(object):
                                               AWS_AMI_USER=self.aws_image_user,
                                               AWS_REGION=self.aws_region,
                                               AWS_AMI_ID=self.aws_ami_id,
+                                              AWS_INSTANCE_TYPE=self.aws_instance_type,
+                                              CB_INDEX_MEM_TYPE=self.cb_index_mem_type,
                                               )
-        # finished_file = format_template.encode('ascii')
 
         if pargs.packer and self.linux_type:
             output_file = self.linux_type + '-' + self.linux_release + '.pkrvars.hcl'
@@ -308,6 +335,26 @@ class processTemplate(object):
         except OSError as e:
             print("Can not write to new variable file: %s" % str(e))
             sys.exit(1)
+
+    def get_cb_index_mem_setting(self):
+        option_list = [
+            'Standard Index Storage',
+            'Memory-optimized',
+        ]
+        selection = self.ask('Select index storage option', option_list)
+        if selection == 0:
+            self.cb_index_mem_type = 'default'
+        else:
+            self.cb_index_mem_type = 'memopt'
+
+    def aws_get_instance_type(self):
+        default_selection = ''
+        if 'defaults' in self.local_var_json:
+            if 'instance_type' in self.local_var_json['defaults']:
+                default_selection = self.local_var_json['defaults']['instance_type']
+        self.logger.info("Default instance type is %s" % default_selection)
+        selection = self.ask_text('Instance type', default_selection)
+        self.aws_instance_type = selection
 
     def aws_get_ami_id(self):
         image_list = []
@@ -439,6 +486,15 @@ class processTemplate(object):
     def reverse_list(self, list):
         return [item for item in reversed(list)]
 
+    def myinput(self, prompt, prefill):
+        def hook():
+            readline.insert_text(prefill)
+            readline.redisplay()
+        readline.set_pre_input_hook(hook)
+        result = input(prompt + ': ')
+        readline.set_pre_input_hook()
+        return result
+
     def ask(self, question, options=[], descriptions=[]):
         print("%s:" % question)
         for i in range(len(options)):
@@ -460,6 +516,20 @@ class processTemplate(object):
             except Exception:
                 print("Please select the number corresponding to your selection.")
                 continue
+
+    def ask_text(self, question, default=''):
+        while True:
+            prompt = question + ' [' + default + ']: '
+            answer = input(prompt)
+            answer = answer.rstrip("\n")
+            if len(answer) > 0:
+                return answer
+            else:
+                if len(default) > 0:
+                    return default
+                else:
+                    print("Please make a selection.")
+                    continue
 
 def main():
     parms = params()

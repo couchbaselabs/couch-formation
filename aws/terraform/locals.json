@@ -20,5 +20,8 @@
         "user": "ubuntu"
       }
     ]
+  },
+  "defaults": {
+    "instance_type": "c5.xlarge"
   }
 }
