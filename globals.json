@@ -1,0 +1,28 @@
+{
+  "linux": {
+    "centos": [
+      {
+        "version": "7",
+        "name": "CentOS 7",
+        "type": "yum"
+      },
+      {
+        "version": "8",
+        "name": "CentOS 8",
+        "type": "yum"
+      }
+    ],
+    "ubuntu": [
+      {
+        "version": "bionic",
+        "name": "Ubuntu 18.04",
+        "type": "apt"
+      },
+      {
+        "version": "focal",
+        "name": "Ubuntu 20.04",
+        "type": "apt"
+      }
+    ]
+  }
+}

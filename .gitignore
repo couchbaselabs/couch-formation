@@ -1,0 +1,45 @@
+# ignore compiled byte code
+target
+
+# ignore output files from testing
+output*
+workloads/*.dat
+workload*.dat
+data-load.dat
+*.debug
+test.py
+
+# ignore standard Eclipse files
+.project
+.classpath
+.settings
+.checkstyle
+
+# ignore standard IntelliJ files
+.idea/
+*.iml
+*.ipr
+*.iws
+venv/
+.idea_modules
+
+# ignore standard Vim and Emacs temp files
+*.swp
+*~
+
+# ignore standard Mac OS X files/dirs
+.DS_Store
+
+# terraform
+.terraform
+terraform.tfstate
+terraform.tfvars
+*.tfstate*
+.history
+build/
+*/build/
+out/
+vendor
+.test-data
+packer-build.log
+.terraform.lock.hcl

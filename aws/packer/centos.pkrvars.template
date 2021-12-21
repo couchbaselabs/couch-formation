@@ -1,0 +1,11 @@
+##########################################################
+#
+# CentOS variables
+#
+##########################################################
+
+variable "sw_version" {
+  description = "Software version"
+  default     = "{{ CB_VERSION }}"
+  type        = string
+}

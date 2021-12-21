@@ -1,0 +1,32 @@
+{
+  "linux": {
+    "centos": [
+      {
+        "version": "7",
+        "image": "CentOS 7.9.2009 x86_64",
+        "owner": "125523088429",
+        "user": "centos"
+      },
+      {
+        "version": "8",
+        "image": "CentOS 8.4.2105 x86_64",
+        "owner": "125523088429",
+        "user": "centos"
+      }
+    ],
+    "ubuntu": [
+      {
+        "version": "bionic",
+        "image": "ubuntu/images/hvm-ssd/ubuntu-bionic-18.04-arm64-server-20211129",
+        "owner": "099720109477",
+        "user": "ubuntu"
+      },
+      {
+        "version": "focal",
+        "image": "ubuntu/images/hvm-ssd/ubuntu-focal-20.04-amd64-server-20211129",
+        "owner": "099720109477",
+        "user": "ubuntu"
+      }
+    ]
+  }
+}
