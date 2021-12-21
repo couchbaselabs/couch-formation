@@ -1,0 +1,83 @@
+##########################################################
+#
+# Default values for creating a Couchbase cluster on AWS
+#
+##########################################################
+
+variable "region_name" {
+  description = "Region name"
+  default     = "{{ AWS_REGION }}"
+  type        = string
+}
+
+variable "ami_id" {
+  description = "AMI Id"
+  default     = "{{ AWS_AMI_ID }}"
+  type        = string
+}
+
+variable "instance_type" {
+  description = "Instance type"
+  default     = "{{ AWS_INSTANCE_TYPE }}"
+  type        = string
+}
+
+variable "index_memory" {
+  description = "Index storage setting"
+  default     = "{{ CB_INDEX_MEM_TYPE }}"
+  type        = string
+}
+
+variable "ssh_user" {
+  description = "The default username for the AMI"
+  type        = string
+  default     = "{{ AWS_AMI_USER }}"
+}
+
+variable "ssh_key" {
+  description = "Key name to use"
+  default     = "{{ AWS_SSH_KEY }}"
+  type        = string
+}
+
+variable "ssh_private_key" {
+  description = "The private key to use when connecting to the instances"
+  default     = "{{ AWS_SSH_PRIVATE_KEY }}"
+  type        = string
+}
+
+variable "subnet_id" {
+  description = "Subnet to launch the instances in"
+  default     = "{{ AWS_SUBNET_ID }}"
+  type        = string
+}
+
+variable "vpc_id" {
+  description = "VPC Id"
+  default     = "{{ AWS_VPC_ID }}"
+  type        = string
+}
+
+variable "security_group_ids" {
+  description = "Security group to assign to the instances"
+  default     = ["{{ AWS_SECURITY_GROUP }}"]
+  type        = list(string)
+}
+
+variable "root_volume_iops" {
+  description = "IOPS (only for io1 volume type)"
+  default     = "{{ AWS_ROOT_IOPS }}"
+  type        = string
+}
+
+variable "root_volume_size" {
+  description = "The root volume size"
+  default     = "{{ AWS_ROOT_SIZE }}"
+  type        = string
+}
+
+variable "root_volume_type" {
+  description = "The root volume type"
+  default     = "{{ AWS_ROOT_TYPE }}"
+  type        = string
+}

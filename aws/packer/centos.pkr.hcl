@@ -7,8 +7,43 @@ packer {
   }
 }
 
+variable "cb_version" {
+  description = "Software version"
+  type        = string
+}
+
+variable "os_linux_type" {
+  description = "Linux type"
+  type        = string
+}
+
+variable "os_linux_release" {
+  description = "Linux release"
+  type        = string
+}
+
+variable "aws_image_name" {
+  description = "AWS image"
+  type        = string
+}
+
+variable "aws_image_owner" {
+  description = "AMI owner"
+  type        = string
+}
+
+variable "aws_image_user" {
+  description = "AMI SSH user"
+  type        = string
+}
+
+variable "aws_region" {
+  description = "AWS region"
+  type        = string
+}
+
 source "amazon-ebs" "cb-node" {
-  ami_name      = "${var.os_linux_type}-ami"
+  ami_name      = "${var.os_linux_type}-${var.os_linux_release}-couchbase-ami"
   instance_type = "c5.large"
   region        = "${var.aws_region}"
   source_ami_filter {
@@ -24,7 +59,7 @@ source "amazon-ebs" "cb-node" {
 }
 
 build {
-  name    = "${var.os_linux_type}-${var.os_linux_release}-couchbase-ami"
+  name    = "centos-couchbase-ami"
   sources = [
     "source.amazon-ebs.cb-node"
   ]

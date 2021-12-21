@@ -139,6 +139,8 @@ class processTemplate(object):
         self.debug = pargs.debug
         self.template_file = pargs.template
         template_dir = os.path.dirname(self.template_file)
+        self.globals_file = None
+        self.locals_file = None
         self.linux_type = None
         self.linux_release = None
         self.linux_pkgmgr = None
@@ -147,6 +149,7 @@ class processTemplate(object):
         self.aws_image_owner = None
         self.aws_image_user = None
         self.aws_region = None
+        self.aws_ami_id = None
         self.global_var_json = {}
         self.local_var_json = {}
 
@@ -177,23 +180,25 @@ class processTemplate(object):
             else:
                 print("INFO: No local variable file present.")
 
-        try:
-            with open(self.globals_file, 'r') as inputFile:
-                global_var_text = inputFile.read()
-                self.global_var_json = json.loads(global_var_text)
-            inputFile.close()
-        except OSError as e:
-            print("Can not read global variable file: %s" % str(e))
-            sys.exit(1)
+        if self.globals_file:
+            try:
+                with open(self.globals_file, 'r') as inputFile:
+                    global_var_text = inputFile.read()
+                    self.global_var_json = json.loads(global_var_text)
+                inputFile.close()
+            except OSError as e:
+                print("Can not read global variable file: %s" % str(e))
+                sys.exit(1)
 
-        try:
-            with open(self.locals_file, 'r') as inputFile:
-                local_var_text = inputFile.read()
-                self.local_var_json = json.loads(local_var_text)
-            inputFile.close()
-        except OSError as e:
-            print("Can not read local variable file: %s" % str(e))
-            sys.exit(1)
+        if self.locals_file:
+            try:
+                with open(self.locals_file, 'r') as inputFile:
+                    local_var_text = inputFile.read()
+                    self.local_var_json = json.loads(local_var_text)
+                inputFile.close()
+            except OSError as e:
+                print("Can not read local variable file: %s" % str(e))
+                sys.exit(1)
 
         try:
             with open(self.template_file, 'r') as inputFile:
@@ -265,6 +270,14 @@ class processTemplate(object):
                         print("Error: %s" % str(e))
                         sys.exit(1)
                 self.logger.info("AWS_REGION = %s" % self.aws_region)
+            elif item == 'AWS_AMI_ID':
+                if not self.aws_ami_id:
+                    try:
+                        self.aws_get_ami_id()
+                    except Exception as e:
+                        print("Error: %s" % str(e))
+                        sys.exit(1)
+                self.logger.info("AWS_AMI_ID = %s" % self.aws_ami_id)
 
         raw_template = jinja2.Template(raw_input)
         format_template = raw_template.render(
@@ -274,7 +287,8 @@ class processTemplate(object):
                                               AWS_IMAGE=self.aws_image_name,
                                               AWS_AMI_OWNER=self.aws_image_owner,
                                               AWS_AMI_USER=self.aws_image_user,
-                                              AWS_REGION=self.aws_region
+                                              AWS_REGION=self.aws_region,
+                                              AWS_AMI_ID=self.aws_ami_id,
                                               )
         # finished_file = format_template.encode('ascii')
 
@@ -294,6 +308,23 @@ class processTemplate(object):
         except OSError as e:
             print("Can not write to new variable file: %s" % str(e))
             sys.exit(1)
+
+    def aws_get_ami_id(self):
+        image_list = []
+        image_name_list = []
+        if not self.aws_region:
+            try:
+                self.aws_get_region()
+            except Exception:
+                raise
+        ec2_client = boto3.client('ec2', region_name=self.aws_region)
+        images = ec2_client.describe_images(Owners=['self'])
+        for i in range(len(images['Images'])):
+            image_list.append(images['Images'][i]['ImageId'])
+            image_name_list.append(images['Images'][i]['Name'])
+
+        selection = self.ask('Select AMI', image_list, image_name_list)
+        self.aws_ami_id = images['Images'][selection]['ImageId']
 
     def aws_get_region(self):
         try:
@@ -317,11 +348,21 @@ class processTemplate(object):
             self.aws_region = answer
 
     def get_aws_image_user(self):
-        if not self.aws_image_user:
+        if not self.linux_type:
             try:
-                self.get_aws_image_name()
+                self.get_linux_type()
             except Exception:
                 raise
+        if not self.linux_release:
+            try:
+                self.get_linux_release()
+            except Exception:
+                raise
+        for i in range(len(self.local_var_json['linux'][self.linux_type])):
+            if self.local_var_json['linux'][self.linux_type][i]['version'] == self.linux_release:
+                self.aws_image_user = self.local_var_json['linux'][self.linux_type][i]['user']
+                return True
+        raise Exception("Can not locate ssh user for %s %s linux." % (self.linux_type, self.linux_release))
 
     def get_aws_image_owner(self):
         if not self.aws_image_owner:

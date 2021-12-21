@@ -3,45 +3,10 @@
 # CentOS variables
 #
 ##########################################################
-
-variable "cb_version" {
-  description = "Software version"
-  default     = "{{ CB_VERSION }}"
-  type        = string
-}
-
-variable "os_linux_type" {
-  description = "Linux type"
-  default     = "{{ LINUX_TYPE }}"
-  type        = string
-}
-
-variable "os_linux_release" {
-  description = "Linux release"
-  default     = "{{ LINUX_RELEASE }}"
-  type        = string
-}
-
-variable "aws_image_name" {
-  description = "AWS image"
-  default     = "{{ AWS_IMAGE }}"
-  type        = string
-}
-
-variable "aws_image_owner" {
-  description = "AMI owner"
-  default     = "{{ AWS_AMI_OWNER }}"
-  type        = string
-}
-
-variable "aws_image_user" {
-  description = "AMI SSH user"
-  default     = "{{ AWS_AMI_USER }}"
-  type        = string
-}
-
-variable "aws_region" {
-  description = "AWS region"
-  default     = "{{ AWS_REGION }}"
-  type        = string
-}
+cb_version = "{{ CB_VERSION }}"
+os_linux_type = "{{ LINUX_TYPE }}"
+os_linux_release = "{{ LINUX_RELEASE }}"
+aws_image_name = "{{ AWS_IMAGE }}"
+aws_image_owner = "{{ AWS_AMI_OWNER }}"
+aws_image_user = "{{ AWS_AMI_USER }}"
+aws_region = "{{ AWS_REGION }}"
