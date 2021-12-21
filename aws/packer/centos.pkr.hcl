@@ -35,8 +35,10 @@ build {
   inline = [
     "echo Installing Couchbase",
     "sleep 30",
-    "sudo apt-get update",
-    "sudo apt-get install -y couchbase-server",
+    "sudo yum update -y",
+    "sudo yum install -y git",
+    "sudo git clone https://github.com/mminichino/hostprep /usr/local/hostprep",
+    "sudo /usr/local/hostprep/bin/hostprep.sh -t couchbase -v ${var.cb_version}",
   ]
   }
 }

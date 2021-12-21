@@ -279,9 +279,9 @@ class processTemplate(object):
         # finished_file = format_template.encode('ascii')
 
         if pargs.packer and self.linux_type:
-            output_file = self.linux_type + '-' + self.linux_release + '.pkrvars.json'
+            output_file = self.linux_type + '-' + self.linux_release + '.pkrvars.hcl'
         elif pargs.packer:
-            output_file = 'variables.pkrvars.json'
+            output_file = 'variables.pkrvars.hcl'
         else:
             output_file = 'variables.tf'
 
