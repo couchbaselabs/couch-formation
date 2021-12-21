@@ -43,3 +43,5 @@ vendor
 .test-data
 packer-build.log
 .terraform.lock.hcl
+.pkrvars.json
+variables.tf

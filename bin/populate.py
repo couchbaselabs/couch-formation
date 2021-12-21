@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 
 '''
-Read OpenShift Install Config and Build Terraform Files
+Build Terraform Config Files
 '''
 
+import logging
 import os
 import sys
 import argparse
@@ -24,6 +25,7 @@ from requests.adapters import HTTPAdapter
 import xml.etree.ElementTree as ET
 import gzip
 import base64
+import boto3
 
 class cbrelease(object):
 
@@ -127,11 +129,14 @@ class params(object):
         parser.add_argument('--template', action='store', help="Template file")
         parser.add_argument('--globals', action='store', help="Global variables file")
         parser.add_argument('--locals', action='store', help="Local variables file")
+        parser.add_argument('--debug', action='store', help="Debug level", type=int, default=3)
+        parser.add_argument('--packer', action='store_true', help="Packer file", default=False)
         self.parser = parser
 
 class processTemplate(object):
 
     def __init__(self, pargs):
+        self.debug = pargs.debug
         self.template_file = pargs.template
         template_dir = os.path.dirname(self.template_file)
         self.linux_type = None
@@ -141,8 +146,20 @@ class processTemplate(object):
         self.aws_image_name = None
         self.aws_image_owner = None
         self.aws_image_user = None
+        self.aws_region = None
         self.global_var_json = {}
         self.local_var_json = {}
+
+        logging.basicConfig()
+        self.logger = logging.getLogger()
+        if self.debug == 0:
+            self.logger.setLevel(logging.DEBUG)
+        elif self.debug == 1:
+            self.logger.setLevel(logging.INFO)
+        elif self.debug == 2:
+            self.logger.setLevel(logging.ERROR)
+        else:
+            self.logger.setLevel(logging.CRITICAL)
 
         if pargs.globals:
             self.globals_file = pargs.globals
@@ -199,6 +216,7 @@ class processTemplate(object):
                 except Exception as e:
                     print("Error: %s" % str(e))
                     sys.exit(1)
+                self.logger.info("CB_VERSION = %s" % self.cb_version)
             elif item == 'LINUX_TYPE':
                 if not self.linux_type:
                     try:
@@ -206,6 +224,7 @@ class processTemplate(object):
                     except Exception as e:
                         print("Error: %s" % str(e))
                         sys.exit(1)
+                self.logger.info("LINUX_TYPE = %s" % self.linux_type)
             elif item == 'LINUX_RELEASE':
                 if not self.linux_release:
                     try:
@@ -213,6 +232,7 @@ class processTemplate(object):
                     except Exception as e:
                         print("Error: %s" % str(e))
                         sys.exit(1)
+                self.logger.info("LINUX_RELEASE = %s" % self.linux_release)
             elif item == 'AWS_IMAGE':
                 if not self.aws_image_name:
                     try:
@@ -220,6 +240,7 @@ class processTemplate(object):
                     except Exception as e:
                         print("Error: %s" % str(e))
                         sys.exit(1)
+                self.logger.info("AWS_IMAGE = %s" % self.aws_image_name)
             elif item == 'AWS_AMI_OWNER':
                 if not self.aws_image_owner:
                     try:
@@ -227,6 +248,7 @@ class processTemplate(object):
                     except Exception as e:
                         print("Error: %s" % str(e))
                         sys.exit(1)
+                self.logger.info("AWS_AMI_OWNER = %s" % self.aws_image_owner)
             elif item == 'AWS_AMI_USER':
                 if not self.aws_image_user:
                     try:
@@ -234,6 +256,65 @@ class processTemplate(object):
                     except Exception as e:
                         print("Error: %s" % str(e))
                         sys.exit(1)
+                self.logger.info("AWS_AMI_USER = %s" % self.aws_image_user)
+            elif item == 'AWS_REGION':
+                if not self.aws_region:
+                    try:
+                        self.aws_get_region()
+                    except Exception as e:
+                        print("Error: %s" % str(e))
+                        sys.exit(1)
+                self.logger.info("AWS_REGION = %s" % self.aws_region)
+
+        raw_template = jinja2.Template(raw_input)
+        format_template = raw_template.render(
+                                              CB_VERSION=self.cb_version,
+                                              LINUX_TYPE=self.linux_type,
+                                              LINUX_RELEASE=self.linux_release,
+                                              AWS_IMAGE=self.aws_image_name,
+                                              AWS_AMI_OWNER=self.aws_image_owner,
+                                              AWS_AMI_USER=self.aws_image_user,
+                                              AWS_REGION=self.aws_region
+                                              )
+        # finished_file = format_template.encode('ascii')
+
+        if pargs.packer and self.linux_type:
+            output_file = self.linux_type + '-' + self.linux_release + '.pkrvars.json'
+        elif pargs.packer:
+            output_file = 'variables.pkrvars.json'
+        else:
+            output_file = 'variables.tf'
+
+        output_file = template_dir + '/' + output_file
+        try:
+            with open(output_file, 'w') as write_file:
+                write_file.write(format_template)
+                write_file.write("\n")
+                write_file.close()
+        except OSError as e:
+            print("Can not write to new variable file: %s" % str(e))
+            sys.exit(1)
+
+    def aws_get_region(self):
+        try:
+            sts = boto3.client('sts')
+            sts.get_caller_identity()
+        except Exception:
+            raise
+
+        if 'AWS_REGION' in os.environ:
+            self.aws_region = os.environ['AWS_REGION']
+        elif 'AWS_DEFAULT_REGION' in os.environ:
+            self.aws_region = os.environ['AWS_DEFAULT_REGION']
+        elif boto3.DEFAULT_SESSION:
+            self.aws_region = boto3.DEFAULT_SESSION.region_name
+        elif boto3.Session().region_name:
+            self.aws_region = boto3.Session().region_name
+
+        if not self.aws_region:
+            answer = input("AWS Region: ")
+            answer = answer.rstrip("\n")
+            self.aws_region = answer
 
     def get_aws_image_user(self):
         if not self.aws_image_user:

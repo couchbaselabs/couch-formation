@@ -11,31 +11,37 @@ variable "cb_version" {
 }
 
 variable "os_linux_type" {
-  description = "Software version"
+  description = "Linux type"
   default     = "{{ LINUX_TYPE }}"
   type        = string
 }
 
 variable "os_linux_release" {
-  description = "Software version"
+  description = "Linux release"
   default     = "{{ LINUX_RELEASE }}"
   type        = string
 }
 
 variable "aws_image_name" {
-  description = "Software version"
+  description = "AWS image"
   default     = "{{ AWS_IMAGE }}"
   type        = string
 }
 
 variable "aws_image_owner" {
-  description = "Software version"
+  description = "AMI owner"
   default     = "{{ AWS_AMI_OWNER }}"
   type        = string
 }
 
 variable "aws_image_user" {
-  description = "Software version"
+  description = "AMI SSH user"
   default     = "{{ AWS_AMI_USER }}"
+  type        = string
+}
+
+variable "aws_region" {
+  description = "AWS region"
+  default     = "{{ AWS_REGION }}"
   type        = string
 }
