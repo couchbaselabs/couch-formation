@@ -7,37 +7,36 @@ packer {
   }
 }
 
-source "amazon-ebs" "centos-latest" {
-  ami_name      = "centos-8-latest"
+source "amazon-ebs" "cb-node" {
+  ami_name      = "${var.os_linux_type}-ami"
   instance_type = "c5.large"
-  region        = "us-west-2"
+  region        = "${var.aws_region}"
   source_ami_filter {
     filters = {
-      name                = "CentOS 8.4.2105 x86_64"
+      name                = "${var.aws_image_name}"
       root-device-type    = "ebs"
       virtualization-type = "hvm"
     }
     most_recent = true
-    owners      = ["125523088429"]
+    owners      = ["${var.aws_image_owner}"]
   }
-  ssh_username = "centos"
+  ssh_username = "${var.aws_image_user}"
 }
 
 build {
-  name    = "centos-couchbase-ami"
+  name    = "${var.os_linux_type}-${var.os_linux_release}-couchbase-ami"
   sources = [
-    "source.amazon-ebs.centos-latest"
+    "source.amazon-ebs.cb-node"
   ]
   provisioner "shell" {
   environment_vars = [
-    "VERSION=7.0.3-7031",
+    "SW_VERSION=${var.cb_version}",
   ]
   inline = [
-    "echo Installing Redis",
+    "echo Installing Couchbase",
     "sleep 30",
     "sudo apt-get update",
-    "sudo apt-get install -y redis-server",
-    "echo \"FOO is $FOO\" > example.txt",
+    "sudo apt-get install -y couchbase-server",
   ]
   }
 }
