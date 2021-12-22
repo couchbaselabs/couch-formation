@@ -46,3 +46,7 @@ packer-build.log
 *.pkrvars.json
 *.pkrvars.hcl
 variables.tf
+cluster.tf
+dev-*/
+test-*/
+prod-*/

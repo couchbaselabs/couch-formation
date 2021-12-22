@@ -32,22 +32,26 @@ resource "aws_instance" "couchbase_nodes" {
   }
 
   tags = {
-    Name = "${each.key}-${random_id.labid.hex}"
-    Role = "${each.value.node_role}"
+    Name = "${each.key}"
     Services = "${each.value.node_services}"
-    LabName = "lab-${random_id.labid.hex}"
   }
+}
 
+resource "null_resource" "couchbase-init" {
+  for_each = aws_instance.couchbase_nodes
+  triggers = {
+    cb_nodes = join(",", keys(aws_instance.couchbase_nodes))
+  }
   provisioner "remote-exec" {
     inline = [
-      "chmod +x /home/${var.ssh_user}/callhostprep.sh",
-      "/home/${var.ssh_user}/callhostprep.sh -t cbnode -h ${each.key}-${random_id.labid.hex} -d ${var.domain_name} -n ${var.dns_server} -v ${var.sw_version}",
+      "sudo /usr/local/hostprep/bin/clusterinit.sh -m debug -i ${aws_instance.couchbase_nodes[0].private_ip} -s ${each.value.node_services} -i ${var.index_memory}",
     ]
     connection {
-      host        = self.private_ip
+      host        = each.value.private_ip
       type        = "ssh"
       user        = var.ssh_user
       private_key = file(var.ssh_private_key)
     }
   }
+  depends_on = [aws_instance.couchbase_nodes]
 }

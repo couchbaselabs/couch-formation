@@ -29,10 +29,30 @@ import base64
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
 import hashlib
+from shutil import copyfile
 try:
     import boto3
 except ImportError:
     pass
+
+CB_CFG_HEAD = """####
+variable "cluster_spec" {
+  description = "Map of cluster nodes and services."
+  type        = map
+  default     = {"""
+
+CB_CFG_NODE = """
+    cbnode = {
+      node_number     = {{ NODE_NUMBER }},
+      node_services   = "{{ NODE_SERVICES }}",
+      install_mode    = "{{ NODE_INSTALL_MODE }}",
+    }
+"""
+
+CB_CFG_TAIL = """
+  }
+}
+"""
 
 class cbrelease(object):
 
@@ -138,18 +158,28 @@ class params(object):
         parser.add_argument('--locals', action='store', help="Local variables file")
         parser.add_argument('--debug', action='store', help="Debug level", type=int, default=3)
         parser.add_argument('--packer', action='store_true', help="Packer file", default=False)
-        # parser.add_argument('--aws', action='store_true', help="Enable AWS Support", default=False)
-        # parser.add_argument('--gcp', action='store_true', help="Enable GCP Support", default=False)
-        # parser.add_argument('--azure', action='store_true', help="Enable Azure Support", default=False)
-        # parser.add_argument('--vmware', action='store_true', help="Enable VMware Support", default=False)
+        parser.add_argument('--cluster', action='store_true', help="Packer file", default=False)
+        parser.add_argument('--dev', action='store', help="Development Environment", type=int)
+        parser.add_argument('--test', action='store', help="Test Environment", type=int)
+        parser.add_argument('--prod', action='store', help="Prod Environment", type=int)
+        parser.add_argument('--location', action='store', help="Public/Private Cloud", default='aws')
         self.parser = parser
 
 class processTemplate(object):
 
     def __init__(self, pargs):
         self.debug = pargs.debug
-        self.template_file = pargs.template
-        template_dir = os.path.dirname(self.template_file)
+        self.cwd = os.getcwd()
+        if not pargs.cluster:
+            self.template_file = pargs.template
+            self.template_dir = os.path.dirname(self.template_file)
+        else:
+            self.template_file = ''
+            self.template_dir = ''
+        self.dev_num = pargs.dev
+        self.test_num = pargs.test
+        self.prod_mnum = pargs.prod
+        self.packer_mode = pargs.packer
         self.globals_file = None
         self.locals_file = None
         self.linux_type = None
@@ -186,6 +216,30 @@ class processTemplate(object):
         else:
             self.logger.setLevel(logging.CRITICAL)
 
+        self.working_dir = self.cwd + '/' + pargs.location
+        if not os.path.exists(self.working_dir):
+            print("Location %s does not exist." % self.working_dir)
+            sys.exit(1)
+
+        if len(self.template_dir) > 0:
+            print("[i] Template file path specified, environment mode disabled.")
+        else:
+            try:
+                self.get_paths()
+            except Exception as e:
+                print("Error: %s" % str(e))
+                sys.exit(1)
+            self.template_file = self.template_dir + '/' + self.template_file
+
+        if pargs.cluster:
+            try:
+                self.create_cluster_config()
+            except Exception as e:
+                print("Error: %s" % str(e))
+                sys.exit(1)
+            print("Cluster configuration complete.")
+            sys.exit(0)
+
         if pargs.globals:
             self.globals_file = pargs.globals
         else:
@@ -197,8 +251,8 @@ class processTemplate(object):
         if pargs.locals:
             self.locals_file = pargs.locals
         else:
-            if os.path.exists(template_dir + '/locals.json'):
-                self.locals_file = template_dir + '/locals.json'
+            if os.path.exists(self.template_dir + '/locals.json'):
+                self.locals_file = self.template_dir + '/locals.json'
             else:
                 print("INFO: No local variable file present.")
 
@@ -410,7 +464,7 @@ class processTemplate(object):
         else:
             output_file = 'variables.tf'
 
-        output_file = template_dir + '/' + output_file
+        output_file = self.template_dir + '/' + output_file
         try:
             with open(output_file, 'w') as write_file:
                 write_file.write(format_template)
@@ -514,7 +568,7 @@ class processTemplate(object):
                 subnet_name_list.append('')
 
         selection = self.ask('Select subnet', subnet_list, subnet_name_list)
-        self.aws_vpc_id = subnets['Subnets'][selection]['SubnetId']
+        self.aws_subnet_id = subnets['Subnets'][selection]['SubnetId']
 
     def get_private_key(self):
         dir_list = []
@@ -764,6 +818,122 @@ class processTemplate(object):
                 else:
                     print("Please make a selection.")
                     continue
+
+    def create_cluster_config(self):
+        config_segments = []
+        config_segments.append(CB_CFG_HEAD)
+        node = 1
+        services = ['data', 'index', 'query', 'fts', 'analytics', 'eventing', ]
+
+        print("Building cluster configuration")
+        while True:
+            selected_services = []
+            if node == 1:
+                install_mode = 'init'
+            else:
+                install_mode = 'add'
+            print("Configuring node %d" % node)
+            for node_svc in services:
+                if node_svc == 'data' or node_svc == 'index' or node_svc == 'query':
+                    default_answer = 'y'
+                else:
+                    default_answer = 'n'
+                answer = input(" -> %s (y/n) [%s]: " % (node_svc, default_answer))
+                answer = answer.rstrip("\n")
+                if len(answer) == 0:
+                    answer = default_answer
+                if answer == 'y' or answer == 'yes':
+                    selected_services.append(node_svc)
+            raw_template = jinja2.Template(CB_CFG_NODE)
+            format_template = raw_template.render(
+                NODE_NUMBER=node,
+                NODE_SERVICES=','.join(selected_services),
+                NODE_INSTALL_MODE=install_mode,
+            )
+            config_segments.append(format_template)
+            if node >= 3:
+                answer = input("[?] Add another node? [y/n]: ")
+                answer = answer.rstrip("\n")
+                if answer == 'n' or answer == 'no':
+                    break
+            node += 1
+
+        config_segments.append(CB_CFG_TAIL)
+        output_file = 'cluster.tf'
+        output_file = self.template_dir + '/' + output_file
+        try:
+            with open(output_file, 'w') as write_file:
+                for i in range(len(config_segments)):
+                    write_file.write(config_segments[i])
+                write_file.write("\n")
+                write_file.close()
+        except OSError as e:
+            print("Can not write to new cluster file: %s" % str(e))
+            sys.exit(1)
+
+    def create_env_dir(self):
+        parent_dir = os.path.dirname(self.template_dir)
+        if not os.path.exists(self.template_dir):
+            try:
+                self.logger.info("Creating %s" % self.template_dir)
+                os.mkdir(self.template_dir)
+            except Exception as e:
+                self.logger.error("create_env_dir: %s" % str(e))
+                raise
+        source = parent_dir + '/locals.json'
+        destination = self.template_dir + '/locals.json'
+        if not os.path.exists(destination):
+            try:
+                self.logger.info("Copying %s -> %s" % (source, destination))
+                copyfile(source, destination)
+            except Exception as e:
+                self.logger.error("create_env_dir: copy: %s: %s" % (source, str(e)))
+                raise
+
+        source = parent_dir + '/main.tf'
+        destination = self.template_dir + '/main.tf'
+        if not os.path.exists(destination):
+            try:
+                self.logger.info("Copying %s -> %s" % (source, destination))
+                copyfile(source, destination)
+            except Exception as e:
+                self.logger.error("create_env_dir: copy: %s: %s" % (source, str(e)))
+                raise
+
+        source = parent_dir + '/variables.template'
+        destination = self.template_dir + '/variables.template'
+        if not os.path.exists(destination):
+            try:
+                self.logger.info("Copying %s -> %s" % (source, destination))
+                copyfile(source, destination)
+            except Exception as e:
+                self.logger.error("create_env_dir: copy: %s: %s" % (source, str(e)))
+                raise
+
+    def get_paths(self):
+        if self.packer_mode:
+            relative_path = self.working_dir + '/' + 'packer'
+            self.template_dir = relative_path
+            self.template_file = self.template_dir + '/' + self.template_file
+            return True
+        else:
+            relative_path = self.working_dir + '/' + 'terraform'
+            if self.dev_num:
+                dev_directory = "dev-{:04d}".format(self.dev_num)
+                self.template_dir = relative_path + '/' + dev_directory
+            elif self.test_num:
+                test_directory = "test-{:04d}".format(self.test_num)
+                self.template_dir = relative_path + '/' + test_directory
+            elif self.prod_mnum:
+                prod_directory = "prod-{:04d}".format(self.prod_mnum)
+                self.template_dir = relative_path + '/' + prod_directory
+            else:
+                raise Exception("Environment not specified.")
+            try:
+                self.create_env_dir()
+            except Exception as e:
+                self.logger.error("get_paths: %s" % str(e))
+                raise
 
 def main():
     parms = params()
