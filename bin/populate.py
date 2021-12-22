@@ -356,6 +356,30 @@ class processTemplate(object):
                         print("Error: %s" % str(e))
                         sys.exit(1)
                 self.logger.info("AWS_SECURITY_GROUP = %s" % self.aws_sg_id)
+            elif item == 'AWS_ROOT_IOPS':
+                if not self.aws_root_iops:
+                    try:
+                        self.aws_get_root_iops()
+                    except Exception as e:
+                        print("Error: %s" % str(e))
+                        sys.exit(1)
+                self.logger.info("AWS_ROOT_IOPS = %s" % self.aws_root_iops)
+            elif item == 'AWS_ROOT_SIZE':
+                if not self.aws_root_size:
+                    try:
+                        self.aws_get_root_size()
+                    except Exception as e:
+                        print("Error: %s" % str(e))
+                        sys.exit(1)
+                self.logger.info("AWS_ROOT_SIZE = %s" % self.aws_root_size)
+            elif item == 'AWS_ROOT_TYPE':
+                if not self.aws_root_type:
+                    try:
+                        self.aws_get_root_type()
+                    except Exception as e:
+                        print("Error: %s" % str(e))
+                        sys.exit(1)
+                self.logger.info("AWS_ROOT_TYPE = %s" % self.aws_root_type)
 
         raw_template = jinja2.Template(raw_input)
         format_template = raw_template.render(
@@ -395,6 +419,33 @@ class processTemplate(object):
         except OSError as e:
             print("Can not write to new variable file: %s" % str(e))
             sys.exit(1)
+
+    def aws_get_root_type(self):
+        default_selection = ''
+        if 'defaults' in self.local_var_json:
+            if 'root_type' in self.local_var_json['defaults']:
+                default_selection = self.local_var_json['defaults']['root_type']
+        self.logger.info("Default root type is %s" % default_selection)
+        selection = self.ask_text('Root volume type', default_selection)
+        self.aws_root_type = selection
+
+    def aws_get_root_size(self):
+        default_selection = ''
+        if 'defaults' in self.local_var_json:
+            if 'root_size' in self.local_var_json['defaults']:
+                default_selection = self.local_var_json['defaults']['root_size']
+        self.logger.info("Default root size is %s" % default_selection)
+        selection = self.ask_text('Root volume size', default_selection)
+        self.aws_root_size = selection
+
+    def aws_get_root_iops(self):
+        default_selection = ''
+        if 'defaults' in self.local_var_json:
+            if 'root_iops' in self.local_var_json['defaults']:
+                default_selection = self.local_var_json['defaults']['root_iops']
+        self.logger.info("Default root IOPS is %s" % default_selection)
+        selection = self.ask_text('Root volume IOPS', default_selection)
+        self.aws_root_iops = selection
 
     def aws_get_sg_id(self):
         if not self.aws_vpc_id:

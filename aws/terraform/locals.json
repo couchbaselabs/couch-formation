@@ -22,6 +22,9 @@
     ]
   },
   "defaults": {
-    "instance_type": "c5.xlarge"
+    "instance_type": "c5.xlarge",
+    "root_iops": "0",
+    "root_size": "50",
+    "root_type": "gp3"
   }
 }
