@@ -26,6 +26,9 @@ import xml.etree.ElementTree as ET
 import gzip
 import readline
 import base64
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import serialization
+import hashlib
 try:
     import boto3
 except ImportError:
@@ -152,6 +155,8 @@ class processTemplate(object):
         self.linux_type = None
         self.linux_release = None
         self.linux_pkgmgr = None
+        self.ssh_private_key = None
+        self.ssh_key_fingerprint = None
         self.cb_version = None
         self.cb_index_mem_type = None
         self.aws_image_name = None
@@ -160,6 +165,7 @@ class processTemplate(object):
         self.aws_region = None
         self.aws_ami_id = None
         self.aws_instance_type = None
+        self.aws_ssh_key = None
         self.global_var_json = {}
         self.local_var_json = {}
 
@@ -304,6 +310,22 @@ class processTemplate(object):
                         print("Error: %s" % str(e))
                         sys.exit(1)
                 self.logger.info("CB_INDEX_MEM_TYPE = %s" % self.cb_index_mem_type)
+            elif item == 'AWS_SSH_KEY':
+                if not self.aws_ssh_key:
+                    try:
+                        self.aws_get_ssh_key()
+                    except Exception as e:
+                        print("Error: %s" % str(e))
+                        sys.exit(1)
+                self.logger.info("AWS_SSH_KEY = %s" % self.aws_ssh_key)
+            elif item == 'SSH_PRIVATE_KEY':
+                if not self.ssh_private_key:
+                    try:
+                        self.get_private_key()
+                    except Exception as e:
+                        print("Error: %s" % str(e))
+                        sys.exit(1)
+                self.logger.info("SSH_PRIVATE_KEY = %s" % self.ssh_private_key)
 
         raw_template = jinja2.Template(raw_input)
         format_template = raw_template.render(
@@ -317,6 +339,8 @@ class processTemplate(object):
                                               AWS_AMI_ID=self.aws_ami_id,
                                               AWS_INSTANCE_TYPE=self.aws_instance_type,
                                               CB_INDEX_MEM_TYPE=self.cb_index_mem_type,
+                                              AWS_SSH_KEY=self.aws_ssh_key,
+                                              SSH_PRIVATE_KEY=self.ssh_private_key,
                                               )
 
         if pargs.packer and self.linux_type:
@@ -335,6 +359,56 @@ class processTemplate(object):
         except OSError as e:
             print("Can not write to new variable file: %s" % str(e))
             sys.exit(1)
+
+    def get_private_key(self):
+        print(self.ssh_key_fingerprint)
+        dir_list = []
+        key_directory = os.environ['HOME'] + '/.ssh'
+
+        for file_name in os.listdir(key_directory):
+            full_path = key_directory + '/' + file_name
+            dir_list.append(full_path)
+
+        for i in range(len(dir_list)):
+            file_handle = open(dir_list[i], 'r')
+            blob = file_handle.read()
+            pem_key_bytes = str.encode(blob)
+
+            try:
+                key = serialization.load_pem_private_key(
+                    pem_key_bytes, password=None, backend=default_backend()
+                )
+            except Exception:
+                print("Skipping %s" % dir_list[i])
+                continue
+
+            pri_der = key.private_bytes(
+                encoding=serialization.Encoding.DER,
+                format=serialization.PrivateFormat.PKCS8,
+                encryption_algorithm=serialization.NoEncryption(),
+            )
+            der_digest = hashlib.sha1(pri_der)
+            hex_digest = der_digest.hexdigest()
+            key_fingerprint = ':'.join(hex_digest[i:i + 2] for i in range(0, len(hex_digest), 2))
+            print("%s - %s" % (dir_list[i], key_fingerprint))
+
+    def aws_get_ssh_key(self):
+        key_list = []
+        key_name_list = []
+        if not self.aws_region:
+            try:
+                self.aws_get_region()
+            except Exception:
+                raise
+        ec2_client = boto3.client('ec2', region_name=self.aws_region)
+        key_pairs = ec2_client.describe_key_pairs()
+        for i in range(len(key_pairs['KeyPairs'])):
+            key_list.append(key_pairs['KeyPairs'][i]['KeyPairId'])
+            key_name_list.append(key_pairs['KeyPairs'][i]['KeyName'])
+
+        selection = self.ask('Select SSH key', key_list, key_name_list)
+        self.aws_ssh_key = key_pairs['KeyPairs'][selection]['KeyPairId']
+        self.ssh_key_fingerprint = key_pairs['KeyPairs'][selection]['KeyFingerprint']
 
     def get_cb_index_mem_setting(self):
         option_list = [

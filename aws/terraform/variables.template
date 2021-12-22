@@ -42,7 +42,7 @@ variable "ssh_key" {
 
 variable "ssh_private_key" {
   description = "The private key to use when connecting to the instances"
-  default     = "{{ AWS_SSH_PRIVATE_KEY }}"
+  default     = "{{ SSH_PRIVATE_KEY }}"
   type        = string
 }
 
