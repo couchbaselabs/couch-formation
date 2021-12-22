@@ -7,6 +7,10 @@ packer {
   }
 }
 
+locals {
+  timestamp = "${formatdate("YYYY-MM-DD-hhmm", timestamp())}"
+}
+
 variable "cb_version" {
   description = "Software version"
   type        = string
@@ -43,7 +47,7 @@ variable "aws_region" {
 }
 
 source "amazon-ebs" "cb-node" {
-  ami_name      = "${var.os_linux_type}-${var.os_linux_release}-couchbase-ami"
+  ami_name      = "${var.os_linux_type}-${var.os_linux_release}-couchbase-${local.timestamp}"
   instance_type = "c5.large"
   region        = "${var.aws_region}"
   source_ami_filter {

@@ -35,6 +35,18 @@ resource "aws_instance" "couchbase_nodes" {
     Name = "${each.key}"
     Services = "${each.value.node_services}"
   }
+
+  provisioner "remote-exec" {
+    inline = [
+      "sudo /usr/local/hostprep/bin/clusterinit.sh -m write -h ${self.private_ip} -s ${each.value.node_services} -i ${var.index_memory} -n ${each.value.node_number}",
+    ]
+    connection {
+      host        = self.private_ip
+      type        = "ssh"
+      user        = var.ssh_user
+      private_key = file(var.ssh_private_key)
+    }
+  }
 }
 
 resource "null_resource" "couchbase-init" {
@@ -42,16 +54,16 @@ resource "null_resource" "couchbase-init" {
   triggers = {
     cb_nodes = join(",", keys(aws_instance.couchbase_nodes))
   }
+  connection {
+    host        = each.value.private_ip
+    type        = "ssh"
+    user        = var.ssh_user
+    private_key = file(var.ssh_private_key)
+  }
   provisioner "remote-exec" {
     inline = [
-      "sudo /usr/local/hostprep/bin/clusterinit.sh -m debug -i ${aws_instance.couchbase_nodes[0].private_ip} -s ${each.value.node_services} -i ${var.index_memory}",
+      "sudo /usr/local/hostprep/bin/clusterinit.sh -m debug",
     ]
-    connection {
-      host        = each.value.private_ip
-      type        = "ssh"
-      user        = var.ssh_user
-      private_key = file(var.ssh_private_key)
-    }
   }
   depends_on = [aws_instance.couchbase_nodes]
 }

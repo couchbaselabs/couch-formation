@@ -42,7 +42,7 @@ variable "cluster_spec" {
   default     = {"""
 
 CB_CFG_NODE = """
-    cbnode = {
+    cbnode-{{ NODE_NUMBER_FMT }} = {
       node_number     = {{ NODE_NUMBER }},
       node_services   = "{{ NODE_SERVICES }}",
       install_mode    = "{{ NODE_INSTALL_MODE }}",
@@ -624,7 +624,7 @@ class processTemplate(object):
             key_name_list.append(key_pairs['KeyPairs'][i]['KeyName'])
 
         selection = self.ask('Select SSH key', key_list, key_name_list)
-        self.aws_ssh_key = key_pairs['KeyPairs'][selection]['KeyPairId']
+        self.aws_ssh_key = key_pairs['KeyPairs'][selection]['KeyName']
         self.ssh_key_fingerprint = key_pairs['KeyPairs'][selection]['KeyFingerprint']
 
     def get_cb_index_mem_setting(self):
@@ -846,6 +846,7 @@ class processTemplate(object):
                     selected_services.append(node_svc)
             raw_template = jinja2.Template(CB_CFG_NODE)
             format_template = raw_template.render(
+                NODE_NUMBER_FMT="{:04d}".format(node),
                 NODE_NUMBER=node,
                 NODE_SERVICES=','.join(selected_services),
                 NODE_INSTALL_MODE=install_mode,
