@@ -166,6 +166,12 @@ class processTemplate(object):
         self.aws_ami_id = None
         self.aws_instance_type = None
         self.aws_ssh_key = None
+        self.aws_subnet_id = None
+        self.aws_vpc_id = None
+        self.aws_sg_id = None
+        self.aws_root_iops = None
+        self.aws_root_size = None
+        self.aws_root_type = None
         self.global_var_json = {}
         self.local_var_json = {}
 
@@ -230,7 +236,7 @@ class processTemplate(object):
         ast = env.parse(rendered)
         requested_vars = find_undeclared_variables(ast)
 
-        for item in requested_vars:
+        for item in sorted(requested_vars):
             if item == 'CB_VERSION':
                 try:
                     self.get_cb_version()
@@ -326,6 +332,30 @@ class processTemplate(object):
                         print("Error: %s" % str(e))
                         sys.exit(1)
                 self.logger.info("SSH_PRIVATE_KEY = %s" % self.ssh_private_key)
+            elif item == 'AWS_SUBNET_ID':
+                if not self.aws_subnet_id:
+                    try:
+                        self.aws_get_subnet_id()
+                    except Exception as e:
+                        print("Error: %s" % str(e))
+                        sys.exit(1)
+                self.logger.info("AWS_SUBNET_ID = %s" % self.aws_subnet_id)
+            elif item == 'AWS_VPC_ID':
+                if not self.aws_vpc_id:
+                    try:
+                        self.aws_get_vpc_id()
+                    except Exception as e:
+                        print("Error: %s" % str(e))
+                        sys.exit(1)
+                self.logger.info("AWS_VPC_ID = %s" % self.aws_vpc_id)
+            elif item == 'AWS_SECURITY_GROUP':
+                if not self.aws_sg_id:
+                    try:
+                        self.aws_get_sg_id()
+                    except Exception as e:
+                        print("Error: %s" % str(e))
+                        sys.exit(1)
+                self.logger.info("AWS_SECURITY_GROUP = %s" % self.aws_sg_id)
 
         raw_template = jinja2.Template(raw_input)
         format_template = raw_template.render(
@@ -341,6 +371,12 @@ class processTemplate(object):
                                               CB_INDEX_MEM_TYPE=self.cb_index_mem_type,
                                               AWS_SSH_KEY=self.aws_ssh_key,
                                               SSH_PRIVATE_KEY=self.ssh_private_key,
+                                              AWS_SUBNET_ID=self.aws_subnet_id,
+                                              AWS_VPC_ID=self.aws_vpc_id,
+                                              AWS_SECURITY_GROUP=self.aws_sg_id,
+                                              AWS_ROOT_IOPS=self.aws_root_iops,
+                                              AWS_ROOT_SIZE=self.aws_root_size,
+                                              AWS_ROOT_TYPE=self.aws_root_type,
                                               )
 
         if pargs.packer and self.linux_type:
@@ -360,9 +396,78 @@ class processTemplate(object):
             print("Can not write to new variable file: %s" % str(e))
             sys.exit(1)
 
+    def aws_get_sg_id(self):
+        if not self.aws_vpc_id:
+            try:
+                self.aws_get_vpc_id()
+            except Exception:
+                raise
+        sg_list = []
+        sg_name_list = []
+        ec2_client = boto3.client('ec2', region_name=self.aws_region)
+        vpc_filter = {
+            'Name': 'vpc-id',
+            'Values': [
+                self.aws_vpc_id,
+            ]
+        }
+        sgs = ec2_client.describe_security_groups(Filters=[vpc_filter, ])
+        for i in range(len(sgs['SecurityGroups'])):
+            sg_list.append(sgs['SecurityGroups'][i]['GroupId'])
+            sg_name_list.append(sgs['SecurityGroups'][i]['GroupName'])
+
+        selection = self.ask('Select security group', sg_list, sg_name_list)
+        self.aws_sg_id = sgs['SecurityGroups'][selection]['GroupId']
+
+    def aws_get_vpc_id(self):
+        vpc_list = []
+        vpc_name_list = []
+        if not self.aws_region:
+            try:
+                self.aws_get_region()
+            except Exception:
+                raise
+        ec2_client = boto3.client('ec2', region_name=self.aws_region)
+        vpcs = ec2_client.describe_vpcs()
+        for i in range(len(vpcs['Vpcs'])):
+            vpc_list.append(vpcs['Vpcs'][i]['VpcId'])
+            if 'Tags' in vpcs['Vpcs'][i]:
+                vpc_name_list.append(self.aws_get_tag('Name', vpcs['Vpcs'][i]['Tags']))
+            else:
+                vpc_name_list.append('')
+
+        selection = self.ask('Select VPC', vpc_list, vpc_name_list)
+        self.aws_vpc_id = vpcs['Vpcs'][selection]['VpcId']
+
+    def aws_get_subnet_id(self):
+        if not self.aws_vpc_id:
+            try:
+                self.aws_get_vpc_id()
+            except Exception:
+                raise
+        subnet_list = []
+        subnet_name_list = []
+        ec2_client = boto3.client('ec2', region_name=self.aws_region)
+        vpc_filter = {
+            'Name': 'vpc-id',
+            'Values': [
+                self.aws_vpc_id,
+            ]
+        }
+        subnets = ec2_client.describe_subnets(Filters=[vpc_filter, ])
+        for i in range(len(subnets['Subnets'])):
+            subnet_list.append(subnets['Subnets'][i]['SubnetId'])
+            if 'Tags' in subnets['Subnets'][i]:
+                subnet_name_list.append(self.aws_get_tag('Name', subnets['Subnets'][i]['Tags']))
+            else:
+                subnet_name_list.append('')
+
+        selection = self.ask('Select subnet', subnet_list, subnet_name_list)
+        self.aws_vpc_id = subnets['Subnets'][selection]['SubnetId']
+
     def get_private_key(self):
-        print(self.ssh_key_fingerprint)
         dir_list = []
+        key_file_list = []
         key_directory = os.environ['HOME'] + '/.ssh'
 
         for file_name in os.listdir(key_directory):
@@ -379,9 +484,10 @@ class processTemplate(object):
                     pem_key_bytes, password=None, backend=default_backend()
                 )
             except Exception:
-                print("Skipping %s" % dir_list[i])
                 continue
 
+            self.logger.info("Found private key %s" % dir_list[i])
+            key_file_list.append(dir_list[i])
             pri_der = key.private_bytes(
                 encoding=serialization.Encoding.DER,
                 format=serialization.PrivateFormat.PKCS8,
@@ -390,7 +496,13 @@ class processTemplate(object):
             der_digest = hashlib.sha1(pri_der)
             hex_digest = der_digest.hexdigest()
             key_fingerprint = ':'.join(hex_digest[i:i + 2] for i in range(0, len(hex_digest), 2))
-            print("%s - %s" % (dir_list[i], key_fingerprint))
+            if key_fingerprint == self.ssh_key_fingerprint:
+                print("Auto selecting SSH private key %s" % dir_list[i])
+                self.ssh_private_key = dir_list[i]
+                return True
+
+        selection = self.ask('Select SSH private key', key_file_list)
+        self.ssh_private_key = key_file_list[selection]
 
     def aws_get_ssh_key(self):
         key_list = []
@@ -560,14 +672,11 @@ class processTemplate(object):
     def reverse_list(self, list):
         return [item for item in reversed(list)]
 
-    def myinput(self, prompt, prefill):
-        def hook():
-            readline.insert_text(prefill)
-            readline.redisplay()
-        readline.set_pre_input_hook(hook)
-        result = input(prompt + ': ')
-        readline.set_pre_input_hook()
-        return result
+    def aws_get_tag(self, key, tags):
+        for i in range(len(tags)):
+            if tags[i]['Key'] == key:
+                return tags[i]['Value']
+        return ''
 
     def ask(self, question, options=[], descriptions=[]):
         print("%s:" % question)
