@@ -50,6 +50,10 @@ resource "aws_instance" "couchbase_nodes" {
   }
 }
 
+locals {
+  rally_node = element([for node in aws_instance.couchbase_nodes: node.private_ip], 0)
+}
+
 resource "null_resource" "couchbase-init" {
   for_each = aws_instance.couchbase_nodes
   triggers = {
@@ -63,8 +67,26 @@ resource "null_resource" "couchbase-init" {
   }
   provisioner "remote-exec" {
     inline = [
-      "sudo /usr/local/hostprep/bin/clusterinit.sh -m debug -r ${element([for node in aws_instance.couchbase_nodes: node.private_ip], 0)}",
+      "sudo /usr/local/hostprep/bin/clusterinit.sh -m config -r ${local.rally_node}",
     ]
   }
   depends_on = [aws_instance.couchbase_nodes]
+}
+
+resource "null_resource" "couchbase-rebalance" {
+  triggers = {
+    cb_nodes = join(",", keys(aws_instance.couchbase_nodes))
+  }
+  connection {
+    host        = local.rally_node
+    type        = "ssh"
+    user        = var.ssh_user
+    private_key = file(var.ssh_private_key)
+  }
+  provisioner "remote-exec" {
+    inline = [
+      "sudo /usr/local/hostprep/bin/clusterinit.sh -m rebalance -r ${local.rally_node}",
+    ]
+  }
+  depends_on = [null_resource.couchbase-init]
 }
