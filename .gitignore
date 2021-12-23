@@ -2,7 +2,6 @@
 target
 
 # ignore output files from testing
-output*
 workloads/*.dat
 workload*.dat
 data-load.dat

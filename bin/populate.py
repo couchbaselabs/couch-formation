@@ -42,10 +42,11 @@ variable "cluster_spec" {
   default     = {"""
 
 CB_CFG_NODE = """
-    cbnode-{{ NODE_NUMBER_FMT }} = {
+    cb-{{ NODE_ENV }}-n{{ NODE_NUMBER_FMT }} = {
       node_number     = {{ NODE_NUMBER }},
       node_services   = "{{ NODE_SERVICES }}",
       install_mode    = "{{ NODE_INSTALL_MODE }}",
+      node_ip_address = "{{ NODE_IP_ADDRESS }}",
     }
 """
 
@@ -163,6 +164,7 @@ class params(object):
         parser.add_argument('--test', action='store', help="Test Environment", type=int)
         parser.add_argument('--prod', action='store', help="Prod Environment", type=int)
         parser.add_argument('--location', action='store', help="Public/Private Cloud", default='aws')
+        parser.add_argument('--refresh', action='store_true', help="Packer file", default=False)
         self.parser = parser
 
 class processTemplate(object):
@@ -178,7 +180,7 @@ class processTemplate(object):
             self.template_dir = ''
         self.dev_num = pargs.dev
         self.test_num = pargs.test
-        self.prod_mnum = pargs.prod
+        self.prod_num = pargs.prod
         self.packer_mode = pargs.packer
         self.globals_file = None
         self.locals_file = None
@@ -225,7 +227,7 @@ class processTemplate(object):
             print("[i] Template file path specified, environment mode disabled.")
         else:
             try:
-                self.get_paths()
+                self.get_paths(refresh=pargs.refresh)
             except Exception as e:
                 print("Error: %s" % str(e))
                 sys.exit(1)
@@ -823,7 +825,17 @@ class processTemplate(object):
         config_segments = []
         config_segments.append(CB_CFG_HEAD)
         node = 1
+        node_ip_address = ''
         services = ['data', 'index', 'query', 'fts', 'analytics', 'eventing', ]
+
+        if self.dev_num:
+            env_text = "dev{:02d}".format(self.dev_num)
+        elif self.test_num:
+            env_text = "tst{:02d}".format(self.test_num)
+        elif self.prod_num:
+            env_text = "prd{:02d}".format(self.prod_num)
+        else:
+            env_text = 'server'
 
         print("Building cluster configuration")
         while True:
@@ -846,10 +858,12 @@ class processTemplate(object):
                     selected_services.append(node_svc)
             raw_template = jinja2.Template(CB_CFG_NODE)
             format_template = raw_template.render(
-                NODE_NUMBER_FMT="{:04d}".format(node),
+                NODE_ENV=env_text,
+                NODE_NUMBER_FMT="{:02d}".format(node),
                 NODE_NUMBER=node,
                 NODE_SERVICES=','.join(selected_services),
                 NODE_INSTALL_MODE=install_mode,
+                NODE_IP_ADDRESS=node_ip_address,
             )
             config_segments.append(format_template)
             if node >= 3:
@@ -872,8 +886,14 @@ class processTemplate(object):
             print("Can not write to new cluster file: %s" % str(e))
             sys.exit(1)
 
-    def create_env_dir(self):
+    def create_env_dir(self, overwrite=False):
         parent_dir = os.path.dirname(self.template_dir)
+        copy_files = [
+            'locals.json',
+            'main.tf',
+            'variables.template',
+            'outputs.tf',
+        ]
         if not os.path.exists(self.template_dir):
             try:
                 self.logger.info("Creating %s" % self.template_dir)
@@ -881,37 +901,19 @@ class processTemplate(object):
             except Exception as e:
                 self.logger.error("create_env_dir: %s" % str(e))
                 raise
-        source = parent_dir + '/locals.json'
-        destination = self.template_dir + '/locals.json'
-        if not os.path.exists(destination):
-            try:
-                self.logger.info("Copying %s -> %s" % (source, destination))
-                copyfile(source, destination)
-            except Exception as e:
-                self.logger.error("create_env_dir: copy: %s: %s" % (source, str(e)))
-                raise
 
-        source = parent_dir + '/main.tf'
-        destination = self.template_dir + '/main.tf'
-        if not os.path.exists(destination):
-            try:
-                self.logger.info("Copying %s -> %s" % (source, destination))
-                copyfile(source, destination)
-            except Exception as e:
-                self.logger.error("create_env_dir: copy: %s: %s" % (source, str(e)))
-                raise
+        for file_name in copy_files:
+            source = parent_dir + '/' + file_name
+            destination = self.template_dir + '/' + file_name
+            if not os.path.exists(destination) or overwrite:
+                try:
+                    self.logger.info("Copying %s -> %s" % (source, destination))
+                    copyfile(source, destination)
+                except Exception as e:
+                    self.logger.error("create_env_dir: copy: %s: %s" % (source, str(e)))
+                    raise
 
-        source = parent_dir + '/variables.template'
-        destination = self.template_dir + '/variables.template'
-        if not os.path.exists(destination):
-            try:
-                self.logger.info("Copying %s -> %s" % (source, destination))
-                copyfile(source, destination)
-            except Exception as e:
-                self.logger.error("create_env_dir: copy: %s: %s" % (source, str(e)))
-                raise
-
-    def get_paths(self):
+    def get_paths(self, refresh=False):
         if self.packer_mode:
             relative_path = self.working_dir + '/' + 'packer'
             self.template_dir = relative_path
@@ -920,18 +922,18 @@ class processTemplate(object):
         else:
             relative_path = self.working_dir + '/' + 'terraform'
             if self.dev_num:
-                dev_directory = "dev-{:04d}".format(self.dev_num)
+                dev_directory = "dev-{:02d}".format(self.dev_num)
                 self.template_dir = relative_path + '/' + dev_directory
             elif self.test_num:
-                test_directory = "test-{:04d}".format(self.test_num)
+                test_directory = "test-{:02d}".format(self.test_num)
                 self.template_dir = relative_path + '/' + test_directory
-            elif self.prod_mnum:
-                prod_directory = "prod-{:04d}".format(self.prod_mnum)
+            elif self.prod_num:
+                prod_directory = "prod-{:02d}".format(self.prod_mnum)
                 self.template_dir = relative_path + '/' + prod_directory
             else:
                 raise Exception("Environment not specified.")
             try:
-                self.create_env_dir()
+                self.create_env_dir(overwrite=refresh)
             except Exception as e:
                 self.logger.error("get_paths: %s" % str(e))
                 raise

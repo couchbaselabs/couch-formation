@@ -38,7 +38,8 @@ resource "aws_instance" "couchbase_nodes" {
 
   provisioner "remote-exec" {
     inline = [
-      "sudo /usr/local/hostprep/bin/clusterinit.sh -m write -h ${self.private_ip} -s ${each.value.node_services} -i ${var.index_memory} -n ${each.value.node_number}",
+      "sudo /usr/local/hostprep/bin/refresh.sh",
+      "sudo /usr/local/hostprep/bin/clusterinit.sh -m write -i ${self.private_ip} -e ${self.public_ip} -s ${each.value.node_services} -o ${var.index_memory}",
     ]
     connection {
       host        = self.private_ip
@@ -62,7 +63,7 @@ resource "null_resource" "couchbase-init" {
   }
   provisioner "remote-exec" {
     inline = [
-      "sudo /usr/local/hostprep/bin/clusterinit.sh -m debug",
+      "sudo /usr/local/hostprep/bin/clusterinit.sh -m debug -r ${element([for node in aws_instance.couchbase_nodes: node.private_ip], 0)}",
     ]
   }
   depends_on = [aws_instance.couchbase_nodes]
