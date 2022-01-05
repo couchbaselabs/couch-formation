@@ -14,6 +14,7 @@ import re
 import os
 import dns.reversename
 import getpass
+import crypt
 import ipaddress
 import jinja2
 from jinja2.meta import find_undeclared_variables
@@ -22,12 +23,15 @@ from urllib3.util.retry import Retry
 from requests.adapters import HTTPAdapter
 import xml.etree.ElementTree as ET
 import gzip
+import datetime
 import readline
 import base64
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
+from Crypto.PublicKey import RSA
 import hashlib
 from shutil import copyfile
+import pytz
 try:
     import boto3
 except ImportError:
@@ -37,6 +41,8 @@ try:
     from pyVmomi import vim, vmodl, VmomiSupport
 except ImportError:
     pass
+
+
 
 CB_CFG_HEAD = """####
 variable "cluster_spec" {
@@ -194,6 +200,7 @@ class processTemplate(object):
         self.linux_release = None
         self.linux_pkgmgr = None
         self.ssh_private_key = None
+        self.ssh_public_key = None
         self.ssh_key_fingerprint = None
         self.cb_version = None
         self.cb_index_mem_type = None
@@ -520,6 +527,94 @@ class processTemplate(object):
                         print("Error: %s" % str(e))
                         sys.exit(1)
                 self.logger.info("VMWARE_FOLDER = %s" % self.vmware_folder)
+            elif item == 'VMWARE_OS_TYPE':
+                if not self.vmware_ostype:
+                    try:
+                        self.vmware_get_ostype()
+                    except Exception as e:
+                        print("Error: %s" % str(e))
+                        sys.exit(1)
+                self.logger.info("VMWARE_OS_TYPE = %s" % self.vmware_ostype)
+            elif item == 'VMWARE_CPU_CORES':
+                if not self.vmware_cpucores:
+                    try:
+                        self.vmware_get_cpucores()
+                    except Exception as e:
+                        print("Error: %s" % str(e))
+                        sys.exit(1)
+                self.logger.info("VMWARE_CPU_CORES = %s" % self.vmware_cpucores)
+            elif item == 'VMWARE_MEM_SIZE':
+                if not self.vmware_memsize:
+                    try:
+                        self.vmware_get_memsize()
+                    except Exception as e:
+                        print("Error: %s" % str(e))
+                        sys.exit(1)
+                self.logger.info("VMWARE_MEM_SIZE = %s" % self.vmware_memsize)
+            elif item == 'VMWARE_DISK_SIZE':
+                if not self.vmware_disksize:
+                    try:
+                        self.vmware_get_disksize()
+                    except Exception as e:
+                        print("Error: %s" % str(e))
+                        sys.exit(1)
+                self.logger.info("VMWARE_DISK_SIZE = %s" % self.vmware_disksize)
+            elif item == 'VMWARE_NETWORK':
+                if not self.vmware_network:
+                    try:
+                        self.vmware_get_network()
+                    except Exception as e:
+                        print("Error: %s" % str(e))
+                        sys.exit(1)
+                self.logger.info("VMWARE_NETWORK = %s" % self.vmware_network)
+            elif item == 'VMWARE_ISO_URL':
+                if not self.vmware_iso:
+                    try:
+                        self.vmware_get_isourl()
+                    except Exception as e:
+                        print("Error: %s" % str(e))
+                        sys.exit(1)
+                self.logger.info("VMWARE_ISO_URL = %s" % self.vmware_iso)
+            elif item == 'VMWARE_BUILD_USERNAME':
+                if not self.vmware_build_user:
+                    try:
+                        self.vmware_get_build_username()
+                    except Exception as e:
+                        print("Error: %s" % str(e))
+                        sys.exit(1)
+                self.logger.info("VMWARE_BUILD_USERNAME = %s" % self.vmware_build_user)
+            elif item == 'VMWARE_BUILD_PASSWORD':
+                if not self.vmware_build_password:
+                    try:
+                        self.vmware_get_build_password()
+                    except Exception as e:
+                        print("Error: %s" % str(e))
+                        sys.exit(1)
+                self.logger.info("VMWARE_BUILD_PASSWORD = %s" % self.vmware_build_password)
+            elif item == 'VMWARE_BUILD_PWD_ENCRYPTED':
+                if not self.vmware_build_pwd_encrypted:
+                    try:
+                        self.vmware_get_build_password()
+                    except Exception as e:
+                        print("Error: %s" % str(e))
+                        sys.exit(1)
+                self.logger.info("VMWARE_BUILD_PWD_ENCRYPTED = %s" % self.vmware_build_pwd_encrypted)
+            elif item == 'VMWARE_KEY':
+                if not self.ssh_public_key:
+                    try:
+                        self.get_public_key()
+                    except Exception as e:
+                        print("Error: %s" % str(e))
+                        sys.exit(1)
+                self.logger.info("VMWARE_KEY = %s" % self.ssh_public_key)
+            elif item == 'VMWARE_TIMEZONE':
+                if not self.vmware_timezone:
+                    try:
+                        self.get_timezone()
+                    except Exception as e:
+                        print("Error: %s" % str(e))
+                        sys.exit(1)
+                self.logger.info("VMWARE_TIMEZONE = %s" % self.vmware_timezone)
 
         raw_template = jinja2.Template(raw_input)
         format_template = raw_template.render(
@@ -558,7 +653,7 @@ class processTemplate(object):
                                               VMWARE_BUILD_PASSWORD=self.vmware_build_password,
                                               VMWARE_BUILD_PWD_ENCRYPTED=self.vmware_build_pwd_encrypted,
                                               VMWARE_TIMEZONE=self.vmware_timezone,
-                                              VMWARE_KEY=self.vmware_key,
+                                              VMWARE_KEY=self.ssh_public_key,
                                               )
 
         if pargs.packer and self.linux_type:
@@ -577,6 +672,158 @@ class processTemplate(object):
         except OSError as e:
             print("Can not write to new variable file: %s" % str(e))
             sys.exit(1)
+
+    def get_timezone(self):
+        local_code = datetime.datetime.now(datetime.timezone.utc).astimezone().tzname()
+        tzpath = '/etc/localtime'
+        tzlist = []
+        if os.path.exists(tzpath) and os.path.islink(tzpath):
+            link_path = os.path.realpath(tzpath)
+            start = link_path.find("/") + 1
+            while start != 0:
+                link_path = link_path[start:]
+                try:
+                    pytz.timezone(link_path)
+                    self.vmware_timezone = link_path
+                    return True
+                except pytz.UnknownTimeZoneError:
+                    pass
+                start = link_path.find("/") + 1
+
+        for name in pytz.all_timezones:
+            tzone = pytz.timezone(name)
+            code = datetime.datetime.now(tzone).tzname()
+            if code == local_code:
+                tzlist.append(tzone)
+        selection = self.ask('Select timezone', tzlist)
+        self.vmware_timezone = tzlist[selection]
+
+    def get_public_key(self):
+        if not self.ssh_private_key:
+            self.get_private_key()
+        fh = open(self.ssh_private_key, 'r')
+        key_pem = fh.read()
+        fh.close()
+        rsa_key = RSA.importKey(key_pem)
+        modulus = rsa_key.n
+        pubExpE = rsa_key.e
+        priExpD = rsa_key.d
+        primeP = rsa_key.p
+        primeQ = rsa_key.q
+        private_key = RSA.construct((modulus, pubExpE, priExpD, primeP, primeQ))
+        public_key = private_key.public_key().exportKey('OpenSSH')
+        self.ssh_public_key = public_key.decode('utf-8')
+
+    def vmware_get_build_password(self):
+        if not self.vmware_build_user:
+            self.vmware_get_build_username()
+        selection = self.ask_pass("Build user %s password" % self.vmware_build_user)
+        self.vmware_build_password = selection
+        self.vmware_build_pwd_encrypted = crypt.crypt(self.vmware_build_password, crypt.mksalt(crypt.METHOD_SHA512))
+
+    def vmware_get_build_username(self):
+        if not self.linux_type:
+            try:
+                self.get_linux_type()
+            except Exception:
+                raise
+        if not self.linux_release:
+            try:
+                self.get_linux_release()
+            except Exception:
+                raise
+        for i in range(len(self.local_var_json['linux'][self.linux_type])):
+            if self.local_var_json['linux'][self.linux_type][i]['version'] == self.linux_release:
+                self.vmware_build_user = self.local_var_json['linux'][self.linux_type][i]['user']
+                return True
+        raise Exception("Can not locate build user for %s %s linux." % (self.linux_type, self.linux_release))
+
+    def vmware_get_network(self):
+        if not self.vmware_hostname:
+            self.vmware_get_hostname()
+        folder = self.vmware_network_folder
+        dvsList = []
+        pgList = []
+        try:
+            si = SmartConnectNoSSL(host=self.vmware_hostname,
+                                   user=self.vmware_username,
+                                   pwd=self.vmware_password,
+                                   port=443)
+            content = si.RetrieveContent()
+            container = content.viewManager.CreateContainerView(folder, [vim.dvs.VmwareDistributedVirtualSwitch], True)
+            for managed_object_ref in container.view:
+                dvsList.append(managed_object_ref.name)
+            container.Destroy()
+            container = content.viewManager.CreateContainerView(folder, [vim.dvs.DistributedVirtualPortgroup], True)
+            for managed_object_ref in container.view:
+                pgList.append(managed_object_ref.name)
+            container.Destroy()
+            pgList = sorted(set(pgList))
+            selection = self.ask('Select datastore', pgList)
+            self.vmware_network = pgList[selection]
+        except Exception:
+            raise
+
+    def vmware_get_disksize(self):
+        default_selection = ''
+        if 'defaults' in self.local_var_json:
+            if 'vm_disk_size' in self.local_var_json['defaults']:
+                default_selection = self.local_var_json['defaults']['vm_disk_size']
+        self.logger.info("Default disk size is %s" % default_selection)
+        selection = self.ask_text('Disk size', default_selection)
+        self.vmware_disksize = selection
+
+    def vmware_get_memsize(self):
+        default_selection = ''
+        if 'defaults' in self.local_var_json:
+            if 'vm_mem_size' in self.local_var_json['defaults']:
+                default_selection = self.local_var_json['defaults']['vm_mem_size']
+        self.logger.info("Default memory size is %s" % default_selection)
+        selection = self.ask_text('Memory size', default_selection)
+        self.vmware_memsize = selection
+
+    def vmware_get_cpucores(self):
+        default_selection = ''
+        if 'defaults' in self.local_var_json:
+            if 'vm_cpu_cores' in self.local_var_json['defaults']:
+                default_selection = self.local_var_json['defaults']['vm_cpu_cores']
+        self.logger.info("Default CPU cores is %s" % default_selection)
+        selection = self.ask_text('CPU cores', default_selection)
+        self.vmware_cpucores = selection
+
+    def vmware_get_isourl(self):
+        if not self.linux_type:
+            try:
+                self.get_linux_type()
+            except Exception:
+                raise
+        if not self.linux_release:
+            try:
+                self.get_linux_release()
+            except Exception:
+                raise
+        for i in range(len(self.local_var_json['linux'][self.linux_type])):
+            if self.local_var_json['linux'][self.linux_type][i]['version'] == self.linux_release:
+                self.vmware_iso = self.local_var_json['linux'][self.linux_type][i]['image']
+                return True
+        raise Exception("Can not locate ISO URL for %s %s linux." % (self.linux_type, self.linux_release))
+
+    def vmware_get_ostype(self):
+        if not self.linux_type:
+            try:
+                self.get_linux_type()
+            except Exception:
+                raise
+        if not self.linux_release:
+            try:
+                self.get_linux_release()
+            except Exception:
+                raise
+        for i in range(len(self.local_var_json['linux'][self.linux_type])):
+            if self.local_var_json['linux'][self.linux_type][i]['version'] == self.linux_release:
+                self.vmware_ostype = self.local_var_json['linux'][self.linux_type][i]['type']
+                return True
+        raise Exception("Can not locate OS type for %s %s linux." % (self.linux_type, self.linux_release))
 
     def vmware_get_folder(self):
         default_selection = ''
@@ -1029,6 +1276,17 @@ class processTemplate(object):
                 else:
                     print("Please make a selection.")
                     continue
+
+    def ask_pass(self, question):
+        while True:
+            passanswer = getpass.getpass(prompt=question + ': ')
+            passanswer = passanswer.rstrip("\n")
+            checkanswer = getpass.getpass(prompt="Re-enter password: ")
+            checkanswer = checkanswer.rstrip("\n")
+            if passanswer == checkanswer:
+                return passanswer
+            else:
+                print(" [!] Passwords do not match, please try again ...")
 
     def create_cluster_config(self):
         config_segments = []
