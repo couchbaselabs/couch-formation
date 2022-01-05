@@ -1,0 +1,38 @@
+{
+  "linux": {
+    "centos": [
+      {
+        "version": "7",
+        "image": "http://mirrors.edge.kernel.org/centos/7.9.2009/isos/x86_64/CentOS-7-x86_64-Minimal-2009.iso",
+        "type": "centos7_64Guest",
+        "user": "centos"
+      },
+      {
+        "version": "8",
+        "image": "http://mirrors.edge.kernel.org/centos/8.5.2111/isos/x86_64/CentOS-8.5.2111-x86_64-boot.iso",
+        "type": "centos8_64Guest",
+        "user": "centos"
+      }
+    ],
+    "ubuntu": [
+      {
+        "version": "bionic",
+        "image": "https://releases.ubuntu.com/18.04.6/ubuntu-18.04.6-live-server-amd64.iso",
+        "type": "ubuntu64Guest",
+        "user": "ubuntu"
+      },
+      {
+        "version": "focal",
+        "image": "https://releases.ubuntu.com/20.04/ubuntu-20.04.3-live-server-amd64.iso",
+        "type": "ubuntu64Guest",
+        "user": "ubuntu"
+      }
+    ]
+  },
+    "defaults": {
+    "vm_cpu_cores": "2",
+    "vm_mem_size": "4096",
+    "vm_disk_size": "51200",
+    "folder": "couchbase-templates"
+  }
+}

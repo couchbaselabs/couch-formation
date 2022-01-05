@@ -15,8 +15,6 @@ import os
 import dns.reversename
 import getpass
 import ipaddress
-from pyVim.connect import SmartConnectNoSSL, Disconnect
-from pyVmomi import vim, vmodl, VmomiSupport
 import jinja2
 from jinja2.meta import find_undeclared_variables
 import requests
@@ -32,6 +30,11 @@ import hashlib
 from shutil import copyfile
 try:
     import boto3
+except ImportError:
+    pass
+try:
+    from pyVim.connect import SmartConnectNoSSL, Disconnect
+    from pyVmomi import vim, vmodl, VmomiSupport
 except ImportError:
     pass
 
@@ -165,6 +168,9 @@ class params(object):
         parser.add_argument('--prod', action='store', help="Prod Environment", type=int)
         parser.add_argument('--location', action='store', help="Public/Private Cloud", default='aws')
         parser.add_argument('--refresh', action='store_true', help="Packer file", default=False)
+        parser.add_argument('--host', action='store', help="Host Name")
+        parser.add_argument('--user', action='store', help="Host User")
+        parser.add_argument('--password', action='store', help="Host Password")
         self.parser = parser
 
 class processTemplate(object):
@@ -204,6 +210,28 @@ class processTemplate(object):
         self.aws_root_iops = None
         self.aws_root_size = None
         self.aws_root_type = None
+        self.vmware_hostname = pargs.host
+        self.vmware_username = pargs.user
+        self.vmware_password = pargs.password
+        self.vmware_datacenter = None
+        self.vmware_cluster = None
+        self.vmware_datastore = None
+        self.vmware_folder = None
+        self.vmware_ostype = None
+        self.vmware_cpucores = None
+        self.vmware_memsize = None
+        self.vmware_disksize = None
+        self.vmware_network = None
+        self.vmware_iso = None
+        self.vmware_build_user = None
+        self.vmware_build_password = None
+        self.vmware_build_pwd_encrypted = None
+        self.vmware_timezone = None
+        self.vmware_key = None
+        self.vmware_dc_folder = None
+        self.vmware_network_folder = None
+        self.vmware_host_folder = None
+        self.vmware_dvs = None
         self.global_var_json = {}
         self.local_var_json = {}
 
@@ -436,6 +464,62 @@ class processTemplate(object):
                         print("Error: %s" % str(e))
                         sys.exit(1)
                 self.logger.info("AWS_ROOT_TYPE = %s" % self.aws_root_type)
+            elif item == 'VMWARE_HOSTNAME':
+                if not self.vmware_hostname:
+                    try:
+                        self.vmware_get_hostname()
+                    except Exception as e:
+                        print("Error: %s" % str(e))
+                        sys.exit(1)
+                self.logger.info("VMWARE_HOSTNAME = %s" % self.vmware_hostname)
+            elif item == 'VMWARE_USERNAME':
+                if not self.vmware_username:
+                    try:
+                        self.vmware_get_username()
+                    except Exception as e:
+                        print("Error: %s" % str(e))
+                        sys.exit(1)
+                self.logger.info("VMWARE_USERNAME = %s" % self.vmware_username)
+            elif item == 'VMWARE_PASSWORD':
+                if not self.vmware_password:
+                    try:
+                        self.vmware_get_password()
+                    except Exception as e:
+                        print("Error: %s" % str(e))
+                        sys.exit(1)
+                self.logger.info("VMWARE_PASSWORD = %s" % self.vmware_password)
+            elif item == 'VMWARE_DATACENTER':
+                if not self.vmware_datacenter:
+                    try:
+                        self.vmware_get_datacenter()
+                    except Exception as e:
+                        print("Error: %s" % str(e))
+                        sys.exit(1)
+                self.logger.info("VMWARE_DATACENTER = %s" % self.vmware_datacenter)
+            elif item == 'VMWARE_CLUSTER':
+                if not self.vmware_cluster:
+                    try:
+                        self.vmware_get_cluster()
+                    except Exception as e:
+                        print("Error: %s" % str(e))
+                        sys.exit(1)
+                self.logger.info("VMWARE_CLUSTER = %s" % self.vmware_cluster)
+            elif item == 'VMWARE_DATASTORE':
+                if not self.vmware_datastore:
+                    try:
+                        self.vmware_get_datastore()
+                    except Exception as e:
+                        print("Error: %s" % str(e))
+                        sys.exit(1)
+                self.logger.info("VMWARE_DATASTORE = %s" % self.vmware_datastore)
+            elif item == 'VMWARE_FOLDER':
+                if not self.vmware_folder:
+                    try:
+                        self.vmware_get_folder()
+                    except Exception as e:
+                        print("Error: %s" % str(e))
+                        sys.exit(1)
+                self.logger.info("VMWARE_FOLDER = %s" % self.vmware_folder)
 
         raw_template = jinja2.Template(raw_input)
         format_template = raw_template.render(
@@ -457,6 +541,24 @@ class processTemplate(object):
                                               AWS_ROOT_IOPS=self.aws_root_iops,
                                               AWS_ROOT_SIZE=self.aws_root_size,
                                               AWS_ROOT_TYPE=self.aws_root_type,
+                                              VMWARE_HOSTNAME=self.vmware_hostname,
+                                              VMWARE_USERNAME=self.vmware_username,
+                                              VMWARE_PASSWORD=self.vmware_password,
+                                              VMWARE_DATACENTER=self.vmware_datacenter,
+                                              VMWARE_CLUSTER=self.vmware_cluster,
+                                              VMWARE_DATASTORE=self.vmware_datastore,
+                                              VMWARE_FOLDER=self.vmware_folder,
+                                              VMWARE_OS_TYPE=self.vmware_ostype,
+                                              VMWARE_CPU_CORES=self.vmware_cpucores,
+                                              VMWARE_MEM_SIZE=self.vmware_memsize,
+                                              VMWARE_DISK_SIZE=self.vmware_disksize,
+                                              VMWARE_NETWORK=self.vmware_network,
+                                              VMWARE_ISO_URL=self.vmware_iso,
+                                              VMWARE_BUILD_USERNAME=self.vmware_build_user,
+                                              VMWARE_BUILD_PASSWORD=self.vmware_build_password,
+                                              VMWARE_BUILD_PWD_ENCRYPTED=self.vmware_build_pwd_encrypted,
+                                              VMWARE_TIMEZONE=self.vmware_timezone,
+                                              VMWARE_KEY=self.vmware_key,
                                               )
 
         if pargs.packer and self.linux_type:
@@ -475,6 +577,113 @@ class processTemplate(object):
         except OSError as e:
             print("Can not write to new variable file: %s" % str(e))
             sys.exit(1)
+
+    def vmware_get_folder(self):
+        default_selection = ''
+        if 'defaults' in self.local_var_json:
+            if 'folder' in self.local_var_json['defaults']:
+                default_selection = self.local_var_json['defaults']['folder']
+        self.logger.info("Default folder is %s" % default_selection)
+        selection = self.ask_text('Folder', default_selection)
+        self.vmware_folder = selection
+        for folder in self.vmware_dc_folder.vmFolder.childEntity:
+            if folder.name == self.vmware_folder:
+                self.logger.info("Folder %s already exists." % self.vmware_folder)
+                return True
+        self.logger.info("Folder %s does not exist." % self.vmware_folder)
+        print("Creating folder %s" % self.vmware_folder)
+        try:
+            self.vmware_dc_folder.vmFolder.CreateFolder(self.vmware_folder)
+        except Exception:
+            raise
+
+    def vmware_get_datastore(self):
+        if not self.vmware_hostname:
+            self.vmware_get_hostname()
+        try:
+            si = SmartConnectNoSSL(host=self.vmware_hostname,
+                                   user=self.vmware_username,
+                                   pwd=self.vmware_password,
+                                   port=443)
+            content = si.RetrieveContent()
+            datastore_name = []
+            datastore_type = []
+            container = content.viewManager.CreateContainerView(content.rootFolder, [vim.HostSystem], True)
+            esxi_hosts = container.view
+            for esxi_host in esxi_hosts:
+                storage_system = esxi_host.configManager.storageSystem
+                host_file_sys_vol_mount_info = storage_system.fileSystemVolumeInfo.mountInfo
+                for host_mount_info in host_file_sys_vol_mount_info:
+                    if host_mount_info.volume.type == 'VFFS' or host_mount_info.volume.type == 'OTHER':
+                        continue
+                    datastore_name.append(host_mount_info.volume.name)
+                    datastore_type.append(host_mount_info.volume.type)
+            selection = self.ask('Select datastore', datastore_name, datastore_type)
+            self.vmware_datastore = datastore_name[selection]
+            container.Destroy()
+            return True
+        except Exception:
+            raise
+
+    def vmware_get_cluster(self):
+        if not self.vmware_host_folder:
+            self.vmware_get_datacenter()
+        try:
+            clusters = []
+            for c in self.vmware_host_folder.childEntity:
+                if isinstance(c, vim.ClusterComputeResource):
+                    clusters.append(c.name)
+            selection = self.ask('Select cluster', clusters)
+            self.vmware_cluster = clusters[selection]
+            return True
+        except Exception:
+            raise
+
+    def vmware_get_datacenter(self):
+        if not self.vmware_datacenter:
+            self.vmware_get_hostname()
+
+    def vmware_get_hostname(self):
+        while True:
+            if not self.vmware_hostname:
+                hostname = input("vSphere Host Name: ")
+                self.vmware_hostname = hostname.rstrip("\n")
+            if not self.vmware_username:
+                self.vmware_get_username()
+            if not self.vmware_password:
+                self.vmware_get_password()
+            try:
+                si = SmartConnectNoSSL(host=self.vmware_hostname,
+                                       user=self.vmware_username,
+                                       pwd=self.vmware_password,
+                                       port=443)
+                content = si.RetrieveContent()
+                datacenter = []
+                container = content.viewManager.CreateContainerView(content.rootFolder, [vim.Datacenter], True)
+                for c in container.view:
+                    datacenter.append(c.name)
+                selection = self.ask('Select datacenter', datacenter)
+                self.vmware_datacenter = datacenter[selection]
+                for c in container.view:
+                    if c.name == self.vmware_datacenter:
+                        self.vmware_dc_folder = c
+                        self.vmware_network_folder = c.networkFolder
+                        self.vmware_host_folder = c.hostFolder
+                container.Destroy()
+                return True
+            except Exception:
+                print(" [!] Can not access vSphere with provided credentials.")
+
+    def vmware_get_username(self):
+        useranswer = input("vSphere Admin User: ")
+        self.vmware_username = useranswer.rstrip("\n")
+        if not self.vmware_password:
+            self.vmware_get_password()
+
+    def vmware_get_password(self):
+        if not self.vmware_password:
+            passanswer = getpass.getpass(prompt="vSphere Admin Password: ")
+            self.vmware_password = passanswer.rstrip("\n")
 
     def aws_get_root_type(self):
         default_selection = ''
@@ -915,9 +1124,12 @@ class processTemplate(object):
 
     def get_paths(self, refresh=False):
         if self.packer_mode:
+            self.logger.info("get_paths: operating in packer mode.")
             relative_path = self.working_dir + '/' + 'packer'
             self.template_dir = relative_path
-            self.template_file = self.template_dir + '/' + self.template_file
+            self.logger.info("Template directory: %s" % self.template_dir)
+            # self.template_file = self.template_dir + '/' + self.template_file
+            self.logger.info("Template file: %s" % self.template_file)
             return True
         else:
             relative_path = self.working_dir + '/' + 'terraform'
@@ -928,7 +1140,7 @@ class processTemplate(object):
                 test_directory = "test-{:02d}".format(self.test_num)
                 self.template_dir = relative_path + '/' + test_directory
             elif self.prod_num:
-                prod_directory = "prod-{:02d}".format(self.prod_mnum)
+                prod_directory = "prod-{:02d}".format(self.prod_num)
                 self.template_dir = relative_path + '/' + prod_directory
             else:
                 raise Exception("Environment not specified.")

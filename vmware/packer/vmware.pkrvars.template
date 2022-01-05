@@ -1,0 +1,26 @@
+##########################################################
+#
+# CentOS variables
+#
+##########################################################
+cb_version = "{{ CB_VERSION }}"
+vsphere_hostname = "{{ VMWARE_HOSTNAME }}"
+vsphere_username = "{{ VMWARE_USERNAME }}"
+vsphere_password = "{{ VMWARE_PASSWORD }}"
+vsphere_datacenter = "{{ VMWARE_DATACENTER }}"
+vsphere_cluster = "{{ VMWARE_CLUSTER }}"
+vsphere_datastore = "{{ VMWARE_DATASTORE }}"
+vsphere_folder = "{{ VMWARE_FOLDER }}"
+vm_guest_os_type = "{{ VMWARE_OS_TYPE }}"
+vm_cpu_cores = "{{ VMWARE_CPU_CORES }}"
+vm_mem_size = "{{ VMWARE_MEM_SIZE }}"
+vm_disk_size = "{{ VMWARE_DISK_SIZE }}"
+vsphere_network = "{{ VMWARE_NETWORK }}"
+iso_url = "{{ VMWARE_ISO_URL }}"
+build_username = "{{ VMWARE_BUILD_USERNAME }}"
+build_password = "{{ VMWARE_BUILD_PASSWORD }}"
+build_password_encrypted = "{{ VMWARE_BUILD_PWD_ENCRYPTED }}"
+vm_guest_os_language = "en_US"
+vm_guest_os_keyboard = "us"
+vm_guest_os_timezone = "{{ VMWARE_TIMEZONE }}"
+build_key = "{{ VMWARE_KEY }}"
