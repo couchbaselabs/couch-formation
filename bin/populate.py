@@ -230,6 +230,7 @@ class processTemplate(object):
         self.vmware_disksize = None
         self.vmware_network = None
         self.vmware_iso = None
+        self.vmware_iso_checksum = None
         self.vmware_build_user = None
         self.vmware_build_password = None
         self.vmware_build_pwd_encrypted = None
@@ -575,6 +576,14 @@ class processTemplate(object):
                         print("Error: %s" % str(e))
                         sys.exit(1)
                 self.logger.info("VMWARE_ISO_URL = %s" % self.vmware_iso)
+            elif item == 'VMWARE_ISO_CHECKSUM':
+                if not self.vmware_iso_checksum:
+                    try:
+                        self.vmware_get_iso_checksum()
+                    except Exception as e:
+                        print("Error: %s" % str(e))
+                        sys.exit(1)
+                self.logger.info("VMWARE_ISO_CHECKSUM = %s" % self.vmware_iso_checksum)
             elif item == 'VMWARE_BUILD_USERNAME':
                 if not self.vmware_build_user:
                     try:
@@ -649,6 +658,7 @@ class processTemplate(object):
                                               VMWARE_DISK_SIZE=self.vmware_disksize,
                                               VMWARE_NETWORK=self.vmware_network,
                                               VMWARE_ISO_URL=self.vmware_iso,
+                                              VMWARE_ISO_CHECKSUM=self.vmware_iso_checksum,
                                               VMWARE_BUILD_USERNAME=self.vmware_build_user,
                                               VMWARE_BUILD_PASSWORD=self.vmware_build_password,
                                               VMWARE_BUILD_PWD_ENCRYPTED=self.vmware_build_pwd_encrypted,
@@ -697,6 +707,23 @@ class processTemplate(object):
                 tzlist.append(tzone)
         selection = self.ask('Select timezone', tzlist)
         self.vmware_timezone = tzlist[selection]
+
+    def vmware_get_iso_checksum(self):
+        if not self.linux_type:
+            try:
+                self.get_linux_type()
+            except Exception:
+                raise
+        if not self.linux_release:
+            try:
+                self.get_linux_release()
+            except Exception:
+                raise
+        for i in range(len(self.local_var_json['linux'][self.linux_type])):
+            if self.local_var_json['linux'][self.linux_type][i]['version'] == self.linux_release:
+                self.vmware_iso_checksum = self.local_var_json['linux'][self.linux_type][i]['checksum']
+                return True
+        raise Exception("Can not locate ISO checksum for %s %s linux." % (self.linux_type, self.linux_release))
 
     def get_public_key(self):
         if not self.ssh_private_key:

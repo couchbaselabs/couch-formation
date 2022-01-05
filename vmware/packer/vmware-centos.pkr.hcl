@@ -26,22 +26,107 @@ variable "os_linux_release" {
   type        = string
 }
 
-variable "aws_image_name" {
+variable "vsphere_cluster" {
   description = "AWS image"
   type        = string
 }
 
-variable "aws_image_owner" {
+variable "vm_cpu_cores" {
   description = "AMI owner"
   type        = string
 }
 
-variable "aws_image_user" {
+variable "vsphere_datacenter" {
   description = "AMI SSH user"
   type        = string
 }
 
-variable "aws_region" {
+variable "vsphere_folder" {
+  description = "AWS region"
+  type        = string
+}
+
+variable "vm_guest_os_keyboard" {
+  description = "AWS region"
+  type        = string
+}
+
+variable "vsphere_password" {
+  description = "AWS region"
+  type        = string
+}
+
+variable "build_username" {
+  description = "AWS region"
+  type        = string
+}
+
+variable "vm_guest_os_timezone" {
+  description = "AWS region"
+  type        = string
+}
+
+variable "build_key" {
+  description = "AWS region"
+  type        = string
+}
+
+variable "build_password" {
+  description = "AWS region"
+  type        = string
+}
+
+variable "vsphere_datastore" {
+  description = "AWS region"
+  type        = string
+}
+
+variable "vm_mem_size" {
+  description = "AWS region"
+  type        = string
+}
+
+variable "vm_guest_os_type" {
+  description = "AWS region"
+  type        = string
+}
+
+variable "vm_disk_size" {
+  description = "AWS region"
+  type        = string
+}
+
+variable "iso_url" {
+  description = "AWS region"
+  type        = string
+}
+
+variable "iso_checksum" {
+  description = "AWS region"
+  type        = string
+}
+
+variable "vsphere_hostname" {
+  description = "AWS region"
+  type        = string
+}
+
+variable "vsphere_username" {
+  description = "AWS region"
+  type        = string
+}
+
+variable "vsphere_network" {
+  description = "AWS region"
+  type        = string
+}
+
+variable "build_password_encrypted" {
+  description = "AWS region"
+  type        = string
+}
+
+variable "vm_guest_os_language" {
   description = "AWS region"
   type        = string
 }
@@ -80,6 +165,7 @@ source "vsphere-iso" "cb-node" {
   #iso_paths           = ["[${var.vsphere_iso_datastore}] ${var.vsphere_iso_path}/${var.iso_file}"]
   #iso_checksum        = "${var.vsphere_iso_hash}:${var.iso_checksum}"
   iso_url              = var.iso_url
+  iso_checksum         = var.iso_checksum
   http_port_min        = 8000
   http_port_max        = 8099
   http_content = {
@@ -88,7 +174,7 @@ source "vsphere-iso" "cb-node" {
   }
   boot_order          = "disk,cdrom"
   boot_wait           = "5s"
-  boot_command        = ["<enter><enter><f6><esc><wait> ", "autoinstall ", "ip=dhcp ipv6.disable=1 ds=nocloud-net;s=http://{{.HTTPIP}}:{{.HTTPPort}}/ ", "<enter><wait>"]
+  boot_command        = ["<up><wait><tab><wait> ", "text ", "ip=dhcp ipv6.disable=1 ds=nocloud-net;s=http://{{.HTTPIP}}:{{.HTTPPort}}/ ", "<enter><wait>"]
   ip_wait_timeout     = "20m"
   shutdown_command    = "echo '${var.build_password}' | sudo -S -E shutdown -P now"
   shutdown_timeout    = "15m"
