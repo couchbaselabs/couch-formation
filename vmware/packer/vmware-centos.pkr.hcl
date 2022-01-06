@@ -27,112 +27,112 @@ variable "os_linux_release" {
 }
 
 variable "vsphere_cluster" {
-  description = "AWS image"
+  description = "vSphere Cluster"
   type        = string
 }
 
 variable "vm_cpu_cores" {
-  description = "AMI owner"
+  description = "Build VM cores"
   type        = string
 }
 
 variable "vsphere_datacenter" {
-  description = "AMI SSH user"
+  description = "vSphere Datacenter"
   type        = string
 }
 
 variable "vsphere_folder" {
-  description = "AWS region"
+  description = "vSphere Folder"
   type        = string
 }
 
 variable "vm_guest_os_keyboard" {
-  description = "AWS region"
+  description = "Keyboard Selection"
   type        = string
 }
 
 variable "vsphere_password" {
-  description = "AWS region"
+  description = "vSphere Admin Password"
   type        = string
 }
 
 variable "build_username" {
-  description = "AWS region"
+  description = "OS User Name"
   type        = string
 }
 
 variable "vm_guest_os_timezone" {
-  description = "AWS region"
+  description = "OS Timezone"
   type        = string
 }
 
 variable "build_key" {
-  description = "AWS region"
+  description = "OS User SSH Authorized Key"
   type        = string
 }
 
 variable "build_password" {
-  description = "AWS region"
+  description = "OS User Password"
   type        = string
 }
 
 variable "vsphere_datastore" {
-  description = "AWS region"
+  description = "vSphere Datastore"
   type        = string
 }
 
 variable "vm_mem_size" {
-  description = "AWS region"
+  description = "Build VM Memory"
   type        = string
 }
 
 variable "vm_guest_os_type" {
-  description = "AWS region"
+  description = "Template OS Type"
   type        = string
 }
 
 variable "vm_disk_size" {
-  description = "AWS region"
+  description = "Build VM Disk Size"
   type        = string
 }
 
 variable "iso_url" {
-  description = "AWS region"
+  description = "OS ISO URL"
   type        = string
 }
 
 variable "iso_checksum" {
-  description = "AWS region"
+  description = "OS ISO Checksum"
   type        = string
 }
 
 variable "sw_url" {
-  description = "AWS region"
+  description = "OS Software Install URL"
   type        = string
 }
 
 variable "vsphere_hostname" {
-  description = "AWS region"
+  description = "vSphere API Endpoint"
   type        = string
 }
 
 variable "vsphere_username" {
-  description = "AWS region"
+  description = "vSphere Admin Username"
   type        = string
 }
 
 variable "vsphere_network" {
-  description = "AWS region"
+  description = "vSphere Port Group"
   type        = string
 }
 
 variable "build_password_encrypted" {
-  description = "AWS region"
+  description = "OS User Hashed Password"
   type        = string
 }
 
 variable "vm_guest_os_language" {
-  description = "AWS region"
+  description = "OS Language"
   type        = string
 }
 
@@ -146,7 +146,7 @@ source "vsphere-iso" "cb-node" {
   datastore            = var.vsphere_datastore
   folder               = var.vsphere_folder
   guest_os_type        = var.vm_guest_os_type
-  vm_name              = "couchbase-template-linux-centos"
+  vm_name              = "${var.os_linux_type}-${var.os_linux_release}-couchbase-${local.timestamp}"
   firmware             = "bios"
   CPUs                 = 1
   cpu_cores            = var.vm_cpu_cores
