@@ -142,7 +142,7 @@ source "vsphere-iso" "cb-node" {
   folder               = var.vsphere_folder
   guest_os_type        = var.vm_guest_os_type
   vm_name              = "couchbase-template-linux-centos"
-  firmware             = "efi"
+  firmware             = "bios"
   CPUs                 = 1
   cpu_cores            = var.vm_cpu_cores
   CPU_hot_plug         = false
@@ -169,12 +169,11 @@ source "vsphere-iso" "cb-node" {
   http_port_min        = 8000
   http_port_max        = 8099
   http_content = {
-    "/meta-data" = file("meta-data")
-    "/user-data" = templatefile("user-data-centos.pkrtpl.hcl", { build_username = var.build_username, build_password_encrypted = var.build_password_encrypted, vm_guest_os_language = var.vm_guest_os_language, vm_guest_os_keyboard = var.vm_guest_os_keyboard, vm_guest_os_timezone = var.vm_guest_os_timezone, build_key = var.build_key })
+    "/ks.cfg" = templatefile("ks-cfg.pkrtpl.hcl", { build_username = var.build_username, build_password_encrypted = var.build_password_encrypted, vm_guest_os_language = var.vm_guest_os_language, vm_guest_os_keyboard = var.vm_guest_os_keyboard, vm_guest_os_timezone = var.vm_guest_os_timezone, build_key = var.build_key })
   }
   boot_order          = "disk,cdrom"
   boot_wait           = "5s"
-  boot_command        = ["<up><wait><tab><wait> ", "text ", "ip=dhcp ipv6.disable=1 ds=nocloud-net;s=http://{{.HTTPIP}}:{{.HTTPPort}}/ ", "<enter><wait>"]
+  boot_command        = ["<up><wait><tab><wait> ", " inst.text ", "inst.ks=http://{{ .HTTPIP }}:{{ .HTTPPort }}/ks.cfg ", "<enter><wait>"]
   ip_wait_timeout     = "20m"
   shutdown_command    = "echo '${var.build_password}' | sudo -S -E shutdown -P now"
   shutdown_timeout    = "15m"
