@@ -106,6 +106,11 @@ variable "iso_checksum" {
   type        = string
 }
 
+variable "sw_url" {
+  description = "AWS region"
+  type        = string
+}
+
 variable "vsphere_hostname" {
   description = "AWS region"
   type        = string
@@ -169,7 +174,7 @@ source "vsphere-iso" "cb-node" {
   http_port_min        = 8000
   http_port_max        = 8099
   http_content = {
-    "/ks.cfg" = templatefile("ks-cfg.pkrtpl.hcl", { build_username = var.build_username, build_password_encrypted = var.build_password_encrypted, vm_guest_os_language = var.vm_guest_os_language, vm_guest_os_keyboard = var.vm_guest_os_keyboard, vm_guest_os_timezone = var.vm_guest_os_timezone, build_key = var.build_key })
+    "/ks.cfg" = templatefile("ks-cfg.pkrtpl.hcl", { build_username = var.build_username, build_password_encrypted = var.build_password_encrypted, vm_guest_os_language = var.vm_guest_os_language, vm_guest_os_keyboard = var.vm_guest_os_keyboard, vm_guest_os_timezone = var.vm_guest_os_timezone, build_key = var.build_key, sw_url = var.sw_url })
   }
   boot_order          = "disk,cdrom"
   boot_wait           = "5s"

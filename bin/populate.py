@@ -24,6 +24,9 @@ from requests.adapters import HTTPAdapter
 import xml.etree.ElementTree as ET
 import gzip
 import datetime
+from passlib.hash import sha512_crypt
+import string
+import random
 import readline
 import base64
 from cryptography.hazmat.backends import default_backend
@@ -231,6 +234,7 @@ class processTemplate(object):
         self.vmware_network = None
         self.vmware_iso = None
         self.vmware_iso_checksum = None
+        self.vmware_sw_url = None
         self.vmware_build_user = None
         self.vmware_build_password = None
         self.vmware_build_pwd_encrypted = None
@@ -584,6 +588,14 @@ class processTemplate(object):
                         print("Error: %s" % str(e))
                         sys.exit(1)
                 self.logger.info("VMWARE_ISO_CHECKSUM = %s" % self.vmware_iso_checksum)
+            elif item == 'VMWARE_SW_URL':
+                if not self.vmware_sw_url:
+                    try:
+                        self.vmware_get_sw_url()
+                    except Exception as e:
+                        print("Error: %s" % str(e))
+                        sys.exit(1)
+                self.logger.info("VMWARE_SW_URL = %s" % self.vmware_sw_url)
             elif item == 'VMWARE_BUILD_USERNAME':
                 if not self.vmware_build_user:
                     try:
@@ -659,6 +671,7 @@ class processTemplate(object):
                                               VMWARE_NETWORK=self.vmware_network,
                                               VMWARE_ISO_URL=self.vmware_iso,
                                               VMWARE_ISO_CHECKSUM=self.vmware_iso_checksum,
+                                              VMWARE_SW_URL=self.vmware_sw_url,
                                               VMWARE_BUILD_USERNAME=self.vmware_build_user,
                                               VMWARE_BUILD_PASSWORD=self.vmware_build_password,
                                               VMWARE_BUILD_PWD_ENCRYPTED=self.vmware_build_pwd_encrypted,
@@ -708,6 +721,23 @@ class processTemplate(object):
         selection = self.ask('Select timezone', tzlist)
         self.vmware_timezone = tzlist[selection]
 
+    def vmware_get_sw_url(self):
+        if not self.linux_type:
+            try:
+                self.get_linux_type()
+            except Exception:
+                raise
+        if not self.linux_release:
+            try:
+                self.get_linux_release()
+            except Exception:
+                raise
+        for i in range(len(self.local_var_json['linux'][self.linux_type])):
+            if self.local_var_json['linux'][self.linux_type][i]['version'] == self.linux_release:
+                self.vmware_sw_url = self.local_var_json['linux'][self.linux_type][i]['sw_url']
+                return True
+        raise Exception("Can not locate software URL for %s %s linux." % (self.linux_type, self.linux_release))
+
     def vmware_get_iso_checksum(self):
         if not self.linux_type:
             try:
@@ -746,7 +776,7 @@ class processTemplate(object):
             self.vmware_get_build_username()
         selection = self.ask_pass("Build user %s password" % self.vmware_build_user)
         self.vmware_build_password = selection
-        self.vmware_build_pwd_encrypted = crypt.crypt(self.vmware_build_password, crypt.mksalt(crypt.METHOD_SHA512))
+        self.vmware_build_pwd_encrypted = sha512_crypt.using(salt=''.join([random.choice(string.ascii_letters + string.digits) for _ in range(16)]), rounds=5000).hash(self.vmware_build_password)
 
     def vmware_get_build_username(self):
         if not self.linux_type:

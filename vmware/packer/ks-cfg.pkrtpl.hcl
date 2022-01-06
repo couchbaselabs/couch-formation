@@ -4,7 +4,8 @@ text
 # Specify installation method to use for installation
 # To use a different one comment out the 'url' one below, update
 # the selected choice with proper options & un-comment it
-cdrom
+# cdrom
+url --url=${sw_url}
 
 # Set language to use during installation and the default language to use on the installed system (required)
 lang en_US.UTF-8
@@ -48,7 +49,7 @@ timezone --utc ${vm_guest_os_timezone}
 
 # Specify how the bootloader should be installed (required)
 # Plaintext password is: password
-bootloader --location=mbr --append="rhgb quiet"
+bootloader --location=mbr
 autopart --type=lvm
 # Initialize all disks
 
@@ -56,21 +57,25 @@ clearpart --linux --initlabel
 
 # Packages selection
 %packages
-@base
+@^minimal-environment
+@standard
 %end
 # End of %packages section
 
 %post
-sudo yum update -y
-sudo yum -y install epel-release open-vm-tools perl python python3-pip openssh-server curl cloud-init git wget sudo
-echo '${build_username} ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/${build_username}
+set -x
+yum update -y
+yum -y install epel-release open-vm-tools perl python python3-pip openssh-server curl cloud-init git wget sudo
+echo "${build_username} ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/${build_username}
 chmod 440 /etc/sudoers.d/${build_username}
 sed -i "s/.*PermitRootLogin.*/PermitRootLogin yes/g" /etc/ssh/sshd_config
-mkdir -m0700 /home/${build_username}/.ssh/
+mkdir -m 0700 /home/${build_username}/.ssh/
+chown ${build_username}:wheel /home/${build_username}/.ssh/
 cat <<EOF > /home/${build_username}/.ssh/authorized_keys
 ${build_key}
 EOF
 chmod 0600 /home/${build_username}/.ssh/authorized_keys
+chown ${build_username}:wheel /home/${build_username}/.ssh/authorized_keys
 grub2-mkconfig -o /boot/grub2/grub.cfg
 %end
 
