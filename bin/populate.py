@@ -16,6 +16,9 @@ import dns.reversename
 import getpass
 import crypt
 import ipaddress
+import socket
+import dns.resolver
+import dns.reversename
 import jinja2
 from jinja2.meta import find_undeclared_variables
 import requests
@@ -205,6 +208,7 @@ class processTemplate(object):
         self.ssh_private_key = None
         self.ssh_public_key = None
         self.ssh_key_fingerprint = None
+        self.domain_name = None
         self.cb_version = None
         self.cb_index_mem_type = None
         self.aws_image_name = None
@@ -567,11 +571,19 @@ class processTemplate(object):
             elif item == 'VMWARE_NETWORK':
                 if not self.vmware_network:
                     try:
-                        self.vmware_get_network()
+                        self.vmware_get_dvs_network()
                     except Exception as e:
                         print("Error: %s" % str(e))
                         sys.exit(1)
                 self.logger.info("VMWARE_NETWORK = %s" % self.vmware_network)
+            elif item == 'VMWARE_DVS':
+                if not self.vmware_dvs:
+                    try:
+                        self.vmware_get_dvs_network()
+                    except Exception as e:
+                        print("Error: %s" % str(e))
+                        sys.exit(1)
+                self.logger.info("VMWARE_DVS = %s" % self.vmware_dvs)
             elif item == 'VMWARE_ISO_URL':
                 if not self.vmware_iso:
                     try:
@@ -636,12 +648,21 @@ class processTemplate(object):
                         print("Error: %s" % str(e))
                         sys.exit(1)
                 self.logger.info("VMWARE_TIMEZONE = %s" % self.vmware_timezone)
+            elif item == 'DOMAIN_NAME':
+                if not self.domain_name:
+                    try:
+                        self.get_domain_name()
+                    except Exception as e:
+                        print("Error: %s" % str(e))
+                        sys.exit(1)
+                self.logger.info("DOMAIN_NAME = %s" % self.domain_name)
 
         raw_template = jinja2.Template(raw_input)
         format_template = raw_template.render(
                                               CB_VERSION=self.cb_version,
                                               LINUX_TYPE=self.linux_type,
                                               LINUX_RELEASE=self.linux_release,
+                                              DOMAIN_NAME=self.domain_name,
                                               AWS_IMAGE=self.aws_image_name,
                                               AWS_AMI_OWNER=self.aws_image_owner,
                                               AWS_AMI_USER=self.aws_image_user,
@@ -670,6 +691,7 @@ class processTemplate(object):
                                               VMWARE_DISK_SIZE=self.vmware_disksize,
                                               VMWARE_NETWORK=self.vmware_network,
                                               VMWARE_ISO_URL=self.vmware_iso,
+                                              VMWARE_DVS=self.vmware_dvs,
                                               VMWARE_ISO_CHECKSUM=self.vmware_iso_checksum,
                                               VMWARE_SW_URL=self.vmware_sw_url,
                                               VMWARE_BUILD_USERNAME=self.vmware_build_user,
@@ -695,6 +717,23 @@ class processTemplate(object):
         except OSError as e:
             print("Can not write to new variable file: %s" % str(e))
             sys.exit(1)
+
+    def get_domain_name(self):
+        resolver = dns.resolver.Resolver()
+        hostname = socket.gethostname()
+        default_selection = ''
+        try:
+            ip_result = resolver.resolve(hostname, 'A')
+            arpa_result = dns.reversename.from_address(ip_result[0].to_text())
+            fqdn_result = resolver.resolve(arpa_result, 'PTR')
+            host_fqdn = fqdn_result[0].to_text()
+            domain_name = host_fqdn.split('.', 1)[1].rstrip('.')
+            self.logger.info("Host domain is %s" % domain_name)
+            default_selection = domain_name
+        except dns.resolver.NXDOMAIN:
+            pass
+        selection = self.ask_text('DNS Domain Name', default_selection)
+        self.domain_name = selection
 
     def get_timezone(self):
         local_code = datetime.datetime.now(datetime.timezone.utc).astimezone().tzname()
@@ -795,7 +834,7 @@ class processTemplate(object):
                 return True
         raise Exception("Can not locate build user for %s %s linux." % (self.linux_type, self.linux_release))
 
-    def vmware_get_network(self):
+    def vmware_get_dvs_network(self):
         if not self.vmware_hostname:
             self.vmware_get_hostname()
         folder = self.vmware_network_folder
@@ -816,6 +855,8 @@ class processTemplate(object):
                 pgList.append(managed_object_ref.name)
             container.Destroy()
             pgList = sorted(set(pgList))
+            selection = self.ask('Distributed switch', dvsList)
+            self.vmware_dvs = dvsList[selection]
             selection = self.ask('Select datastore', pgList)
             self.vmware_network = pgList[selection]
         except Exception:
