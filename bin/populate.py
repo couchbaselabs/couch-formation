@@ -9,16 +9,16 @@ import os
 import sys
 import argparse
 import json
-import dns.resolver
 import re
 import os
-import dns.reversename
 import getpass
 import crypt
 import ipaddress
 import socket
 import dns.resolver
 import dns.reversename
+import dns.tsigkeyring
+import dns.update
 import jinja2
 from jinja2.meta import find_undeclared_variables
 import requests
@@ -48,7 +48,7 @@ try:
 except ImportError:
     pass
 
-
+PUBLIC_CLOUD = True
 
 CB_CFG_HEAD = """####
 variable "cluster_spec" {
@@ -57,7 +57,7 @@ variable "cluster_spec" {
   default     = {"""
 
 CB_CFG_NODE = """
-    cb-{{ NODE_ENV }}-n{{ NODE_NUMBER_FMT }} = {
+    {{ NODE_NAME }} = {
       node_number     = {{ NODE_NUMBER }},
       node_services   = "{{ NODE_SERVICES }}",
       install_mode    = "{{ NODE_INSTALL_MODE }}",
@@ -69,6 +69,204 @@ CB_CFG_TAIL = """
   }
 }
 """
+
+class ask(object):
+
+    def __init__(self):
+        pass
+
+    def ask_list(self, question, options=[], descriptions=[]):
+        print("%s:" % question)
+        for i in range(len(options)):
+            if i < len(descriptions):
+                extra = '(' + descriptions[i] + ')'
+            else:
+                extra = ''
+            print(" %02d) %s %s" % (i+1, options[i], extra))
+        while True:
+            answer = input("Selection: ")
+            answer = answer.rstrip("\n")
+            try:
+                value = int(answer)
+                if value > 0 and value <= len(options):
+                    return value - 1
+                else:
+                    print("Incorrect value, please try again...")
+                    continue
+            except Exception:
+                print("Please select the number corresponding to your selection.")
+                continue
+
+    def ask_text(self, question, default=''):
+        while True:
+            prompt = question + ' [' + default + ']: '
+            answer = input(prompt)
+            answer = answer.rstrip("\n")
+            if len(answer) > 0:
+                return answer
+            else:
+                if len(default) > 0:
+                    return default
+                else:
+                    print("Please make a selection.")
+                    continue
+
+    def ask_pass(self, question):
+        while True:
+            passanswer = getpass.getpass(prompt=question + ': ')
+            passanswer = passanswer.rstrip("\n")
+            checkanswer = getpass.getpass(prompt="Re-enter password: ")
+            checkanswer = checkanswer.rstrip("\n")
+            if passanswer == checkanswer:
+                return passanswer
+            else:
+                print(" [!] Passwords do not match, please try again ...")
+
+    def ask_yn(self, question, default=False):
+        if default:
+            default_answer = 'y'
+        else:
+            default_answer = 'n'
+        while True:
+            prompt = "{} (y/n) [{}]? ".format(question, default_answer)
+            answer = input(prompt)
+            answer = answer.rstrip("\n")
+            if len(answer) == 0:
+                answer = default_answer
+            if answer == 'Y' or answer == 'y' or answer == 'yes':
+                return True
+            elif answer == 'N' or answer == 'n' or answer == 'no':
+                return False
+            else:
+                print(" [!] Unrecognized answer, please try again...")
+
+class dynamicDNS(object):
+
+    def __init__(self, domain, server, type='tsig'):
+        self.type = type
+        self.dns_server = server
+        self.dns_domain = domain
+        self.zone_name = None
+        self.tsig_keyName = None
+        self.tsig_keyAlgorithm = None
+        self.tsig_key = None
+        self.homeDir = os.environ['HOME']
+        self.dnsKeyPath = self.homeDir + "/.dns"
+        self.dnsKeyFile = self.dnsKeyPath + "/{}.key".format(domain)
+
+    def dns_prep(self):
+        if self.type == 'tsig':
+            return self.tsig_config()
+        else:
+            print("dns_prep: Unsupported type %s" % type)
+            return False
+
+    def dns_update(self, hostname, address):
+        if self.type == 'tsig':
+            return self.tsig_update(hostname, address)
+        else:
+            print("dns_update: Unsupported type %s" % type)
+            return False
+
+    def dns_zone_xfer(self):
+        address_list = []
+        resolver = dns.resolver.Resolver()
+        ns_answer = resolver.resolve(self.dns_domain, 'NS')
+        for server in ns_answer:
+            ip_answer = resolver.resolve(server.target, 'A')
+            for ip in ip_answer:
+                try:
+                    zone = dns.zone.from_xfr(dns.query.xfr(str(ip), self.dns_domain))
+                    for (name, ttl, rdata) in zone.iterate_rdatas(rdtype='A'):
+                        address_list.append(rdata.to_text())
+                    return address_list
+                except Exception as e:
+                    continue
+        return []
+
+    def dns_get_range(self, network):
+        address_list = self.dns_zone_xfer()
+        subnet_list = []
+        free_list = []
+        if len(address_list) > 0:
+            address_list = sorted(address_list)
+            for ip in address_list:
+                if ipaddress.ip_address(ip) in ipaddress.ip_network(network):
+                    subnet_list.append(ip)
+            for all_ip in ipaddress.ip_network(network).hosts():
+                if not any(str(all_ip) in address for address in subnet_list):
+                    free_list.append(all_ip)
+            for ip in free_list:
+                print(ip)
+
+    def tsig_config(self):
+        inquire = ask()
+        algorithms = ['HMAC_MD5',
+                      'HMAC_SHA1',
+                      'HMAC_SHA224',
+                      'HMAC_SHA256',
+                      'HMAC_SHA256_128',
+                      'HMAC_SHA384',
+                      'HMAC_SHA384_192',
+                      'HMAC_SHA512',
+                      'HMAC_SHA512_256']
+
+        if os.path.exists(self.dnsKeyFile):
+            try:
+                with open(self.dnsKeyFile, 'r') as keyFile:
+                    try:
+                        keyData = json.load(keyFile)
+                    except ValueError as e:
+                        print("DNS key file ~/.dns/dns.key does not contain valid JSON data: %s" % str(e))
+                        return False
+                    try:
+                        self.tsig_key = keyData['dnskey']
+                        self.tsig_keyName = keyData['keyname']
+                        self.tsig_keyAlgorithm = keyData['algorithm']
+                        self.tsig_keyName = self.tsig_keyName + '.'
+                        return True
+                    except KeyError:
+                        print("DNS key file ~/.dns/dns.key does not contain TSIG key attributes.")
+                        return False
+            except OSError as e:
+                print("Could not read dns key file: %s" % str(e))
+                sys.exit(1)
+        else:
+            if not os.path.exists(self.dnsKeyPath):
+                try:
+                    os.mkdir(self.dnsKeyPath)
+                except OSError as e:
+                    print("Could not create dns key store path: %s" % str(e))
+                    return False
+            keyData = {}
+            self.tsig_keyName = keyData['keyname'] = inquire.ask_text('TSIG Key Name')
+            self.tsig_key = keyData['dnskey'] = inquire.ask_text('TSIG Key')
+            selection = inquire.ask_list('Key Algorithm', algorithms)
+            self.tsig_keyAlgorithm = keyData['algorithm'] = algorithms[selection]
+            self.tsig_keyName = self.tsig_keyName + '.'
+            try:
+                with open(self.dnsKeyFile, 'w') as keyFile:
+                    json.dump(keyData, keyFile, indent=2)
+                    keyFile.write("\n")
+                    keyFile.close()
+            except OSError as e:
+                print("Could not write dns key file: %s" % str(e))
+                return False
+            return True
+
+    def tsig_update(self, hostname, address):
+        response = None
+        add_name = hostname + '.' + self.dns_domain
+        keyring = dns.tsigkeyring.from_text({self.tsig_keyName: self.tsig_key})
+        update = dns.update.Update(self.dns_domain, keyring=keyring, keyalgorithm=getattr(dns.tsig, self.tsig_keyAlgorithm))
+        update.add(add_name, 8600, 'A', address)
+        try:
+            response = dns.query.tcp(update, self.dns_server)
+            return True
+        except Exception as e:
+            rcode = dns.rcode.to_text(response.rcode())
+            print("tsig_update: failed for %s server returned %s error %s" % (hostname, str(rcode), str(e)))
+            return False
 
 class cbrelease(object):
 
@@ -183,6 +381,11 @@ class params(object):
         parser.add_argument('--host', action='store', help="Host Name")
         parser.add_argument('--user', action='store', help="Host User")
         parser.add_argument('--password', action='store', help="Host Password")
+        parser.add_argument('--static', action='store_true', help="Assign Static IPs", default=False)
+        parser.add_argument('--dns', action='store_true', help="Update DNS", default=False)
+        parser.add_argument('--nameserver', action='store', help="DNS Server")
+        parser.add_argument('--domain', action='store', help="DNS Domain")
+        parser.add_argument('--subnet', action='store', help="Network Subnet")
         self.parser = parser
 
 class processTemplate(object):
@@ -199,6 +402,10 @@ class processTemplate(object):
         self.dev_num = pargs.dev
         self.test_num = pargs.test
         self.prod_num = pargs.prod
+        self.location = pargs.location
+        self.static_ip = pargs.static
+        self.update_dns = pargs.dns
+        self.subnet_cidr = pargs.subnet
         self.packer_mode = pargs.packer
         self.globals_file = None
         self.locals_file = None
@@ -208,7 +415,8 @@ class processTemplate(object):
         self.ssh_private_key = None
         self.ssh_public_key = None
         self.ssh_key_fingerprint = None
-        self.domain_name = None
+        self.domain_name = pargs.domain
+        self.dns_server = pargs.nameserver
         self.cb_version = None
         self.cb_index_mem_type = None
         self.aws_image_name = None
@@ -248,6 +456,7 @@ class processTemplate(object):
         self.vmware_network_folder = None
         self.vmware_host_folder = None
         self.vmware_dvs = None
+        self.vmware_template = None
         self.global_var_json = {}
         self.local_var_json = {}
 
@@ -648,6 +857,14 @@ class processTemplate(object):
                         print("Error: %s" % str(e))
                         sys.exit(1)
                 self.logger.info("VMWARE_TIMEZONE = %s" % self.vmware_timezone)
+            elif item == 'VMWARE_TEMPLATE':
+                if not self.vmware_template:
+                    try:
+                        self.vmware_get_template()
+                    except Exception as e:
+                        print("Error: %s" % str(e))
+                        sys.exit(1)
+                self.logger.info("VMWARE_TEMPLATE = %s" % self.vmware_template)
             elif item == 'DOMAIN_NAME':
                 if not self.domain_name:
                     try:
@@ -699,6 +916,7 @@ class processTemplate(object):
                                               VMWARE_BUILD_PWD_ENCRYPTED=self.vmware_build_pwd_encrypted,
                                               VMWARE_TIMEZONE=self.vmware_timezone,
                                               VMWARE_KEY=self.ssh_public_key,
+                                              VMWARE_TEMPLATE=self.vmware_template,
                                               )
 
         if pargs.packer and self.linux_type:
@@ -759,6 +977,26 @@ class processTemplate(object):
                 tzlist.append(tzone)
         selection = self.ask('Select timezone', tzlist)
         self.vmware_timezone = tzlist[selection]
+
+    def vmware_get_template(self):
+        if not self.vmware_hostname:
+            self.vmware_get_hostname()
+        templates = []
+        try:
+            si = SmartConnectNoSSL(host=self.vmware_hostname,
+                                   user=self.vmware_username,
+                                   pwd=self.vmware_password,
+                                   port=443)
+            content = si.RetrieveContent()
+            container = content.viewManager.CreateContainerView(content.rootFolder, [vim.VirtualMachine], True)
+            for managed_object_ref in container.view:
+                if managed_object_ref.config.template:
+                    templates.append(managed_object_ref.name)
+            container.Destroy()
+            selection = self.ask('Select template', templates)
+            self.vmware_template = templates[selection]
+        except Exception:
+            raise
 
     def vmware_get_sw_url(self):
         if not self.linux_type:
@@ -1386,7 +1624,27 @@ class processTemplate(object):
             else:
                 print(" [!] Passwords do not match, please try again ...")
 
+    def ask_yn(self, question, default=False):
+        if default:
+            default_answer = 'y'
+        else:
+            default_answer = 'n'
+        while True:
+            prompt = "{} (y/n) [{}]? ".format(question, default_answer)
+            answer = input(prompt)
+            answer = answer.rstrip("\n")
+            if len(answer) == 0:
+                answer = default_answer
+            if answer == 'Y' or answer == 'y' or answer == 'yes':
+                return True
+            elif answer == 'N' or answer == 'n' or answer == 'no':
+                return False
+            else:
+                print(" [!] Unrecognized answer, please try again...")
+
     def create_cluster_config(self):
+        inquire = ask()
+        resolver = dns.resolver.Resolver()
         config_segments = []
         config_segments.append(CB_CFG_HEAD)
         node = 1
@@ -1405,11 +1663,28 @@ class processTemplate(object):
         print("Building cluster configuration")
         while True:
             selected_services = []
+            node_name = "cb-{}-n{:02d}".format(env_text, node)
             if node == 1:
                 install_mode = 'init'
             else:
                 install_mode = 'add'
             print("Configuring node %d" % node)
+            if self.static_ip:
+                if not self.domain_name:
+                    self.get_domain_name()
+                if self.update_dns:
+                    dnsupd = dynamicDNS(self.domain_name, self.dns_server)
+                    node_fqdn = "{}.{}".format(node_name, self.domain_name)
+                    try:
+                        answer = resolver.resolve(node_fqdn, 'A')
+                        node_ip_address = answer[0]
+                    except dns.resolver.NXDOMAIN:
+                        print("[i] Can not resolve node host name %s" % node_fqdn)
+                        dnsupd.dns_get_range(self.subnet_cidr)
+                        return
+                        # if dnsupd.dns_prep():
+                        #     node_address = inquire.ask_text('Node address')
+                        #     dnsupd.dns_update(node_name, node_address)
             for node_svc in services:
                 if node_svc == 'data' or node_svc == 'index' or node_svc == 'query':
                     default_answer = 'y'
@@ -1423,8 +1698,7 @@ class processTemplate(object):
                     selected_services.append(node_svc)
             raw_template = jinja2.Template(CB_CFG_NODE)
             format_template = raw_template.render(
-                NODE_ENV=env_text,
-                NODE_NUMBER_FMT="{:02d}".format(node),
+                NODE_NAME=node_name,
                 NODE_NUMBER=node,
                 NODE_SERVICES=','.join(selected_services),
                 NODE_INSTALL_MODE=install_mode,

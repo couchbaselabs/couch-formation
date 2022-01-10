@@ -109,7 +109,7 @@ resource "vsphere_virtual_machine" "couchbase_nodes" {
 }
 
 locals {
-  rally_node = element([for node in aws_instance.couchbase_nodes: node.private_ip], 0)
+  rally_node = element([for node in vsphere_virtual_machine.couchbase_nodes: node.private_ip], 0)
 }
 
 resource "null_resource" "couchbase-init" {
