@@ -32,6 +32,7 @@ import string
 import random
 import readline
 import base64
+import math
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
 from Crypto.PublicKey import RSA
@@ -204,9 +205,9 @@ class dynamicDNS(object):
             print("dns_prep: Unsupported type %s" % type)
             return False
 
-    def dns_update(self, hostname, address):
+    def dns_update(self, hostname, domain, address, prefix):
         if self.type == 'tsig':
-            return self.tsig_update(hostname, address)
+            return self.tsig_update(hostname, domain, address, prefix)
         else:
             print("dns_update: Unsupported type %s" % type)
             return False
@@ -328,12 +329,20 @@ class dynamicDNS(object):
                 return False
             return True
 
-    def tsig_update(self, hostname, address):
+    def tsig_update(self, hostname, domain, address, prefix):
         response = None
-        keyring = dns.tsigkeyring.from_text({self.tsig_keyName: self.tsig_key})
-        update = dns.update.Update(self.dns_domain, keyring=keyring, keyalgorithm=getattr(dns.tsig, self.tsig_keyAlgorithm))
-        update.add(hostname, 8600, 'A', address)
         try:
+            host_fqdn = hostname + '.' + domain + '.'
+            last_octet = address.split('.')[3]
+            octets = 4 - math.trunc(prefix / 8)
+            reverse = dns.reversename.from_address(address)
+            arpa_zone = b'.'.join(dns.name.from_text(str(reverse)).labels[octets:]).decode('utf-8')
+            keyring = dns.tsigkeyring.from_text({self.tsig_keyName: self.tsig_key})
+            update = dns.update.Update(self.dns_domain, keyring=keyring, keyalgorithm=getattr(dns.tsig, self.tsig_keyAlgorithm))
+            update.add(host_fqdn, 8600, 'A', address)
+            response = dns.query.tcp(update, self.dns_server)
+            update = dns.update.Update(arpa_zone, keyring=keyring, keyalgorithm=getattr(dns.tsig, self.tsig_keyAlgorithm))
+            update.add(last_octet, 8600, 'PTR', host_fqdn)
             response = dns.query.tcp(update, self.dns_server)
             return True
         except Exception as e:
@@ -1809,7 +1818,7 @@ class processTemplate(object):
                                 print("[i] Auto assigned IP %s to %s" % (node_ip_address, node_name))
                             else:
                                 node_ip_address = inquire.ask_text('Node IP Address')
-                            if dnsupd.dns_update(node_name, node_ip_address):
+                            if dnsupd.dns_update(node_name, self.domain_name, node_ip_address, self.subnet_netmask):
                                 print("Added address record for %s" % node_fqdn)
                             else:
                                 print("Can not add DNS record, aborting.")
