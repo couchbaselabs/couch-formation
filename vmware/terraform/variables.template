@@ -55,12 +55,17 @@ variable "vsphere_template" {
   type        = string
 }
 
-variable "vm_num_vcpu" {
+variable "vsphere_folder" {
+  default     = "{{ VMWARE_FOLDER }}"
+  type        = string
+}
+
+variable "vm_cpu_cores" {
   default     = "{{ VMWARE_CPU_CORES }}"
   type        = string
 }
 
-variable "vm_ram" {
+variable "vm_mem_size" {
   default     = "{{ VMWARE_MEM_SIZE }}"
   type        = string
 }

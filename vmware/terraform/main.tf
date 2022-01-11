@@ -1,9 +1,9 @@
 ##
 
 provider "vsphere" {
-  user           = var.vsphere_username
+  user           = var.vsphere_user
   password       = var.vsphere_password
-  vsphere_server = var.vsphere_hostname
+  vsphere_server = var.vsphere_server
   allow_unverified_ssl = true
 }
 
@@ -38,7 +38,7 @@ data "vsphere_virtual_machine" "template" {
 }
 
 resource "vsphere_tag_category" "couchbase" {
-  name        = "terraform-role-category"
+  name        = var.vsphere_folder
   cardinality = "MULTIPLE"
   description = "Managed by Terraform"
 
@@ -48,9 +48,10 @@ resource "vsphere_tag_category" "couchbase" {
 }
 
 resource "vsphere_tag" "couchbase" {
-  name        = "couchbase-server"
+  for_each    = var.cluster_spec
+  name        = "${each.key}"
   category_id = vsphere_tag_category.couchbase.id
-  description = "Couchbase Server Node"
+  description = "couchbase-server"
 }
 
 resource "vsphere_folder" "folder" {
@@ -96,7 +97,7 @@ resource "vsphere_virtual_machine" "couchbase_nodes" {
     }
   }
 
-  tags = [vsphere_tag.couchbase.id]
+  tags = ["${vsphere_tag.couchbase[each.key].id}"]
 
   provisioner "remote-exec" {
     inline = [

@@ -1240,22 +1240,33 @@ class processTemplate(object):
 
     def vmware_get_folder(self):
         default_selection = ''
-        if 'defaults' in self.local_var_json:
-            if 'folder' in self.local_var_json['defaults']:
-                default_selection = self.local_var_json['defaults']['folder']
+        if self.packer_mode:
+            if 'defaults' in self.local_var_json:
+                if 'folder' in self.local_var_json['defaults']:
+                    default_selection = self.local_var_json['defaults']['folder']
+        else:
+            if self.dev_num:
+                default_selection = "couchbase-dev{:02d}".format(self.dev_num)
+            elif self.test_num:
+                default_selection = "couchbase-tst{:02d}".format(self.test_num)
+            elif self.prod_num:
+                default_selection = "couchbase-prd{:02d}".format(self.prod_num)
+            else:
+                default_selection = 'couchbase-database'
         self.logger.info("Default folder is %s" % default_selection)
         selection = self.ask_text('Folder', default_selection)
         self.vmware_folder = selection
-        for folder in self.vmware_dc_folder.vmFolder.childEntity:
-            if folder.name == self.vmware_folder:
-                self.logger.info("Folder %s already exists." % self.vmware_folder)
-                return True
-        self.logger.info("Folder %s does not exist." % self.vmware_folder)
-        print("Creating folder %s" % self.vmware_folder)
-        try:
-            self.vmware_dc_folder.vmFolder.CreateFolder(self.vmware_folder)
-        except Exception:
-            raise
+        if self.packer_mode:
+            for folder in self.vmware_dc_folder.vmFolder.childEntity:
+                if folder.name == self.vmware_folder:
+                    self.logger.info("Folder %s already exists." % self.vmware_folder)
+                    return True
+            self.logger.info("Folder %s does not exist." % self.vmware_folder)
+            print("Creating folder %s" % self.vmware_folder)
+            try:
+                self.vmware_dc_folder.vmFolder.CreateFolder(self.vmware_folder)
+            except Exception:
+                raise
 
     def vmware_get_datastore(self):
         if not self.vmware_hostname:
