@@ -62,6 +62,8 @@ CB_CFG_NODE = """
       node_services   = "{{ NODE_SERVICES }}",
       install_mode    = "{{ NODE_INSTALL_MODE }}",
       node_ip_address = "{{ NODE_IP_ADDRESS }}",
+      node_netmask    = "{{ NODE_NETMASK }}",
+      node_gateway    = "{{ NODE_GATEWAY }}",
     }
 """
 
@@ -140,16 +142,57 @@ class ask(object):
             else:
                 print(" [!] Unrecognized answer, please try again...")
 
+    def ask_ip(self, question):
+        while True:
+            prompt = question + ': '
+            answer = input(prompt)
+            answer = answer.rstrip("\n")
+            try:
+                ip = ipaddress.ip_address(answer)
+                return answer
+            except ValueError:
+                print("%s does not appear to be an IP address." % answer)
+                continue
+
+    def ask_net(self, question):
+        while True:
+            prompt = question + ': '
+            answer = input(prompt)
+            answer = answer.rstrip("\n")
+            try:
+                net = ipaddress.ip_network(answer)
+                return answer
+            except ValueError:
+                print("%s does not appear to be an IP network." % answer)
+                continue
+
+    def ask_net_range(self, question):
+        while True:
+            prompt = question + ': '
+            answer = input(prompt)
+            answer = answer.rstrip("\n")
+            if len(answer) == 0:
+                return None
+            try:
+                (first, last) = answer.split('-')
+                ip_first = ipaddress.ip_address(first)
+                ip_last = ipaddress.ip_address(last)
+                return answer
+            except Exception:
+                print("Invalid input, please try again...")
+                continue
+
 class dynamicDNS(object):
 
-    def __init__(self, domain, server, type='tsig'):
+    def __init__(self, domain, type='tsig'):
         self.type = type
-        self.dns_server = server
+        self.dns_server = None
         self.dns_domain = domain
         self.zone_name = None
         self.tsig_keyName = None
         self.tsig_keyAlgorithm = None
         self.tsig_key = None
+        self.free_list = []
         self.homeDir = os.environ['HOME']
         self.dnsKeyPath = self.homeDir + "/.dns"
         self.dnsKeyFile = self.dnsKeyPath + "/{}.key".format(domain)
@@ -184,20 +227,49 @@ class dynamicDNS(object):
                     continue
         return []
 
-    def dns_get_range(self, network):
+    def dns_get_range(self, network, omit=None):
         address_list = self.dns_zone_xfer()
         subnet_list = []
         free_list = []
         if len(address_list) > 0:
-            address_list = sorted(address_list)
-            for ip in address_list:
-                if ipaddress.ip_address(ip) in ipaddress.ip_network(network):
-                    subnet_list.append(ip)
-            for all_ip in ipaddress.ip_network(network).hosts():
-                if not any(str(all_ip) in address for address in subnet_list):
-                    free_list.append(all_ip)
-            for ip in free_list:
-                print(ip)
+            try:
+                address_list = sorted(address_list)
+                for ip in address_list:
+                    if ipaddress.ip_address(ip) in ipaddress.ip_network(network):
+                        subnet_list.append(ip)
+                for all_ip in ipaddress.ip_network(network).hosts():
+                    if not any(str(all_ip) in address for address in subnet_list):
+                        if int(str(all_ip).split('.')[3]) >= 10:
+                            free_list.append(str(all_ip))
+                if omit:
+                    try:
+                        (first, last) = omit.split('-')
+                        for ipaddr in ipaddress.summarize_address_range(ipaddress.IPv4Address(first),
+                                                                        ipaddress.IPv4Address(last)):
+                            for omit_ip in ipaddr:
+                                if any(str(omit_ip) in address for address in free_list):
+                                    free_list.remove(str(omit_ip))
+                    except Exception as e:
+                        print("dns_get_range: problem with omit range %s: %s" % (omit, str(e)))
+                        return False
+                self.free_list = free_list
+                return True
+            except Exception as e:
+                print("dns_get_range: can not get free IP range from subnet %s: %s" % (network, str(e)))
+                return False
+        else:
+            return False
+
+    @property
+    def get_free_ip(self):
+        if len(self.free_list) > 0:
+            return self.free_list.pop(0)
+        else:
+            return None
+
+    @property
+    def free_list_size(self):
+        return len(self.free_list)
 
     def tsig_config(self):
         inquire = ask()
@@ -223,6 +295,7 @@ class dynamicDNS(object):
                         self.tsig_key = keyData['dnskey']
                         self.tsig_keyName = keyData['keyname']
                         self.tsig_keyAlgorithm = keyData['algorithm']
+                        self.dns_server = keyData['server']
                         self.tsig_keyName = self.tsig_keyName + '.'
                         return True
                     except KeyError:
@@ -239,6 +312,7 @@ class dynamicDNS(object):
                     print("Could not create dns key store path: %s" % str(e))
                     return False
             keyData = {}
+            self.dns_server = keyData['server'] = inquire.ask_text('DNS Server IP Address')
             self.tsig_keyName = keyData['keyname'] = inquire.ask_text('TSIG Key Name')
             self.tsig_key = keyData['dnskey'] = inquire.ask_text('TSIG Key')
             selection = inquire.ask_list('Key Algorithm', algorithms)
@@ -256,10 +330,9 @@ class dynamicDNS(object):
 
     def tsig_update(self, hostname, address):
         response = None
-        add_name = hostname + '.' + self.dns_domain
         keyring = dns.tsigkeyring.from_text({self.tsig_keyName: self.tsig_key})
         update = dns.update.Update(self.dns_domain, keyring=keyring, keyalgorithm=getattr(dns.tsig, self.tsig_keyAlgorithm))
-        update.add(add_name, 8600, 'A', address)
+        update.add(hostname, 8600, 'A', address)
         try:
             response = dns.query.tcp(update, self.dns_server)
             return True
@@ -383,9 +456,10 @@ class params(object):
         parser.add_argument('--password', action='store', help="Host Password")
         parser.add_argument('--static', action='store_true', help="Assign Static IPs", default=False)
         parser.add_argument('--dns', action='store_true', help="Update DNS", default=False)
-        parser.add_argument('--nameserver', action='store', help="DNS Server")
+        parser.add_argument('--gateway', action='store', help="Default Gateway")
         parser.add_argument('--domain', action='store', help="DNS Domain")
         parser.add_argument('--subnet', action='store', help="Network Subnet")
+        parser.add_argument('--omit', action='store', help="Network Subnet")
         self.parser = parser
 
 class processTemplate(object):
@@ -406,6 +480,9 @@ class processTemplate(object):
         self.static_ip = pargs.static
         self.update_dns = pargs.dns
         self.subnet_cidr = pargs.subnet
+        self.subnet_netmask = None
+        self.default_gateway = pargs.gateway
+        self.omit_range = pargs.omit
         self.packer_mode = pargs.packer
         self.globals_file = None
         self.locals_file = None
@@ -416,7 +493,7 @@ class processTemplate(object):
         self.ssh_public_key = None
         self.ssh_key_fingerprint = None
         self.domain_name = pargs.domain
-        self.dns_server = pargs.nameserver
+        self.dns_server = None
         self.cb_version = None
         self.cb_index_mem_type = None
         self.aws_image_name = None
@@ -1642,13 +1719,32 @@ class processTemplate(object):
             else:
                 print(" [!] Unrecognized answer, please try again...")
 
+    def get_subnet_cidr(self):
+        inquire = ask()
+        selection = inquire.ask_net('Subnet CIDR')
+        self.subnet_cidr = selection
+
+    def get_subnet_mask(self):
+        if not self.subnet_cidr:
+            self.get_subnet_cidr()
+        self.subnet_netmask = ipaddress.ip_network(self.subnet_cidr).prefixlen
+
+    def get_subnet_gateway(self):
+        inquire = ask()
+        selection = inquire.ask_ip('Default Gateway')
+        self.default_gateway = selection
+
+    def get_omit_range(self):
+        inquire = ask()
+        selection = inquire.ask_net_range('Omit Network Range')
+        self.omit_range = selection
+
     def create_cluster_config(self):
         inquire = ask()
         resolver = dns.resolver.Resolver()
         config_segments = []
         config_segments.append(CB_CFG_HEAD)
         node = 1
-        node_ip_address = ''
         services = ['data', 'index', 'query', 'fts', 'analytics', 'eventing', ]
 
         if self.dev_num:
@@ -1663,6 +1759,9 @@ class processTemplate(object):
         print("Building cluster configuration")
         while True:
             selected_services = []
+            node_ip_address = None
+            node_netmask = None
+            node_gateway = None
             node_name = "cb-{}-n{:02d}".format(env_text, node)
             if node == 1:
                 install_mode = 'init'
@@ -1672,19 +1771,44 @@ class processTemplate(object):
             if self.static_ip:
                 if not self.domain_name:
                     self.get_domain_name()
+                if not self.subnet_cidr:
+                    self.get_subnet_cidr()
+                if not self.subnet_netmask:
+                    self.get_subnet_mask()
+                if not self.default_gateway:
+                    self.get_subnet_gateway()
+                node_netmask = self.subnet_netmask
+                node_gateway = self.default_gateway
+                node_fqdn = "{}.{}".format(node_name, self.domain_name)
+                try:
+                    answer = resolver.resolve(node_fqdn, 'A')
+                    node_ip_address = answer[0]
+                except dns.resolver.NXDOMAIN:
+                    print("[i] Warning Can not resolve node host name %s" % node_fqdn)
                 if self.update_dns:
-                    dnsupd = dynamicDNS(self.domain_name, self.dns_server)
-                    node_fqdn = "{}.{}".format(node_name, self.domain_name)
-                    try:
-                        answer = resolver.resolve(node_fqdn, 'A')
-                        node_ip_address = answer[0]
-                    except dns.resolver.NXDOMAIN:
-                        print("[i] Can not resolve node host name %s" % node_fqdn)
-                        dnsupd.dns_get_range(self.subnet_cidr)
-                        return
-                        # if dnsupd.dns_prep():
-                        #     node_address = inquire.ask_text('Node address')
-                        #     dnsupd.dns_update(node_name, node_address)
+                    if not node_ip_address:
+                        print("Node IP not assigned, attempting DNS update...")
+                        if not self.omit_range:
+                            self.get_omit_range()
+                        dnsupd = dynamicDNS(self.domain_name)
+                        if dnsupd.dns_prep():
+                            dnsupd.dns_get_range(self.subnet_cidr, self.omit_range)
+                            if dnsupd.free_list_size > 0:
+                                node_ip_address = dnsupd.get_free_ip
+                                print("[i] Auto assigned IP %s to %s" % (node_ip_address, node_name))
+                            else:
+                                node_ip_address = inquire.ask_text('Node IP Address')
+                            if dnsupd.dns_update(node_name, node_ip_address):
+                                print("Added address record for %s" % node_fqdn)
+                            else:
+                                print("Can not add DNS record, aborting.")
+                                sys.exit(1)
+                        else:
+                            print("Can not setup dynamic update, aborting.")
+                            sys.exit(1)
+                else:
+                    if not node_ip_address:
+                        node_ip_address = inquire.ask_text('Node IP Address')
             for node_svc in services:
                 if node_svc == 'data' or node_svc == 'index' or node_svc == 'query':
                     default_answer = 'y'
@@ -1703,6 +1827,8 @@ class processTemplate(object):
                 NODE_SERVICES=','.join(selected_services),
                 NODE_INSTALL_MODE=install_mode,
                 NODE_IP_ADDRESS=node_ip_address,
+                NODE_NETMASK=node_netmask,
+                NODE_GATEWAY=node_gateway,
             )
             config_segments.append(format_template)
             if node >= 3:

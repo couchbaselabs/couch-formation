@@ -88,7 +88,11 @@ resource "vsphere_virtual_machine" "couchbase_nodes" {
         host_name = each.key
         domain    = var.domain_name
       }
-      network_interface {}
+      network_interface {
+        ipv4_address = each.value.node_ip_address
+        ipv4_netmask = each.value.node_netmask
+      }
+      ipv4_gateway = each.value.node_gateway
     }
   }
 
@@ -97,10 +101,10 @@ resource "vsphere_virtual_machine" "couchbase_nodes" {
   provisioner "remote-exec" {
     inline = [
       "sudo /usr/local/hostprep/bin/refresh.sh",
-      "sudo /usr/local/hostprep/bin/clusterinit.sh -m write -i ${self.private_ip} -s ${each.value.node_services} -o ${var.index_memory}",
+      "sudo /usr/local/hostprep/bin/clusterinit.sh -m write -i ${each.value.node_ip_address} -s ${each.value.node_services} -o ${var.index_memory}",
     ]
     connection {
-      host        = self.private_ip
+      host        = each.value.node_ip_address
       type        = "ssh"
       user        = var.ssh_user
       private_key = file(var.ssh_private_key)
@@ -109,16 +113,16 @@ resource "vsphere_virtual_machine" "couchbase_nodes" {
 }
 
 locals {
-  rally_node = element([for node in vsphere_virtual_machine.couchbase_nodes: node.private_ip], 0)
+  rally_node = element([for node in vsphere_virtual_machine.couchbase_nodes: node.default_ip_address], 0)
 }
 
 resource "null_resource" "couchbase-init" {
-  for_each = aws_instance.couchbase_nodes
+  for_each = vsphere_virtual_machine.couchbase_nodes
   triggers = {
-    cb_nodes = join(",", keys(aws_instance.couchbase_nodes))
+    cb_nodes = join(",", keys(vsphere_virtual_machine.couchbase_nodes))
   }
   connection {
-    host        = each.value.private_ip
+    host        = each.value.default_ip_address
     type        = "ssh"
     user        = var.ssh_user
     private_key = file(var.ssh_private_key)
@@ -128,12 +132,12 @@ resource "null_resource" "couchbase-init" {
       "sudo /usr/local/hostprep/bin/clusterinit.sh -m config -r ${local.rally_node}",
     ]
   }
-  depends_on = [aws_instance.couchbase_nodes]
+  depends_on = [vsphere_virtual_machine.couchbase_nodes]
 }
 
 resource "null_resource" "couchbase-rebalance" {
   triggers = {
-    cb_nodes = join(",", keys(aws_instance.couchbase_nodes))
+    cb_nodes = join(",", keys(vsphere_virtual_machine.couchbase_nodes))
   }
   connection {
     host        = local.rally_node
