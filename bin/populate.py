@@ -506,6 +506,7 @@ class processTemplate(object):
         self.linux_pkgmgr = None
         self.ssh_private_key = None
         self.ssh_public_key = None
+        self.ssh_public_key_file = None
         self.ssh_key_fingerprint = None
         self.domain_name = pargs.domain
         self.dns_server = None
@@ -556,6 +557,11 @@ class processTemplate(object):
         self.gcp_auth_json_project_id = None
         self.gcp_image_user = None
         self.gcp_zone = None
+        self.gcp_region = None
+        self.gcp_machine_type = None
+        self.gcp_subnet = None
+        self.gcp_root_size = None
+        self.gcp_root_type = None
         self.global_var_json = {}
         self.local_var_json = {}
 
@@ -645,6 +651,7 @@ class processTemplate(object):
         requested_vars = find_undeclared_variables(ast)
 
         for item in sorted(requested_vars):
+            self.logger.info("Processing variable %s" % item)
             if item == 'CB_VERSION':
                 try:
                     self.get_cb_version()
@@ -1020,6 +1027,14 @@ class processTemplate(object):
                         print("Error: %s" % str(e))
                         sys.exit(1)
                 self.logger.info("GCP_ZONE = %s" % self.gcp_zone)
+            elif item == 'GCP_REGION':
+                if not self.gcp_region:
+                    try:
+                        self.get_gcp_region()
+                    except Exception as e:
+                        print("Error: %s" % str(e))
+                        sys.exit(1)
+                self.logger.info("GCP_REGION = %s" % self.gcp_region)
 
         raw_template = jinja2.Template(raw_input)
         format_template = raw_template.render(
@@ -1036,6 +1051,7 @@ class processTemplate(object):
                                               CB_INDEX_MEM_TYPE=self.cb_index_mem_type,
                                               AWS_SSH_KEY=self.aws_ssh_key,
                                               SSH_PRIVATE_KEY=self.ssh_private_key,
+                                              SSH_PUBLIC_KEY_FILE=self.ssh_public_key_file,
                                               AWS_SUBNET_ID=self.aws_subnet_id,
                                               AWS_VPC_ID=self.aws_vpc_id,
                                               AWS_SECURITY_GROUP=self.aws_sg_id,
@@ -1070,6 +1086,11 @@ class processTemplate(object):
                                               GCP_PROJECT=self.gcp_project,
                                               GCP_IMAGE_USER=self.gcp_image_user,
                                               GCP_ZONE=self.gcp_zone,
+                                              GCP_REGION=self.gcp_region,
+                                              GCP_MACHINE_TYPE=self.gcp_machine_type,
+                                              GCP_SUBNET=self.gcp_subnet,
+                                              GCP_ROOT_SIZE=self.gcp_root_size,
+                                              GCP_ROOT_TYPE=self.gcp_root_size,
                                               )
 
         if pargs.packer and self.linux_type:
@@ -1088,6 +1109,30 @@ class processTemplate(object):
         except OSError as e:
             print("Can not write to new variable file: %s" % str(e))
             sys.exit(1)
+
+    def get_gcp_region(self):
+        inquire = ask()
+        region_list = []
+        current_location = self.get_country()
+        if not self.gcp_account_file:
+            self.gcp_get_account_file()
+        credentials = service_account.Credentials.from_service_account_file(self.gcp_account_file)
+        gcp_client = googleapiclient.discovery.build('compute', 'v1', credentials=credentials)
+        request = gcp_client.regions().list(project=self.gcp_project)
+        while request is not None:
+            response = request.execute()
+            for region in response['items']:
+                if current_location:
+                    if current_location.lower() == 'us':
+                        if not region['name'].startswith('us'):
+                            continue
+                    else:
+                        if region['name'].startswith('us'):
+                            continue
+                region_list.append(region['name'])
+            request = gcp_client.zones().list_next(previous_request=request, previous_response=response)
+        selection = inquire.ask_list('GCP Region', region_list)
+        self.gcp_region = region_list[selection]
 
     def get_country(self):
         session = requests.Session()
@@ -1111,22 +1156,18 @@ class processTemplate(object):
     def get_gcp_zones(self):
         inquire = ask()
         zone_list = []
-        current_location = self.get_country()
         if not self.gcp_account_file:
             self.gcp_get_account_file()
+        if not self.gcp_region:
+            self.get_gcp_region()
         credentials = service_account.Credentials.from_service_account_file(self.gcp_account_file)
         gcp_client = googleapiclient.discovery.build('compute', 'v1', credentials=credentials)
         request = gcp_client.zones().list(project=self.gcp_project)
         while request is not None:
             response = request.execute()
             for zone in response['items']:
-                if current_location:
-                    if current_location.lower() == 'us':
-                        if not zone['name'].startswith('us'):
-                            continue
-                    else:
-                        if zone['name'].startswith('us'):
-                            continue
+                if not zone['name'].startswith(self.gcp_region):
+                    continue
                 zone_list.append(zone['name'])
             request = gcp_client.zones().list_next(previous_request=request, previous_response=response)
         selection = inquire.ask_list('GCP Zone', zone_list)
@@ -1161,11 +1202,21 @@ class processTemplate(object):
         self.gcp_project = project_ids[selection]
 
     def get_gcp_image_user(self):
-        if not self.gcp_image_user:
+        if not self.linux_type:
             try:
-                self.get_gcp_image_name()
+                self.get_linux_type()
             except Exception:
                 raise
+        if not self.linux_release:
+            try:
+                self.get_linux_release()
+            except Exception:
+                raise
+        for i in range(len(self.local_var_json['linux'][self.linux_type])):
+            if self.local_var_json['linux'][self.linux_type][i]['version'] == self.linux_release:
+                self.gcp_image_user = self.local_var_json['linux'][self.linux_type][i]['user']
+                return True
+        raise Exception("Can not locate suitable user for %s %s linux." % (self.linux_type, self.linux_release))
 
     def get_gcp_image_family(self):
         if not self.gcp_image_family:

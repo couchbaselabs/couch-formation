@@ -10,9 +10,9 @@ variable "gcp_region" {
   type        = string
 }
 
-variable "gcp_image_name" {
+variable "gcp_cb_image" {
   description = "Image Name"
-  default     = "{{ GCP_IMAGE }}"
+  default     = "{{ GCP_CB_IMAGE }}"
   type        = string
 }
 

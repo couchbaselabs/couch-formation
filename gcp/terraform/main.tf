@@ -20,7 +20,7 @@ resource "random_id" "cluster-id" {
 }
 
 data "google_compute_image" "cb_image" {
-  name  = var.gcp_image_name
+  name  = var.gcp_cb_image
 }
 
 resource "google_compute_instance" "couchbase_nodes" {
