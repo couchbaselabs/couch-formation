@@ -1,0 +1,32 @@
+{
+  "linux": {
+    "centos": [
+      {
+        "version": "7",
+        "image": "centos-7-v20211214",
+        "family": "centos-7",
+        "user": "centos"
+      },
+      {
+        "version": "8",
+        "image": "centos-8-v20211214",
+        "family": "centos-8",
+        "user": "centos"
+      }
+    ],
+    "ubuntu": [
+      {
+        "version": "bionic",
+        "image": "ubuntu-1804-bionic-v20220111",
+        "family": "ubuntu-1804-lts",
+        "user": "ubuntu"
+      },
+      {
+        "version": "focal",
+        "image": "ubuntu-2004-focal-v20220110",
+        "family": "ubuntu-2004-lts",
+        "user": "ubuntu"
+      }
+    ]
+  }
+}

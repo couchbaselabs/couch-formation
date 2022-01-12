@@ -48,6 +48,12 @@ try:
     from pyVmomi import vim, vmodl, VmomiSupport
 except ImportError:
     pass
+try:
+    import googleapiclient.discovery
+    from google.oauth2 import service_account
+    from google.cloud import resource_manager
+except ImportError:
+    pass
 
 PUBLIC_CLOUD = True
 
@@ -543,6 +549,12 @@ class processTemplate(object):
         self.vmware_host_folder = None
         self.vmware_dvs = None
         self.vmware_template = None
+        self.gcp_account_file = None
+        self.gcp_image_name = None
+        self.gcp_image_family = None
+        self.gcp_project = None
+        self.gcp_image_user = None
+        self.gcp_zone = None
         self.global_var_json = {}
         self.local_var_json = {}
 
@@ -959,6 +971,46 @@ class processTemplate(object):
                         print("Error: %s" % str(e))
                         sys.exit(1)
                 self.logger.info("DOMAIN_NAME = %s" % self.domain_name)
+            elif item == 'GCP_ACCOUNT_FILE':
+                if not self.gcp_account_file:
+                    try:
+                        self.gcp_get_account_file()
+                    except Exception as e:
+                        print("Error: %s" % str(e))
+                        sys.exit(1)
+                self.logger.info("GCP_ACCOUNT_FILE = %s" % self.gcp_account_file)
+            elif item == 'GCP_IMAGE':
+                if not self.gcp_image_name:
+                    try:
+                        self.get_gcp_image_name()
+                    except Exception as e:
+                        print("Error: %s" % str(e))
+                        sys.exit(1)
+                self.logger.info("GCP_IMAGE = %s" % self.gcp_image_name)
+            elif item == 'GCP_IMAGE_FAMILY':
+                if not self.gcp_image_family:
+                    try:
+                        self.get_gcp_image_family()
+                    except Exception as e:
+                        print("Error: %s" % str(e))
+                        sys.exit(1)
+                self.logger.info("GCP_IMAGE_FAMILY = %s" % self.gcp_image_family)
+            elif item == 'GCP_IMAGE_USER':
+                if not self.gcp_image_user:
+                    try:
+                        self.get_gcp_image_user()
+                    except Exception as e:
+                        print("Error: %s" % str(e))
+                        sys.exit(1)
+                self.logger.info("GCP_IMAGE_USER = %s" % self.gcp_image_user)
+            elif item == 'GCP_PROJECT':
+                if not self.gcp_project:
+                    try:
+                        self.get_gcp_project()
+                    except Exception as e:
+                        print("Error: %s" % str(e))
+                        sys.exit(1)
+                self.logger.info("GCP_PROJECT = %s" % self.gcp_project)
 
         raw_template = jinja2.Template(raw_input)
         format_template = raw_template.render(
@@ -1003,6 +1055,12 @@ class processTemplate(object):
                                               VMWARE_TIMEZONE=self.vmware_timezone,
                                               VMWARE_KEY=self.ssh_public_key,
                                               VMWARE_TEMPLATE=self.vmware_template,
+                                              GCP_ACCOUNT_FILE=self.gcp_account_file,
+                                              GCP_IMAGE=self.gcp_image_name,
+                                              GCP_IMAGE_FAMILY=self.gcp_image_family,
+                                              GCP_PROJECT=self.gcp_project,
+                                              GCP_IMAGE_USER=self.gcp_image_user,
+                                              GCP_ZONE=self.gcp_zone,
                                               )
 
         if pargs.packer and self.linux_type:
@@ -1021,6 +1079,80 @@ class processTemplate(object):
         except OSError as e:
             print("Can not write to new variable file: %s" % str(e))
             sys.exit(1)
+
+    def get_gcp_project(self):
+        inquire = ask()
+        project_ids = []
+        project_names = []
+        if not self.gcp_account_file:
+            self.gcp_get_account_file()
+        gcp_client = resource_manager.Client.from_service_account_json(self.gcp_account_file)
+        for project in gcp_client.list_projects():
+            project_ids.append(project.project_id)
+            project_names.append(project.name)
+        selection = inquire.ask_list('GCP Project', project_ids, project_names)
+        self.gcp_project = project_ids[selection]
+
+    def get_gcp_image_user(self):
+        if not self.gcp_image_user:
+            try:
+                self.get_gcp_image_name()
+            except Exception:
+                raise
+
+    def get_gcp_image_family(self):
+        if not self.gcp_image_family:
+            try:
+                self.get_gcp_image_name()
+            except Exception:
+                raise
+
+    def get_gcp_image_name(self):
+        if not self.linux_type:
+            try:
+                self.get_linux_type()
+            except Exception:
+                raise
+        if not self.linux_release:
+            try:
+                self.get_linux_release()
+            except Exception:
+                raise
+        for i in range(len(self.local_var_json['linux'][self.linux_type])):
+            if self.local_var_json['linux'][self.linux_type][i]['version'] == self.linux_release:
+                self.gcp_image_name = self.local_var_json['linux'][self.linux_type][i]['image']
+                self.gcp_image_family = self.local_var_json['linux'][self.linux_type][i]['family']
+                self.gcp_image_user = self.local_var_json['linux'][self.linux_type][i]['user']
+                return True
+        raise Exception("Can not locate suitable image for %s %s linux." % (self.linux_type, self.linux_release))
+
+    def gcp_get_account_file(self):
+        dir_list = []
+        auth_file_list = []
+        auth_directory = os.environ['HOME'] + '/.config/gcloud'
+
+        for file_name in os.listdir(auth_directory):
+            if file_name.lower().endswith('.json'):
+                full_path = auth_directory + '/' + file_name
+                dir_list.append(full_path)
+
+        for i in range(len(dir_list)):
+            file_handle = open(dir_list[i], 'r')
+
+            try:
+                json_data = json.load(file_handle)
+                file_type = json_data['type']
+            except (ValueError, KeyError):
+                continue
+            except OSError:
+                print("Can not access GCP config file %s" % dir_list[i])
+                raise
+
+            if file_type == 'service_account':
+                auth_file_list.append(dir_list[i])
+
+        selection = self.ask('Select GCP auth JSON', auth_file_list)
+        self.gcp_account_file = auth_file_list[selection]
 
     def get_domain_name(self):
         resolver = dns.resolver.Resolver()

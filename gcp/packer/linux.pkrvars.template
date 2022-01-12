@@ -1,0 +1,14 @@
+##########################################################
+#
+# CentOS variables
+#
+##########################################################
+cb_version = "{{ CB_VERSION }}"
+os_linux_type = "{{ LINUX_TYPE }}"
+os_linux_release = "{{ LINUX_RELEASE }}"
+gcp_account_file = "{{ GCP_ACCOUNT_FILE }}"
+gcp_image_name = "{{ GCP_IMAGE }}"
+gcp_image_family = "{{ GCP_IMAGE_FAMILY }}"
+gcp_project = "{{ GCP_PROJECT }}"
+gcp_image_user = "{{ GCP_IMAGE_USER }}"
+gcp_zone = "{{ GCP_ZONE }}"
