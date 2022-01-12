@@ -1,0 +1,83 @@
+##########################################################
+#
+# Default values for creating a Couchbase cluster on GCP
+#
+##########################################################
+
+variable "gcp_region" {
+  description = "Region name"
+  default     = "{{ GCP_REGION }}"
+  type        = string
+}
+
+variable "gcp_image_name" {
+  description = "Image Name"
+  default     = "{{ GCP_IMAGE }}"
+  type        = string
+}
+
+variable "gcp_machine_type" {
+  description = "Machine type"
+  default     = "{{ GCP_MACHINE_TYPE }}"
+  type        = string
+}
+
+variable "index_memory" {
+  description = "Index storage setting"
+  default     = "{{ CB_INDEX_MEM_TYPE }}"
+  type        = string
+}
+
+variable "gcp_image_user" {
+  description = "The default username for the image"
+  type        = string
+  default     = "{{ GCP_IMAGE_USER }}"
+}
+
+variable "ssh_public_key_file" {
+  description = "Public key file to use"
+  default     = "{{ SSH_PUBLIC_KEY_FILE }}"
+  type        = string
+}
+
+variable "ssh_private_key" {
+  description = "The private key to use when connecting to the instances"
+  default     = "{{ SSH_PRIVATE_KEY }}"
+  type        = string
+}
+
+variable "gcp_subnet" {
+  description = "Subnet to launch the instances in"
+  default     = "{{ GCP_SUBNET }}"
+  type        = string
+}
+
+variable "gcp_disk_size" {
+  description = "The root volume size"
+  default     = "{{ GCP_ROOT_SIZE }}"
+  type        = string
+}
+
+variable "gcp_disk_type" {
+  description = "The root volume type"
+  default     = "{{ GCP_ROOT_TYPE }}"
+  type        = string
+}
+
+variable "gcp_project" {
+  description = "The GCP project"
+  default     = "{{ GCP_PROJECT }}"
+  type        = string
+}
+
+variable "gcp_account_file" {
+  description = "The auth JSON"
+  default     = "{{ GCP_ACCOUNT_FILE }}"
+  type        = string
+}
+
+variable "gcp_zone" {
+  description = "The GCP zone"
+  default     = "{{ GCP_ZONE }}"
+  type        = string
+}

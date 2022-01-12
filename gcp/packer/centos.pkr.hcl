@@ -57,6 +57,7 @@ variable "gcp_zone" {
 }
 
 source "googlecompute" "cb-node" {
+  image_name          = "${var.os_linux_type}-${var.os_linux_release}-couchbase-${local.timestamp}"
   account_file        = var.gcp_account_file
   project_id          = var.gcp_project
   source_image        = var.gcp_image_name
@@ -70,7 +71,7 @@ source "googlecompute" "cb-node" {
 }
 
 build {
-  name    = "centos-couchbase-ami"
+  name    = "centos-couchbase-image"
   sources = [
     "source.googlecompute.cb-node"
   ]

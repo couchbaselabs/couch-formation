@@ -51,7 +51,7 @@ except ImportError:
 try:
     import googleapiclient.discovery
     from google.oauth2 import service_account
-    from google.cloud import resource_manager
+    # from google.cloud import resource_manager
 except ImportError:
     pass
 
@@ -553,6 +553,7 @@ class processTemplate(object):
         self.gcp_image_name = None
         self.gcp_image_family = None
         self.gcp_project = None
+        self.gcp_auth_json_project_id = None
         self.gcp_image_user = None
         self.gcp_zone = None
         self.global_var_json = {}
@@ -1011,6 +1012,14 @@ class processTemplate(object):
                         print("Error: %s" % str(e))
                         sys.exit(1)
                 self.logger.info("GCP_PROJECT = %s" % self.gcp_project)
+            elif item == 'GCP_ZONE':
+                if not self.gcp_zone:
+                    try:
+                        self.get_gcp_zones()
+                    except Exception as e:
+                        print("Error: %s" % str(e))
+                        sys.exit(1)
+                self.logger.info("GCP_ZONE = %s" % self.gcp_zone)
 
         raw_template = jinja2.Template(raw_input)
         format_template = raw_template.render(
@@ -1080,16 +1089,74 @@ class processTemplate(object):
             print("Can not write to new variable file: %s" % str(e))
             sys.exit(1)
 
+    def get_country(self):
+        session = requests.Session()
+        retries = Retry(total=60,
+                        backoff_factor=0.1,
+                        status_forcelist=[500, 501, 503])
+        session.mount('http://', HTTPAdapter(max_retries=retries))
+        session.mount('https://', HTTPAdapter(max_retries=retries))
+        response = requests.get('http://icanhazip.com', verify=False, timeout=15)
+        if response.status_code == 200:
+            public_ip = response.text.rstrip()
+        else:
+            return None
+        response = requests.get('http://api.hostip.info/country.php?ip=' + public_ip, verify=False, timeout=15)
+        if response.status_code == 200:
+            ip_location = response.text.rstrip()
+        else:
+            return None
+        return ip_location
+
+    def get_gcp_zones(self):
+        inquire = ask()
+        zone_list = []
+        current_location = self.get_country()
+        if not self.gcp_account_file:
+            self.gcp_get_account_file()
+        credentials = service_account.Credentials.from_service_account_file(self.gcp_account_file)
+        gcp_client = googleapiclient.discovery.build('compute', 'v1', credentials=credentials)
+        request = gcp_client.zones().list(project=self.gcp_project)
+        while request is not None:
+            response = request.execute()
+            for zone in response['items']:
+                if current_location:
+                    if current_location.lower() == 'us':
+                        if not zone['name'].startswith('us'):
+                            continue
+                    else:
+                        if zone['name'].startswith('us'):
+                            continue
+                zone_list.append(zone['name'])
+            request = gcp_client.zones().list_next(previous_request=request, previous_response=response)
+        selection = inquire.ask_list('GCP Zone', zone_list)
+        self.gcp_zone = zone_list[selection]
+
     def get_gcp_project(self):
         inquire = ask()
         project_ids = []
         project_names = []
         if not self.gcp_account_file:
             self.gcp_get_account_file()
-        gcp_client = resource_manager.Client.from_service_account_json(self.gcp_account_file)
-        for project in gcp_client.list_projects():
-            project_ids.append(project.project_id)
-            project_names.append(project.name)
+        credentials = service_account.Credentials.from_service_account_file(self.gcp_account_file)
+        gcp_client = googleapiclient.discovery.build('cloudresourcemanager', 'v1', credentials=credentials)
+        request = gcp_client.projects().list()
+        while request is not None:
+            response = request.execute()
+            for project in response.get('projects', []):
+                project_ids.append(project['projectId'])
+                project_names.append(project['name'])
+            request = gcp_client.projects().list_next(previous_request=request, previous_response=response)
+        if len(project_ids) == 0:
+            self.logger.info("Insufficient permissions to list projects, attempting to get project ID from auth JSON")
+            if self.gcp_auth_json_project_id:
+                self.logger.info("Setting project ID to %s" % self.gcp_auth_json_project_id)
+                self.gcp_project = self.gcp_auth_json_project_id
+                return True
+            else:
+                self.logger.info("Can not get project ID from auth JSON")
+                self.gcp_project = inquire.ask_text('GCP Project ID')
+                return True
         selection = inquire.ask_list('GCP Project', project_ids, project_names)
         self.gcp_project = project_ids[selection]
 
@@ -1142,6 +1209,7 @@ class processTemplate(object):
             try:
                 json_data = json.load(file_handle)
                 file_type = json_data['type']
+                file_handle.close()
             except (ValueError, KeyError):
                 continue
             except OSError:
@@ -1153,6 +1221,12 @@ class processTemplate(object):
 
         selection = self.ask('Select GCP auth JSON', auth_file_list)
         self.gcp_account_file = auth_file_list[selection]
+
+        file_handle = open(self.gcp_account_file, 'r')
+        auth_data = json.load(file_handle)
+        file_handle.close()
+        if 'project_id' in auth_data:
+            self.gcp_auth_json_project_id = auth_data['project_id']
 
     def get_domain_name(self):
         resolver = dns.resolver.Resolver()
