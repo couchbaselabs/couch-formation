@@ -1160,7 +1160,8 @@ class processTemplate(object):
                                               GCP_MACHINE_TYPE=self.gcp_machine_type,
                                               GCP_SUBNET=self.gcp_subnet,
                                               GCP_ROOT_SIZE=self.gcp_root_size,
-                                              GCP_ROOT_TYPE=self.gcp_root_size,
+                                              GCP_ROOT_TYPE=self.gcp_root_type,
+                                              GCP_CB_IMAGE=self.gcp_cb_image,
                                               )
 
         if pargs.packer and self.linux_type:
