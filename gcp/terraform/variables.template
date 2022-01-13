@@ -76,6 +76,12 @@ variable "gcp_account_file" {
   type        = string
 }
 
+variable "gcp_service_account_email" {
+  description = "The service account email"
+  default     = "{{ GCP_SA_EMAIL }}"
+  type        = string
+}
+
 variable "gcp_zone" {
   description = "The GCP zone"
   default     = "{{ GCP_ZONE }}"

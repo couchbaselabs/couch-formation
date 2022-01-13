@@ -584,6 +584,7 @@ class processTemplate(object):
         self.gcp_subnet = None
         self.gcp_root_size = None
         self.gcp_root_type = None
+        self.gcp_service_account_email = None
         self.global_var_json = {}
         self.local_var_json = {}
 
@@ -1105,6 +1106,14 @@ class processTemplate(object):
                         print("Error: %s" % str(e))
                         sys.exit(1)
                 self.logger.info("SSH_PUBLIC_KEY_FILE = %s" % self.ssh_public_key_file)
+            elif item == 'GCP_SA_EMAIL':
+                if not self.gcp_service_account_email:
+                    try:
+                        self.gcp_get_account_file()
+                    except Exception as e:
+                        print("Error: %s" % str(e))
+                        sys.exit(1)
+                self.logger.info("GCP_SA_EMAIL = %s" % self.gcp_service_account_email)
 
         raw_template = jinja2.Template(raw_input)
         format_template = raw_template.render(
@@ -1162,6 +1171,7 @@ class processTemplate(object):
                                               GCP_ROOT_SIZE=self.gcp_root_size,
                                               GCP_ROOT_TYPE=self.gcp_root_type,
                                               GCP_CB_IMAGE=self.gcp_cb_image,
+                                              GCP_SA_EMAIL=self.gcp_service_account_email,
                                               )
 
         if pargs.packer and self.linux_type:
@@ -1274,9 +1284,12 @@ class processTemplate(object):
         request = gcp_client.images().list(project=self.gcp_project)
         while request is not None:
             response = request.execute()
-            for image in response['items']:
-                image_list.append(image['name'])
-            request = gcp_client.images().list_next(previous_request=request, previous_response=response)
+            if "items" in response:
+                for image in response['items']:
+                    image_list.append(image['name'])
+                request = gcp_client.images().list_next(previous_request=request, previous_response=response)
+            else:
+                raise Exception("No images exist in this project")
         selection = inquire.ask_list('GCP Couchbase Image', image_list)
         self.gcp_cb_image = image_list[selection]
 
@@ -1490,6 +1503,8 @@ class processTemplate(object):
         file_handle.close()
         if 'project_id' in auth_data:
             self.gcp_auth_json_project_id = auth_data['project_id']
+        if 'client_email' in auth_data:
+            self.gcp_service_account_email = auth_data['client_email']
 
     def get_domain_name(self):
         resolver = dns.resolver.Resolver()

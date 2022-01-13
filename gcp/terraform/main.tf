@@ -18,6 +18,7 @@ resource "random_id" "cluster-id" {
 
 data "google_compute_image" "cb_image" {
   name  = var.gcp_cb_image
+  project = var.gcp_project
 }
 
 resource "google_compute_instance" "couchbase_nodes" {
@@ -25,6 +26,7 @@ resource "google_compute_instance" "couchbase_nodes" {
   name         = each.key
   machine_type = var.gcp_machine_type
   zone         = var.gcp_zone
+  project      = var.gcp_project
 
   boot_disk {
    initialize_params {
@@ -36,6 +38,7 @@ resource "google_compute_instance" "couchbase_nodes" {
 
   network_interface {
     subnetwork = var.gcp_subnet
+    subnetwork_project = var.gcp_project
     access_config {
    }
   }
@@ -45,6 +48,7 @@ resource "google_compute_instance" "couchbase_nodes" {
  }
 
   service_account {
+    email = var.gcp_service_account_email
     scopes = ["cloud-platform"]
   }
 
