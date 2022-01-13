@@ -106,6 +106,27 @@ class ask(object):
                 print("Please select the number corresponding to your selection.")
                 continue
 
+    def ask_long_list(self, question, options=[], descriptions=[], separator='.'):
+        merged_list = [(options[i], descriptions[i]) for i in range(len(options))]
+        sorted_list = sorted(merged_list, key=lambda option: option[0])
+        options, descriptions = map(list, zip(*sorted_list))
+        subselection_list = []
+        new_option_list = []
+        new_description_list = []
+        for item in options:
+            prefix = item.split(separator)[0]
+            subselection_list.append(prefix)
+        subselection_list = sorted(set(subselection_list))
+        selection = self.ask_list(question + ' subselection', subselection_list)
+        limit_prefix = subselection_list[selection]
+        for i in range(len(options)):
+            if options[i].startswith(limit_prefix + separator):
+                new_option_list.append(options[i])
+                if i < len(descriptions):
+                    new_description_list.append(descriptions[i])
+        selection = self.ask_list(question, new_option_list, new_description_list)
+        return options.index(new_option_list[selection])
+
     def ask_text(self, question, default=''):
         while True:
             prompt = question + ' [' + default + ']: '
@@ -552,6 +573,7 @@ class processTemplate(object):
         self.vmware_template = None
         self.gcp_account_file = None
         self.gcp_image_name = None
+        self.gcp_cb_image = None
         self.gcp_image_family = None
         self.gcp_project = None
         self.gcp_auth_json_project_id = None
@@ -1035,6 +1057,54 @@ class processTemplate(object):
                         print("Error: %s" % str(e))
                         sys.exit(1)
                 self.logger.info("GCP_REGION = %s" % self.gcp_region)
+            elif item == 'GCP_CB_IMAGE':
+                if not self.gcp_cb_image:
+                    try:
+                        self.gcp_get_cb_image_name()
+                    except Exception as e:
+                        print("Error: %s" % str(e))
+                        sys.exit(1)
+                self.logger.info("GCP_CB_IMAGE = %s" % self.gcp_cb_image)
+            elif item == 'GCP_MACHINE_TYPE':
+                if not self.gcp_machine_type:
+                    try:
+                        self.gcp_get_machine_type()
+                    except Exception as e:
+                        print("Error: %s" % str(e))
+                        sys.exit(1)
+                self.logger.info("GCP_MACHINE_TYPE = %s" % self.gcp_machine_type)
+            elif item == 'GCP_SUBNET':
+                if not self.gcp_subnet:
+                    try:
+                        self.gcp_get_subnet()
+                    except Exception as e:
+                        print("Error: %s" % str(e))
+                        sys.exit(1)
+                self.logger.info("GCP_SUBNET = %s" % self.gcp_subnet)
+            elif item == 'GCP_ROOT_SIZE':
+                if not self.gcp_root_size:
+                    try:
+                        self.gcp_get_root_size()
+                    except Exception as e:
+                        print("Error: %s" % str(e))
+                        sys.exit(1)
+                self.logger.info("GCP_ROOT_SIZE = %s" % self.gcp_root_size)
+            elif item == 'GCP_ROOT_TYPE':
+                if not self.gcp_root_type:
+                    try:
+                        self.gcp_get_root_type()
+                    except Exception as e:
+                        print("Error: %s" % str(e))
+                        sys.exit(1)
+                self.logger.info("GCP_ROOT_TYPE = %s" % self.gcp_root_type)
+            elif item == 'SSH_PUBLIC_KEY_FILE':
+                if not self.ssh_public_key_file:
+                    try:
+                        self.get_ssh_public_key_file()
+                    except Exception as e:
+                        print("Error: %s" % str(e))
+                        sys.exit(1)
+                self.logger.info("SSH_PUBLIC_KEY_FILE = %s" % self.ssh_public_key_file)
 
         raw_template = jinja2.Template(raw_input)
         format_template = raw_template.render(
@@ -1110,12 +1180,151 @@ class processTemplate(object):
             print("Can not write to new variable file: %s" % str(e))
             sys.exit(1)
 
+    def generate_public_key_file(self, public_file):
+        self.get_public_key()
+        try:
+            file_handle = open(public_file, 'w')
+            file_handle.write(self.ssh_public_key)
+            file_handle.write("\n")
+            file_handle.close()
+            return True
+        except OSError as e:
+            print("generate_public_key_file: can not write public key file.")
+            return False
+
+    def get_ssh_public_key_file(self):
+        inquire = ask()
+        dir_list = []
+        key_file_list = []
+        key_directory = os.environ['HOME'] + '/.ssh'
+
+        if self.ssh_private_key:
+            private_key_dir = os.path.dirname(self.ssh_private_key)
+            private_key_file = os.path.basename(self.ssh_private_key)
+            private_key_name = os.path.splitext(private_key_file)[0]
+            check_file_name = private_key_dir + '/' + private_key_name + '.pub'
+            if os.path.exists(check_file_name):
+                print("Auto selecting public key file %s" % check_file_name)
+                self.ssh_public_key_file = check_file_name
+                return True
+            else:
+                if inquire.ask_yn("Generate public key from private key %s" % self.ssh_private_key):
+                    if self.generate_public_key_file(check_file_name):
+                        self.ssh_public_key_file = check_file_name
+                        return True
+
+        for file_name in os.listdir(key_directory):
+            full_path = key_directory + '/' + file_name
+            dir_list.append(full_path)
+
+        for i in range(len(dir_list)):
+            file_handle = open(dir_list[i], 'r')
+            public_key = file_handle.readline()
+            file_size = os.fstat(file_handle.fileno()).st_size
+            read_size = len(public_key)
+            if file_size != read_size:
+                continue
+            public_key = public_key.rstrip()
+            key_parts = public_key.split(' ')
+            pub_key_part = ' '.join(key_parts[0:2])
+            pub_key_bytes = str.encode(pub_key_part)
+            try:
+                key = serialization.load_ssh_public_key(pub_key_bytes)
+            except Exception:
+                continue
+            self.logger.info("Found public key %s" % dir_list[i])
+            key_file_list.append(dir_list[i])
+
+        selection = self.ask('Select SSH public key', key_file_list)
+        self.ssh_public_key_file = key_file_list[selection]
+
+    def gcp_get_machine_type(self):
+        inquire = ask()
+        machine_type_list = []
+        config_list = []
+        if not self.gcp_account_file:
+            self.gcp_get_account_file()
+        if not self.gcp_zone:
+            self.get_gcp_zones()
+        if not self.gcp_project:
+            self.get_gcp_project()
+        credentials = service_account.Credentials.from_service_account_file(self.gcp_account_file)
+        gcp_client = googleapiclient.discovery.build('compute', 'v1', credentials=credentials)
+        request = gcp_client.machineTypes().list(project=self.gcp_project, zone=self.gcp_zone)
+        while request is not None:
+            response = request.execute()
+            for machine_type in response['items']:
+                machine_type_list.append(machine_type['name'])
+                config_string = str(machine_type['guestCpus']) + 'x' + "{:.0f}".format(machine_type['memoryMb']/1024) + 'Gb'
+                config_list.append(config_string)
+            request = gcp_client.machineTypes().list_next(previous_request=request, previous_response=response)
+        selection = inquire.ask_long_list('GCP Machine Type', machine_type_list, config_list, separator='-')
+        self.gcp_machine_type = machine_type_list[selection]
+
+    def gcp_get_cb_image_name(self):
+        inquire = ask()
+        image_list = []
+        if not self.gcp_account_file:
+            self.gcp_get_account_file()
+        if not self.gcp_project:
+            self.get_gcp_project()
+        credentials = service_account.Credentials.from_service_account_file(self.gcp_account_file)
+        gcp_client = googleapiclient.discovery.build('compute', 'v1', credentials=credentials)
+        request = gcp_client.images().list(project=self.gcp_project)
+        while request is not None:
+            response = request.execute()
+            for image in response['items']:
+                image_list.append(image['name'])
+            request = gcp_client.images().list_next(previous_request=request, previous_response=response)
+        selection = inquire.ask_list('GCP Couchbase Image', image_list)
+        self.gcp_cb_image = image_list[selection]
+
+    def gcp_get_subnet(self):
+        inquire = ask()
+        subnet_list = []
+        if not self.gcp_account_file:
+            self.gcp_get_account_file()
+        if not self.gcp_region:
+            self.get_gcp_region()
+        if not self.gcp_project:
+            self.get_gcp_project()
+        credentials = service_account.Credentials.from_service_account_file(self.gcp_account_file)
+        gcp_client = googleapiclient.discovery.build('compute', 'v1', credentials=credentials)
+        request = gcp_client.subnetworks().list(project=self.gcp_project, region=self.gcp_region)
+        while request is not None:
+            response = request.execute()
+            for subnet in response['items']:
+                subnet_list.append(subnet['name'])
+            request = gcp_client.subnetworks().list_next(previous_request=request, previous_response=response)
+        selection = inquire.ask_list('GCP Subnet', subnet_list)
+        self.gcp_subnet = subnet_list[selection]
+
+    def gcp_get_root_type(self):
+        default_selection = ''
+        if 'defaults' in self.local_var_json:
+            if 'root_type' in self.local_var_json['defaults']:
+                default_selection = self.local_var_json['defaults']['root_type']
+        self.logger.info("Default root type is %s" % default_selection)
+        selection = self.ask_text('Root volume type', default_selection)
+        self.gcp_root_type = selection
+
+    def gcp_get_root_size(self):
+        default_selection = ''
+        if 'defaults' in self.local_var_json:
+            if 'root_size' in self.local_var_json['defaults']:
+                default_selection = self.local_var_json['defaults']['root_size']
+        self.logger.info("Default root size is %s" % default_selection)
+        selection = self.ask_text('Root volume size', default_selection)
+        self.gcp_root_size = selection
+
     def get_gcp_region(self):
         inquire = ask()
         region_list = []
         current_location = self.get_country()
         if not self.gcp_account_file:
             self.gcp_get_account_file()
+        if not self.gcp_project:
+            self.get_gcp_project()
         credentials = service_account.Credentials.from_service_account_file(self.gcp_account_file)
         gcp_client = googleapiclient.discovery.build('compute', 'v1', credentials=credentials)
         request = gcp_client.regions().list(project=self.gcp_project)
@@ -1130,7 +1339,7 @@ class processTemplate(object):
                         if region['name'].startswith('us'):
                             continue
                 region_list.append(region['name'])
-            request = gcp_client.zones().list_next(previous_request=request, previous_response=response)
+            request = gcp_client.regions().list_next(previous_request=request, previous_response=response)
         selection = inquire.ask_list('GCP Region', region_list)
         self.gcp_region = region_list[selection]
 
@@ -1160,6 +1369,8 @@ class processTemplate(object):
             self.gcp_get_account_file()
         if not self.gcp_region:
             self.get_gcp_region()
+        if not self.gcp_project:
+            self.get_gcp_project()
         credentials = service_account.Credentials.from_service_account_file(self.gcp_account_file)
         gcp_client = googleapiclient.discovery.build('compute', 'v1', credentials=credentials)
         request = gcp_client.zones().list(project=self.gcp_project)
