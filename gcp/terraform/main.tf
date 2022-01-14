@@ -70,6 +70,11 @@ locals {
   rally_node = element([for node in google_compute_instance.couchbase_nodes: node.network_interface.0.network_ip], 0)
 }
 
+resource "time_sleep" "pause" {
+  depends_on = [google_compute_instance.couchbase_nodes]
+  create_duration = "5s"
+}
+
 resource "null_resource" "couchbase-init" {
   for_each = google_compute_instance.couchbase_nodes
   triggers = {
@@ -86,7 +91,7 @@ resource "null_resource" "couchbase-init" {
       "sudo /usr/local/hostprep/bin/clusterinit.sh -m config -r ${local.rally_node}",
     ]
   }
-  depends_on = [google_compute_instance.couchbase_nodes]
+  depends_on = [google_compute_instance.couchbase_nodes, time_sleep.pause]
 }
 
 resource "null_resource" "couchbase-rebalance" {
