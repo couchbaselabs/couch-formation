@@ -1,0 +1,13 @@
+##########################################################
+#
+# Linux variables
+#
+##########################################################
+cb_version = "{{ CB_VERSION }}"
+os_linux_type = "{{ LINUX_TYPE }}"
+os_linux_release = "{{ LINUX_RELEASE }}"
+azure_resource_group = "{{ AZURE_RG }}"
+azure_image_publisher = "{{ AZURE_PUBLISHER }}"
+azure_image_offer = "{{ AZURE_OFFER }}"
+azure_image_sku = "{{ AZURE_SKU }}"
+azure_location = "{{ AZURE_LOCATION }}"
