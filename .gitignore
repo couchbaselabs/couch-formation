@@ -49,3 +49,4 @@ cluster.tf
 dev-*/
 test-*/
 prod-*/
+setup.log
