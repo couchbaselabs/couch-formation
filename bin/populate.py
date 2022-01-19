@@ -54,6 +54,14 @@ try:
     # from google.cloud import resource_manager
 except ImportError:
     pass
+try:
+    from azure.identity import DefaultAzureCredential
+    from azure.mgmt.compute import ComputeManagementClient
+    from azure.mgmt.network import NetworkManagementClient
+    from azure.mgmt.storage import StorageManagementClient
+    from azure.mgmt.resource import ResourceManagementClient
+except ImportError:
+    pass
 
 PUBLIC_CLOUD = True
 
