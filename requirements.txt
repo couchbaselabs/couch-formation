@@ -19,3 +19,4 @@ azure-identity>=1.5.0
 azure.mgmt.network>=19.3.0
 azure.mgmt.compute>=24.0.0
 azure.mgmt.storage>=19.0.0
+azure.mgmt.subscription>=2.0.0

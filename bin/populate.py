@@ -12,6 +12,7 @@ import json
 import re
 import os
 import getpass
+import subprocess
 import crypt
 import ipaddress
 import socket
@@ -55,11 +56,12 @@ try:
 except ImportError:
     pass
 try:
-    from azure.identity import DefaultAzureCredential
+    from azure.identity import AzureCliCredential
     from azure.mgmt.compute import ComputeManagementClient
     from azure.mgmt.network import NetworkManagementClient
     from azure.mgmt.storage import StorageManagementClient
     from azure.mgmt.resource import ResourceManagementClient
+    from azure.mgmt.resource.subscriptions import SubscriptionClient
 except ImportError:
     pass
 
@@ -93,16 +95,37 @@ class ask(object):
         pass
 
     def ask_list(self, question, options=[], descriptions=[]):
+        list_start = 1
+        list_lenghth = len(options)
+        list_remaining = list_lenghth
+        list_incr = 15
+        list_end = list_lenghth
+        if list_lenghth == 1:
+            return 0
         print("%s:" % question)
-        for i in range(len(options)):
-            if i < len(descriptions):
-                extra = '(' + descriptions[i] + ')'
-            else:
-                extra = ''
-            print(" %02d) %s %s" % (i+1, options[i], extra))
         while True:
-            answer = input("Selection: ")
+            print("length = %d, start = %d, end = %d" % (list_lenghth, list_start, list_end))
+            if list_remaining <= list_incr:
+                list_end = list_lenghth
+            else:
+                list_end = list_start + list_incr - 1
+            for i in range(list_start, list_end + 1):
+                if i <= len(descriptions):
+                    extra = '(' + descriptions[i-1] + ')'
+                else:
+                    extra = ''
+                print(" %02d) %s %s" % (i, options[i-1], extra))
+            if list_end == list_lenghth:
+                answer = input("Selection [q=quit]: ")
+            else:
+                answer = input("Selection [n=next, q=quit]: ")
             answer = answer.rstrip("\n")
+            if answer == 'n':
+                list_start += list_incr
+                list_remaining = list_remaining - list_incr
+                continue
+            if answer == 'q':
+                sys.exit(0)
             try:
                 value = int(answer)
                 if value > 0 and value <= len(options):
@@ -593,6 +616,12 @@ class processTemplate(object):
         self.gcp_root_size = None
         self.gcp_root_type = None
         self.gcp_service_account_email = None
+        self.azure_subscription_id = None
+        self.azure_resource_group = None
+        self.azure_image_publisher = None
+        self.azure_image_offer = None
+        self.azure_image_sku = None
+        self.azure_location = None
         self.global_var_json = {}
         self.local_var_json = {}
 
@@ -1122,6 +1151,54 @@ class processTemplate(object):
                         print("Error: %s" % str(e))
                         sys.exit(1)
                 self.logger.info("GCP_SA_EMAIL = %s" % self.gcp_service_account_email)
+            elif item == 'AZURE_SUBSCRIPTION_ID':
+                if not self.azure_subscription_id:
+                    try:
+                        self.azure_get_subscription_id()
+                    except Exception as e:
+                        print("Error: %s" % str(e))
+                        sys.exit(1)
+                self.logger.info("AZURE_SUBSCRIPTION_ID = %s" % self.azure_subscription_id)
+            elif item == 'AZURE_RG':
+                if not self.azure_resource_group:
+                    try:
+                        self.azure_get_resource_group()
+                    except Exception as e:
+                        print("Error: %s" % str(e))
+                        sys.exit(1)
+                self.logger.info("AZURE_RG = %s" % self.azure_resource_group)
+            elif item == 'AZURE_LOCATION':
+                if not self.azure_location:
+                    try:
+                        self.azure_get_location()
+                    except Exception as e:
+                        print("Error: %s" % str(e))
+                        sys.exit(1)
+                self.logger.info("AZURE_LOCATION = %s" % self.azure_location)
+            elif item == 'AZURE_PUBLISHER':
+                if not self.azure_image_publisher:
+                    try:
+                        self.azure_get_image_publisher()
+                    except Exception as e:
+                        print("Error: %s" % str(e))
+                        sys.exit(1)
+                self.logger.info("AZURE_PUBLISHER = %s" % self.azure_image_publisher)
+            elif item == 'AZURE_OFFER':
+                if not self.azure_image_offer:
+                    try:
+                        self.azure_get_image_offer()
+                    except Exception as e:
+                        print("Error: %s" % str(e))
+                        sys.exit(1)
+                self.logger.info("AZURE_OFFER = %s" % self.azure_image_offer)
+            elif item == 'AZURE_SKU':
+                if not self.azure_image_sku:
+                    try:
+                        self.azure_get_image_sku()
+                    except Exception as e:
+                        print("Error: %s" % str(e))
+                        sys.exit(1)
+                self.logger.info("AZURE_SKU = %s" % self.azure_image_sku)
 
         raw_template = jinja2.Template(raw_input)
         format_template = raw_template.render(
@@ -1180,6 +1257,12 @@ class processTemplate(object):
                                               GCP_ROOT_TYPE=self.gcp_root_type,
                                               GCP_CB_IMAGE=self.gcp_cb_image,
                                               GCP_SA_EMAIL=self.gcp_service_account_email,
+                                              AZURE_SUBSCRIPTION_ID=self.azure_subscription_id,
+                                              AZURE_RG=self.azure_resource_group,
+                                              AZURE_PUBLISHER=self.azure_image_publisher,
+                                              AZURE_OFFER=self.azure_image_offer,
+                                              AZURE_SKU=self.azure_image_sku,
+                                              AZURE_LOCATION=self.azure_location,
                                               )
 
         if pargs.packer and self.linux_type:
@@ -1198,6 +1281,99 @@ class processTemplate(object):
         except OSError as e:
             print("Can not write to new variable file: %s" % str(e))
             sys.exit(1)
+
+    def azure_get_image_sku(self):
+        if not self.linux_type:
+            try:
+                self.get_linux_type()
+            except Exception:
+                raise
+        if not self.linux_release:
+            try:
+                self.get_linux_release()
+            except Exception:
+                raise
+        for i in range(len(self.local_var_json['linux'][self.linux_type])):
+            if self.local_var_json['linux'][self.linux_type][i]['version'] == self.linux_release:
+                self.azure_image_sku = self.local_var_json['linux'][self.linux_type][i]['sku']
+                return True
+        raise Exception("Can not locate suitable sku for %s %s linux." % (self.linux_type, self.linux_release))
+
+    def azure_get_image_offer(self):
+        if not self.linux_type:
+            try:
+                self.get_linux_type()
+            except Exception:
+                raise
+        if not self.linux_release:
+            try:
+                self.get_linux_release()
+            except Exception:
+                raise
+        for i in range(len(self.local_var_json['linux'][self.linux_type])):
+            if self.local_var_json['linux'][self.linux_type][i]['version'] == self.linux_release:
+                self.azure_image_offer = self.local_var_json['linux'][self.linux_type][i]['offer']
+                return True
+        raise Exception("Can not locate suitable offer for %s %s linux." % (self.linux_type, self.linux_release))
+
+    def azure_get_image_publisher(self):
+        if not self.linux_type:
+            try:
+                self.get_linux_type()
+            except Exception:
+                raise
+        if not self.linux_release:
+            try:
+                self.get_linux_release()
+            except Exception:
+                raise
+        for i in range(len(self.local_var_json['linux'][self.linux_type])):
+            if self.local_var_json['linux'][self.linux_type][i]['version'] == self.linux_release:
+                self.azure_image_publisher = self.local_var_json['linux'][self.linux_type][i]['publisher']
+                return True
+        raise Exception("Can not locate suitable publisher for %s %s linux." % (self.linux_type, self.linux_release))
+
+    def azure_get_location(self):
+        inquire = ask()
+        location_list = []
+        location_name = []
+        if not self.azure_subscription_id:
+            self.azure_get_subscription_id()
+        credential = AzureCliCredential()
+        subscription_client = SubscriptionClient(credential)
+        locations = subscription_client.subscriptions.list_locations(self.azure_subscription_id)
+        for group in list(locations):
+            location_list.append(group.name)
+            location_name.append(group.display_name)
+        selection = inquire.ask_list('Azure Location', location_list, location_name)
+        self.azure_location = location_list[selection]
+
+    def azure_get_resource_group(self):
+        inquire = ask()
+        group_list = []
+        if not self.azure_subscription_id:
+            self.azure_get_subscription_id()
+        credential = AzureCliCredential()
+        resource_client = ResourceManagementClient(credential, self.azure_subscription_id)
+        groups = resource_client.resource_groups.list()
+        for group in list(groups):
+            group_list.append(group.name)
+        selection = inquire.ask_list('Azure Resource Group', group_list)
+        self.azure_resource_group = group_list[selection]
+
+    def azure_get_subscription_id(self):
+        inquire = ask()
+        subscription_list = []
+        subscription_name = []
+        credential = AzureCliCredential()
+        subscription_client = SubscriptionClient(credential)
+        subscriptions = subscription_client.subscriptions.list()
+        for group in list(subscriptions):
+            subscription_list.append(group.subscription_id)
+            subscription_name.append(group.display_name)
+        selection = inquire.ask_list('Azure Subscription ID', subscription_list, subscription_name)
+        self.azure_subscription_id = subscription_list[selection]
+        self.logger.info("Azure Subscription ID = %s" % self.azure_subscription_id)
 
     def generate_public_key_file(self, public_file):
         self.get_public_key()
