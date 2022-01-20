@@ -60,7 +60,7 @@ try:
     from azure.mgmt.compute import ComputeManagementClient
     from azure.mgmt.network import NetworkManagementClient
     from azure.mgmt.storage import StorageManagementClient
-    from azure.mgmt.resource import ResourceManagementClient
+    from azure.mgmt.resource.resources import ResourceManagementClient
     from azure.mgmt.resource.subscriptions import SubscriptionClient
 except ImportError:
     pass
@@ -104,7 +104,6 @@ class ask(object):
             return 0
         print("%s:" % question)
         while True:
-            print("length = %d, start = %d, end = %d" % (list_lenghth, list_start, list_end))
             if list_remaining <= list_incr:
                 list_end = list_lenghth
             else:
@@ -157,6 +156,37 @@ class ask(object):
                     new_description_list.append(descriptions[i])
         selection = self.ask_list(question, new_option_list, new_description_list)
         return options.index(new_option_list[selection])
+
+    def ask_machine_type(self, question, options=[]):
+        cpu_list = []
+        mem_list = []
+        name_list = []
+        select_list = []
+        num_cpu = None
+        num_mem = None
+        try:
+            for item in options:
+                cpu_list.append(item['cpu'])
+                mem_list.append(item['mem'])
+        except KeyError:
+            raise Exception("ask_machine_type: invalid options argument")
+        cpu_set = set(cpu_list)
+        mem_set = set(mem_list)
+        cpu_list = sorted(list(cpu_set))
+        mem_list = sorted(list(mem_set))
+        selection = self.ask_list('CPU count', cpu_list)
+        num_cpu = cpu_list[selection]
+        selection = self.ask_list('Memory', mem_list)
+        num_mem = mem_list[selection]
+        try:
+            for i in range(len(options)):
+                if options[i]['cpu'] == num_cpu and options[i]['mem'] == num_mem:
+                    name_list.append(options[i]['name'])
+                    select_list.append(i)
+        except KeyError:
+            raise Exception("ask_machine_type: invalid options argument")
+        selection = self.ask_list(question, name_list)
+        return select_list[selection]
 
     def ask_text(self, question, default=''):
         while True:
@@ -622,6 +652,7 @@ class processTemplate(object):
         self.azure_image_offer = None
         self.azure_image_sku = None
         self.azure_location = None
+        self.azure_vnet = None
         self.azure_subnet = None
         self.azure_nsg = None
         self.azure_image_name = None
@@ -1206,6 +1237,70 @@ class processTemplate(object):
                         print("Error: %s" % str(e))
                         sys.exit(1)
                 self.logger.info("AZURE_SKU = %s" % self.azure_image_sku)
+            elif item == 'AZURE_VNET':
+                if not self.azure_vnet:
+                    try:
+                        self.azure_get_vnet()
+                    except Exception as e:
+                        print("Error: %s" % str(e))
+                        sys.exit(1)
+                self.logger.info("AZURE_VNET = %s" % self.azure_vnet)
+            elif item == 'AZURE_SUBNET':
+                if not self.azure_subnet:
+                    try:
+                        self.azure_get_subnet()
+                    except Exception as e:
+                        print("Error: %s" % str(e))
+                        sys.exit(1)
+                self.logger.info("AZURE_SUBNET = %s" % self.azure_subnet)
+            elif item == 'AZURE_NSG':
+                if not self.azure_nsg:
+                    try:
+                        self.azure_get_nsg()
+                    except Exception as e:
+                        print("Error: %s" % str(e))
+                        sys.exit(1)
+                self.logger.info("AZURE_NSG = %s" % self.azure_nsg)
+            elif item == 'AZURE_IMAGE_NAME':
+                if not self.azure_image_name:
+                    try:
+                        self.azure_get_image_name()
+                    except Exception as e:
+                        print("Error: %s" % str(e))
+                        sys.exit(1)
+                self.logger.info("AZURE_IMAGE_NAME = %s" % self.azure_image_name)
+            elif item == 'AZURE_MACHINE_TYPE':
+                if not self.azure_machine_type:
+                    try:
+                        self.azure_get_machine_type()
+                    except Exception as e:
+                        print("Error: %s" % str(e))
+                        sys.exit(1)
+                self.logger.info("AZURE_MACHINE_TYPE = %s" % self.azure_machine_type)
+            elif item == 'AZURE_ADMIN_USER':
+                if not self.azure_admin_user:
+                    try:
+                        self.azure_get_image_user()
+                    except Exception as e:
+                        print("Error: %s" % str(e))
+                        sys.exit(1)
+                self.logger.info("AZURE_ADMIN_USER = %s" % self.azure_admin_user)
+            elif item == 'AZURE_DISK_TYPE':
+                if not self.azure_disk_type:
+                    try:
+                        self.azure_get_root_type()
+                    except Exception as e:
+                        print("Error: %s" % str(e))
+                        sys.exit(1)
+                self.logger.info("AZURE_DISK_TYPE = %s" % self.azure_disk_type)
+            elif item == 'AZURE_DISK_SIZE':
+                if not self.azure_disk_size:
+                    try:
+                        self.azure_get_root_size()
+                    except Exception as e:
+                        print("Error: %s" % str(e))
+                        sys.exit(1)
+                self.logger.info("AZURE_DISK_SIZE = %s" % self.azure_disk_size)
 
         raw_template = jinja2.Template(raw_input)
         format_template = raw_template.render(
@@ -1270,6 +1365,7 @@ class processTemplate(object):
                                               AZURE_OFFER=self.azure_image_offer,
                                               AZURE_SKU=self.azure_image_sku,
                                               AZURE_LOCATION=self.azure_location,
+                                              AZURE_VNET=self.azure_vnet,
                                               AZURE_SUBNET=self.azure_subnet,
                                               AZURE_NSG=self.azure_nsg,
                                               AZURE_IMAGE_NAME=self.azure_image_name,
@@ -1295,6 +1391,110 @@ class processTemplate(object):
         except OSError as e:
             print("Can not write to new variable file: %s" % str(e))
             sys.exit(1)
+
+    def azure_get_root_type(self):
+        default_selection = ''
+        if 'defaults' in self.local_var_json:
+            if 'root_size' in self.local_var_json['defaults']:
+                default_selection = self.local_var_json['defaults']['root_type']
+        self.logger.info("Default root size is %s" % default_selection)
+        selection = self.ask_text('Root volume size', default_selection)
+        self.azure_disk_type = selection
+
+    def azure_get_root_size(self):
+        default_selection = ''
+        if 'defaults' in self.local_var_json:
+            if 'root_size' in self.local_var_json['defaults']:
+                default_selection = self.local_var_json['defaults']['root_size']
+        self.logger.info("Default root size is %s" % default_selection)
+        selection = self.ask_text('Root volume size', default_selection)
+        self.azure_disk_size = selection
+
+    def azure_get_image_user(self):
+        if not self.linux_type:
+            try:
+                self.get_linux_type()
+            except Exception:
+                raise
+        if not self.linux_release:
+            try:
+                self.get_linux_release()
+            except Exception:
+                raise
+        for i in range(len(self.local_var_json['linux'][self.linux_type])):
+            if self.local_var_json['linux'][self.linux_type][i]['version'] == self.linux_release:
+                self.azure_admin_user = self.local_var_json['linux'][self.linux_type][i]['user']
+                return True
+        raise Exception("Can not locate suitable user for %s %s linux." % (self.linux_type, self.linux_release))
+
+    def azure_get_machine_type(self):
+        inquire = ask()
+        size_list = []
+        if not self.azure_location:
+            self.azure_get_location()
+        credential = AzureCliCredential()
+        compute_client = ComputeManagementClient(credential, self.azure_subscription_id)
+        sizes = compute_client.virtual_machine_sizes.list(self.azure_location)
+        for group in list(sizes):
+            config_block = {}
+            config_block['name'] = group.name
+            config_block['cpu'] = group.number_of_cores
+            config_block['mem'] = int(group.memory_in_mb / 1024)
+            size_list.append(config_block)
+        selection = inquire.ask_machine_type('Azure Machine Type', size_list)
+        self.azure_machine_type = size_list[selection]['name']
+
+    def azure_get_image_name(self):
+        inquire = ask()
+        image_list = []
+        if not self.azure_resource_group:
+            self.azure_get_resource_group()
+        credential = AzureCliCredential()
+        compute_client = ComputeManagementClient(credential, self.azure_subscription_id)
+        images = compute_client.images.list_by_resource_group(self.azure_resource_group)
+        for group in list(images):
+            image_list.append(group.name)
+        selection = inquire.ask_list('Azure Network Security Group', image_list)
+        self.azure_image_name = image_list[selection]
+
+    def azure_get_nsg(self):
+        inquire = ask()
+        nsg_list = []
+        if not self.azure_resource_group:
+            self.azure_get_resource_group()
+        credential = AzureCliCredential()
+        network_client = NetworkManagementClient(credential, self.azure_subscription_id)
+        nsgs = network_client.network_security_groups.list(self.azure_resource_group)
+        for group in list(nsgs):
+            nsg_list.append(group.name)
+        selection = inquire.ask_list('Azure Network Security Group', nsg_list)
+        self.azure_nsg = nsg_list[selection]
+
+    def azure_get_subnet(self):
+        inquire = ask()
+        subnet_list = []
+        if not self.azure_vnet:
+            self.azure_get_vnet()
+        credential = AzureCliCredential()
+        network_client = NetworkManagementClient(credential, self.azure_subscription_id)
+        subnets = network_client.subnets.list(self.azure_resource_group, self.azure_vnet)
+        for group in list(subnets):
+            subnet_list.append(group.name)
+        selection = inquire.ask_list('Azure Subnet', subnet_list)
+        self.azure_subnet = subnet_list[selection]
+
+    def azure_get_vnet(self):
+        inquire = ask()
+        vnet_list = []
+        if not self.azure_resource_group:
+            self.azure_get_resource_group()
+        credential = AzureCliCredential()
+        network_client = NetworkManagementClient(credential, self.azure_subscription_id)
+        vnetworks = network_client.virtual_networks.list(self.azure_resource_group)
+        for group in list(vnetworks):
+            vnet_list.append(group.name)
+        selection = inquire.ask_list('Azure Virtual Network', vnet_list)
+        self.azure_vnet = vnet_list[selection]
 
     def azure_get_image_sku(self):
         if not self.linux_type:
@@ -1347,7 +1547,7 @@ class processTemplate(object):
                 return True
         raise Exception("Can not locate suitable publisher for %s %s linux." % (self.linux_type, self.linux_release))
 
-    def azure_get_location(self):
+    def azure_get_all_locations(self):
         inquire = ask()
         location_list = []
         location_name = []
@@ -1359,6 +1559,21 @@ class processTemplate(object):
         for group in list(locations):
             location_list.append(group.name)
             location_name.append(group.display_name)
+        selection = inquire.ask_list('Azure Location', location_list, location_name)
+        self.azure_location = location_list[selection]
+
+    def azure_get_location(self):
+        inquire = ask()
+        location_list = []
+        location_name = []
+        if not self.azure_resource_group:
+            self.azure_get_resource_group()
+        credential = AzureCliCredential()
+        resource_client = ResourceManagementClient(credential, self.azure_subscription_id)
+        resource_group = resource_client.resource_groups.list()
+        for group in list(resource_group):
+            if group.name == self.azure_resource_group:
+                location_list.append(group.location)
         selection = inquire.ask_list('Azure Location', location_list, location_name)
         self.azure_location = location_list[selection]
 
