@@ -58,12 +58,6 @@ variable "azure_machine_type" {
   type        = string
 }
 
-variable "azure_location" {
-  description = "The root volume type"
-  default     = "{{ AZURE_LOCATION }}"
-  type        = string
-}
-
 variable "azure_admin_user" {
   description = "The GCP project"
   default     = "{{ AZURE_ADMIN_USER }}"

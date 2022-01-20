@@ -622,6 +622,13 @@ class processTemplate(object):
         self.azure_image_offer = None
         self.azure_image_sku = None
         self.azure_location = None
+        self.azure_subnet = None
+        self.azure_nsg = None
+        self.azure_image_name = None
+        self.azure_machine_type = None
+        self.azure_admin_user = None
+        self.azure_disk_type = None
+        self.azure_disk_size = None
         self.global_var_json = {}
         self.local_var_json = {}
 
@@ -1263,6 +1270,13 @@ class processTemplate(object):
                                               AZURE_OFFER=self.azure_image_offer,
                                               AZURE_SKU=self.azure_image_sku,
                                               AZURE_LOCATION=self.azure_location,
+                                              AZURE_SUBNET=self.azure_subnet,
+                                              AZURE_NSG=self.azure_nsg,
+                                              AZURE_IMAGE_NAME=self.azure_image_name,
+                                              AZURE_MACHINE_TYPE=self.azure_machine_type,
+                                              AZURE_ADMIN_USER=self.azure_admin_user,
+                                              AZURE_DISK_TYPE=self.azure_disk_type,
+                                              AZURE_DISK_SIZE=self.azure_disk_size,
                                               )
 
         if pargs.packer and self.linux_type:
