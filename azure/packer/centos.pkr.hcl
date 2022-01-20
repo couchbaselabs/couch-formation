@@ -57,9 +57,6 @@ source "azure-arm" "cb-node" {
   managed_image_resource_group_name = var.azure_resource_group
   managed_image_name = "${var.os_linux_type}-${var.os_linux_release}-couchbase-${local.timestamp}"
 
-  capture_container_name = "images"
-  capture_name_prefix = "couchbase"
-
   os_type = "Linux"
   image_publisher = var.azure_image_publisher
   image_offer = var.azure_image_offer
