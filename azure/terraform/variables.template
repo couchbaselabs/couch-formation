@@ -5,20 +5,26 @@
 ##########################################################
 
 variable "azure_resource_group" {
-  description = "Region name"
+  description = "Azure Resource Group"
   default     = "{{ AZURE_RG }}"
   type        = string
 }
 
 variable "azure_location" {
-  description = "Image Name"
+  description = "Azure Location"
   default     = "{{ AZURE_LOCATION }}"
   type        = string
 }
 
 variable "azure_subnet" {
-  description = "Machine type"
+  description = "Azure Subnet"
   default     = "{{ AZURE_SUBNET }}"
+  type        = string
+}
+
+variable "azure_vnet" {
+  description = "Azure Virtual Network"
+  default     = "{{ AZURE_VNET }}"
   type        = string
 }
 
@@ -29,7 +35,7 @@ variable "index_memory" {
 }
 
 variable "azure_nsg" {
-  description = "The default username for the image"
+  description = "Azure Network Security Group"
   type        = string
   default     = "{{ AZURE_NSG }}"
 }
@@ -47,31 +53,31 @@ variable "ssh_private_key" {
 }
 
 variable "azure_image_name" {
-  description = "Subnet to launch the instances in"
+  description = "Azure Image Name"
   default     = "{{ AZURE_IMAGE_NAME }}"
   type        = string
 }
 
 variable "azure_machine_type" {
-  description = "The root volume size"
+  description = "Azure Machine Type"
   default     = "{{ AZURE_MACHINE_TYPE }}"
   type        = string
 }
 
 variable "azure_admin_user" {
-  description = "The GCP project"
+  description = "Azure Admin User"
   default     = "{{ AZURE_ADMIN_USER }}"
   type        = string
 }
 
 variable "azure_disk_type" {
-  description = "The auth JSON"
+  description = "Azure Disk Type"
   default     = "{{ AZURE_DISK_TYPE }}"
   type        = string
 }
 
 variable "azure_disk_size" {
-  description = "The service account email"
+  description = "Azure Disk Size"
   default     = "{{ AZURE_DISK_SIZE }}"
   type        = string
 }

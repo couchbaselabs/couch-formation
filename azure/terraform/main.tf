@@ -1,17 +1,23 @@
 terraform {
   required_providers {
-    aws = {
+    azurerm = {
       source  = "hashicorp/azurerm"
     }
   }
 }
 
 provider "azurerm" {
-  features {}
+   features {}
 }
 
 resource "random_id" "cluster-id" {
   byte_length = 4
+}
+
+data "azurerm_subnet" "cb_subnet" {
+  name                 = var.azure_subnet
+  virtual_network_name = var.azure_vnet
+  resource_group_name  = var.azure_resource_group
 }
 
 resource "azurerm_public_ip" "node_external" {
@@ -30,7 +36,7 @@ resource "azurerm_network_interface" "node_nic" {
 
   ip_configuration {
     name                          = "internal"
-    subnet_id                     = var.azure_subnet
+    subnet_id                     = data.azurerm_subnet.cb_subnet.id
     private_ip_address_allocation = "Dynamic"
     public_ip_address_id          = azurerm_public_ip.node_external[each.key].id
   }

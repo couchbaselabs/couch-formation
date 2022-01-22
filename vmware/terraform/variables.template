@@ -10,6 +10,18 @@ variable "domain_name" {
   type        = string
 }
 
+variable "dns_domain_list" {
+  description = "DNS domain name"
+  default     = ["{{ DOMAIN_NAME }}"]
+  type        = list
+}
+
+variable "dns_server_list" {
+  description = "DNS domain name"
+  default     = [{{ DNS_SERVER_LIST }}]
+  type        = list
+}
+
 variable "vsphere_user" {
   default     = "{{ VMWARE_USERNAME }}"
   type        = string

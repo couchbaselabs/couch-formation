@@ -300,20 +300,29 @@ class dynamicDNS(object):
             print("dns_update: Unsupported type %s" % type)
             return False
 
+    def dns_get_servers(self):
+        server_list = []
+        resolver = dns.resolver.Resolver()
+        try:
+            ns_answer = resolver.resolve(self.dns_domain, 'NS')
+            for server in ns_answer:
+                ip_answer = resolver.resolve(server.target, 'A')
+                for ip in ip_answer:
+                    server_list.append(ip.address)
+            return server_list
+        except dns.resolver.NXDOMAIN as e:
+            raise Exception("dns_get_servers: the domain %s does not exist." % self.dns_domain)
+
     def dns_zone_xfer(self):
         address_list = []
-        resolver = dns.resolver.Resolver()
-        ns_answer = resolver.resolve(self.dns_domain, 'NS')
-        for server in ns_answer:
-            ip_answer = resolver.resolve(server.target, 'A')
-            for ip in ip_answer:
-                try:
-                    zone = dns.zone.from_xfr(dns.query.xfr(str(ip), self.dns_domain))
-                    for (name, ttl, rdata) in zone.iterate_rdatas(rdtype='A'):
-                        address_list.append(rdata.to_text())
-                    return address_list
-                except Exception as e:
-                    continue
+        for dns_server in self.dns_get_servers():
+            try:
+                zone = dns.zone.from_xfr(dns.query.xfr(dns_server, self.dns_domain))
+                for (name, ttl, rdata) in zone.iterate_rdatas(rdtype='A'):
+                    address_list.append(rdata.to_text())
+                return address_list
+            except Exception as e:
+                continue
         return []
 
     def dns_get_range(self, network, omit=None):
@@ -592,6 +601,7 @@ class processTemplate(object):
         self.ssh_key_fingerprint = None
         self.domain_name = pargs.domain
         self.dns_server = None
+        self.dns_server_list = None
         self.cb_version = None
         self.cb_index_mem_type = None
         self.aws_image_name = None
@@ -1077,6 +1087,14 @@ class processTemplate(object):
                         print("Error: %s" % str(e))
                         sys.exit(1)
                 self.logger.info("DOMAIN_NAME = %s" % self.domain_name)
+            elif item == 'DNS_SERVER_LIST':
+                if not self.dns_server_list:
+                    try:
+                        self.get_dns_servers()
+                    except Exception as e:
+                        print("Error: %s" % str(e))
+                        sys.exit(1)
+                self.logger.info("DNS_SERVER_LIST = %s" % self.dns_server_list)
             elif item == 'GCP_ACCOUNT_FILE':
                 if not self.gcp_account_file:
                     try:
@@ -1308,6 +1326,7 @@ class processTemplate(object):
                                               LINUX_TYPE=self.linux_type,
                                               LINUX_RELEASE=self.linux_release,
                                               DOMAIN_NAME=self.domain_name,
+                                              DNS_SERVER_LIST=self.dns_server_list,
                                               AWS_IMAGE=self.aws_image_name,
                                               AWS_AMI_OWNER=self.aws_image_owner,
                                               AWS_AMI_USER=self.aws_image_user,
@@ -1391,6 +1410,12 @@ class processTemplate(object):
         except OSError as e:
             print("Can not write to new variable file: %s" % str(e))
             sys.exit(1)
+
+    def get_dns_servers(self):
+        server_list = []
+        dns_lookup = dynamicDNS(self.domain_name)
+        server_list = dns_lookup.dns_get_servers()
+        self.dns_server_list = ','.join(f'"{s}"' for s in server_list)
 
     def azure_get_root_type(self):
         default_selection = ''

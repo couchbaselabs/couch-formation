@@ -94,6 +94,8 @@ resource "vsphere_virtual_machine" "couchbase_nodes" {
         ipv4_netmask = each.value.node_netmask
       }
       ipv4_gateway = each.value.node_gateway
+      dns_server_list = var.dns_server_list
+      dns_suffix_list = var.dns_domain_list
     }
   }
 
@@ -115,6 +117,12 @@ resource "vsphere_virtual_machine" "couchbase_nodes" {
 
 locals {
   rally_node = element([for node in vsphere_virtual_machine.couchbase_nodes: node.default_ip_address], 0)
+  depends_on = [vsphere_virtual_machine.couchbase_nodes]
+}
+
+resource "time_sleep" "pause" {
+  depends_on = [vsphere_virtual_machine.couchbase_nodes]
+  create_duration = "5s"
 }
 
 resource "null_resource" "couchbase-init" {
@@ -133,7 +141,7 @@ resource "null_resource" "couchbase-init" {
       "sudo /usr/local/hostprep/bin/clusterinit.sh -m config -r ${local.rally_node}",
     ]
   }
-  depends_on = [vsphere_virtual_machine.couchbase_nodes]
+  depends_on = [vsphere_virtual_machine.couchbase_nodes, time_sleep.pause]
 }
 
 resource "null_resource" "couchbase-rebalance" {
