@@ -11,13 +11,13 @@ variable "domain_name" {
 }
 
 variable "dns_domain_list" {
-  description = "DNS domain name"
+  description = "DNS domain list"
   default     = ["{{ DOMAIN_NAME }}"]
   type        = list
 }
 
 variable "dns_server_list" {
-  description = "DNS domain name"
+  description = "DNS server list"
   default     = [{{ DNS_SERVER_LIST }}]
   type        = list
 }
