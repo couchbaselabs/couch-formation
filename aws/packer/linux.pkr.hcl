@@ -74,8 +74,7 @@ build {
   inline = [
     "echo Installing Couchbase",
     "sleep 30",
-    "sudo yum update -y",
-    "sudo yum install -y git",
+    "curl -sfL https://raw.githubusercontent.com/mminichino/hostprep/main/bin/bootstrap.sh | sudo -E bash -",
     "sudo git clone https://github.com/mminichino/hostprep /usr/local/hostprep",
     "sudo /usr/local/hostprep/bin/hostprep.sh -t couchbase -v ${var.cb_version}",
   ]
