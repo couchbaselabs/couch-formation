@@ -66,8 +66,10 @@ source "azure-arm" "cb-node" {
   vm_size = "Standard_DS2_v2"
 
   azure_tags = {
-    type = "couchbase-server"
-    version = var.cb_version
+    Name    = "${var.os_linux_type}-${var.os_linux_release}-${var.cb_version}"
+    Type    = "${var.os_linux_type}"
+    Release = "${var.os_linux_release}"
+    Version = "${var.cb_version}"
   }
 }
 
@@ -83,8 +85,7 @@ build {
   inline = [
     "echo Installing Couchbase",
     "sleep 30",
-    "sudo yum update -y",
-    "sudo yum install -y git",
+    "curl -sfL https://raw.githubusercontent.com/mminichino/hostprep/main/bin/bootstrap.sh | sudo -E bash -",
     "sudo git clone https://github.com/mminichino/hostprep /usr/local/hostprep",
     "sudo /usr/local/hostprep/bin/hostprep.sh -t couchbase -v ${var.cb_version}",
     "/usr/sbin/waagent -force -deprovision+user && export HISTSIZE=0 && sync",

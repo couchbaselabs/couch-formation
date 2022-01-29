@@ -60,6 +60,12 @@ source "amazon-ebs" "cb-node" {
     owners      = ["${var.aws_image_owner}"]
   }
   ssh_username = "${var.aws_image_user}"
+  tags = {
+    Name    = "${var.os_linux_type}-${var.os_linux_release}-${var.cb_version}"
+    Type    = "${var.os_linux_type}"
+    Release = "${var.os_linux_release}"
+    Version = "${var.cb_version}"
+  }
 }
 
 build {
