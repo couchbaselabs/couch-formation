@@ -538,7 +538,7 @@ class cbrelease(object):
         for line in lines:
             if re.match(r'Version', line):
                 version = line.split(':')[1]
-                # print("%s" % version)
+                version = version.strip()
                 return_list.append(version)
 
         return return_list
@@ -2478,76 +2478,6 @@ class processTemplate(object):
         selection = self.ask('Select AMI', image_list, image_name_list)
         self.aws_ami_id = images['Images'][selection]['ImageId']
 
-    def aws_refresh_token(self):
-        inquire = ask()
-        session_token_file = os.environ['HOME'] + '/.aws/aws-session-token.json'
-        access_key = None
-        secret_key = None
-        session_token = None
-        account_number = None
-        mfa_device = None
-        mfa_code = None
-        aws_region = None
-        session_json = {}
-        if os.path.exists(session_token_file):
-            try:
-                with open(session_token_file, 'r') as token_file:
-                    session_json = json.load(token_file)
-                    if 'AccessKeyId' in session_json['Credentials']:
-                        access_key = session_json['Credentials']['AccessKeyId']
-                    if 'SecretAccessKey' in session_json['Credentials']:
-                        secret_key = session_json['Credentials']['SecretAccessKey']
-                    if 'AccountNumber' in session_json['Credentials']:
-                        account_number = session_json['Credentials']['AccountNumber']
-                    if 'MfaDevice' in session_json['Credentials']:
-                        mfa_device = session_json['Credentials']['MfaDevice']
-            except Exception as e:
-                print("Can't read session credentials from %s: %s" % (session_token_file, str(e)))
-                sys.exit(1)
-
-        if not access_key:
-            access_key = inquire.ask_text('Access Key')
-        if not secret_key:
-            secret_key = inquire.ask_text('Secret Key')
-        if not account_number:
-            account_number = inquire.ask_text('Account Number')
-            account_number = account_number.replace('-', '')
-        if not mfa_device:
-            mfa_device = inquire.ask_text('MFA Device ID')
-        if not self.aws_region:
-            aws_region = inquire.ask_text('AWS Region')
-        else:
-            aws_region = self.aws_region
-        if not mfa_code:
-            mfa_code = inquire.ask_text('MFA Code')
-
-        if 'AWS_SESSION_TOKEN' in os.environ:
-            del os.environ['AWS_SESSION_TOKEN']
-
-        try:
-            sts = boto3.client('sts')
-            session_token = sts.get_session_token(
-                DurationSeconds=3600,
-                SerialNumber="arn:aws:iam::{}:mfa/{}".format(account_number, mfa_device),
-                TokenCode=mfa_code,
-            )
-        except Exception as e:
-            print("Can not get session token: %s" % str(e))
-        print(session_token)
-        sys.exit(1)
-
-    def aws_check_credentials(self):
-        try:
-            sts = boto3.client('sts')
-            sts.get_caller_identity()
-        except ClientError as e:
-            if e.response['Error']['Code'] == 'ExpiredToken':
-                self.aws_refresh_token()
-            else:
-                raise Exception("Client error: %s" % str(e))
-        except Exception:
-            raise
-
     def aws_get_region(self):
         if 'AWS_REGION' in os.environ:
             self.aws_region = os.environ['AWS_REGION']
@@ -2562,8 +2492,6 @@ class processTemplate(object):
             answer = input("AWS Region: ")
             answer = answer.rstrip("\n")
             self.aws_region = answer
-
-        self.aws_check_credentials()
 
     def get_aws_image_user(self):
         if not self.linux_type:
@@ -2609,6 +2537,7 @@ class processTemplate(object):
         raise Exception("Can not locate suitable image for %s %s linux." % (self.linux_type, self.linux_release))
 
     def get_cb_version(self):
+        inquire = ask()
         if not self.linux_type:
             try:
                 self.get_linux_type()
@@ -2622,7 +2551,7 @@ class processTemplate(object):
         try:
             cbr = cbrelease(self.linux_pkgmgr, self.linux_release)
             versions_list = cbr.get_versions()
-            release_list = self.reverse_list(versions_list)
+            release_list = sorted(versions_list, reverse=True)
         except Exception:
             raise
 
