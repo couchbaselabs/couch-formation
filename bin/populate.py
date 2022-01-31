@@ -7,6 +7,7 @@ Build Terraform Config Files
 import logging
 import os
 import sys
+import traceback
 import argparse
 import json
 import re
@@ -67,6 +68,10 @@ except ImportError:
     pass
 
 PUBLIC_CLOUD = True
+MODE_TFVAR = 0x0001
+MODE_CLUSTER_MAP = 0x0002
+MODE_PACKER = 0x0003
+MODE_KUBE_MAP = 0x0004
 
 CB_CFG_HEAD = """####
 variable "cluster_spec" {
@@ -93,7 +98,7 @@ CB_CFG_TAIL = """
 class ask(object):
 
     def __init__(self):
-        pass
+        self.logger = logging.getLogger(self.__class__.__name__)
 
     def ask_list(self, question, options=[], descriptions=[]):
         list_start = 1
@@ -156,12 +161,13 @@ class ask(object):
                 if i < len(descriptions):
                     new_description_list.append(descriptions[i])
         selection = self.ask_list(question, new_option_list, new_description_list)
-        return options.index(new_option_list[selection])
+        return new_option_list[selection]
 
     def ask_machine_type(self, question, options=[]):
         cpu_list = []
         mem_list = []
         name_list = []
+        description_list = []
         select_list = []
         num_cpu = None
         num_mem = None
@@ -183,10 +189,15 @@ class ask(object):
             for i in range(len(options)):
                 if options[i]['cpu'] == num_cpu and options[i]['mem'] == num_mem:
                     name_list.append(options[i]['name'])
+                    if 'description' in options[i]:
+                        description_list.append(options[i]['description'])
                     select_list.append(i)
         except KeyError:
             raise Exception("ask_machine_type: invalid options argument")
-        selection = self.ask_list(question, name_list)
+        if len(description_list) > 0:
+            selection = self.ask_list(question, name_list, description_list)
+        else:
+            selection = self.ask_list(question, name_list)
         return select_list[selection]
 
     def ask_text(self, question, default=''):
@@ -573,6 +584,7 @@ class processTemplate(object):
 
     def __init__(self, pargs):
         self.debug = pargs.debug
+        self.operating_mode = MODE_TFVAR
         self.cwd = os.getcwd()
         if not pargs.cluster:
             self.template_file = pargs.template
@@ -673,6 +685,79 @@ class processTemplate(object):
         self.azure_disk_size = None
         self.global_var_json = {}
         self.local_var_json = {}
+        self.supported_variable_list = [
+            ('AWS_AMI_ID', 0),
+            ('AWS_AMI_OWNER', 2),
+            ('AWS_AMI_USER', 2),
+            ('AWS_IMAGE', 2),
+            ('AWS_INSTANCE_TYPE', 2),
+            ('AWS_REGION', 2),
+            ('AWS_ROOT_IOPS', 2),
+            ('AWS_ROOT_SIZE', 2),
+            ('AWS_ROOT_TYPE', 2),
+            ('AWS_SECURITY_GROUP', 2),
+            ('AWS_SSH_KEY', 0),
+            ('AWS_SUBNET_ID', 2),
+            ('AWS_VPC_ID', 2),
+            ('AZURE_ADMIN_USER', 2),
+            ('AZURE_DISK_SIZE', 2),
+            ('AZURE_DISK_TYPE', 2),
+            ('AZURE_IMAGE_NAME', 0),
+            ('AZURE_LOCATION', 2),
+            ('AZURE_MACHINE_TYPE', 2),
+            ('AZURE_NSG', 2),
+            ('AZURE_OFFER', 2),
+            ('AZURE_PUBLISHER', 2),
+            ('AZURE_RG', 2),
+            ('AZURE_SKU', 2),
+            ('AZURE_SUBNET', 2),
+            ('AZURE_SUBSCRIPTION_ID', 2),
+            ('AZURE_VNET', 2),
+            ('CB_INDEX_MEM_TYPE', 2),
+            ('CB_VERSION', 2),
+            ('DNS_SERVER_LIST', 2),
+            ('DOMAIN_NAME', 2),
+            ('GCP_ACCOUNT_FILE', 2),
+            ('GCP_CB_IMAGE', 0),
+            ('GCP_IMAGE', 2),
+            ('GCP_IMAGE_FAMILY', 2),
+            ('GCP_IMAGE_USER', 2),
+            ('GCP_MACHINE_TYPE', 2),
+            ('GCP_PROJECT', 2),
+            ('GCP_REGION', 2),
+            ('GCP_ROOT_SIZE', 2),
+            ('GCP_ROOT_TYPE', 2),
+            ('GCP_SA_EMAIL', 2),
+            ('GCP_SUBNET', 2),
+            ('GCP_ZONE', 2),
+            ('LINUX_RELEASE', 1),
+            ('LINUX_TYPE', 1),
+            ('SSH_PRIVATE_KEY', 1),
+            ('SSH_PUBLIC_KEY_FILE', 2),
+            ('VMWARE_BUILD_PASSWORD', 2),
+            ('VMWARE_BUILD_PWD_ENCRYPTED', 2),
+            ('VMWARE_BUILD_USERNAME', 2),
+            ('VMWARE_CLUSTER', 2),
+            ('VMWARE_CPU_CORES', 2),
+            ('VMWARE_DATACENTER', 2),
+            ('VMWARE_DATASTORE', 2),
+            ('VMWARE_DISK_SIZE', 2),
+            ('VMWARE_DVS', 2),
+            ('VMWARE_FOLDER', 2),
+            ('VMWARE_HOSTNAME', 0),
+            ('VMWARE_ISO_CHECKSUM', 2),
+            ('VMWARE_ISO_URL', 2),
+            ('VMWARE_KEY', 2),
+            ('VMWARE_MEM_SIZE', 2),
+            ('VMWARE_NETWORK', 2),
+            ('VMWARE_OS_TYPE', 2),
+            ('VMWARE_PASSWORD', 0),
+            ('VMWARE_SW_URL', 2),
+            ('VMWARE_TEMPLATE', 1),
+            ('VMWARE_TIMEZONE', 2),
+            ('VMWARE_USERNAME', 0),
+        ]
+        inquire = ask()
 
         logging.basicConfig()
         self.logger = logging.getLogger()
@@ -701,6 +786,7 @@ class processTemplate(object):
             self.template_file = self.template_dir + '/' + self.template_file
 
         if pargs.cluster:
+            self.operating_mode = MODE_CLUSTER_MAP
             try:
                 self.create_cluster_config()
             except Exception as e:
@@ -708,6 +794,8 @@ class processTemplate(object):
                 sys.exit(1)
             print("Cluster configuration complete.")
             sys.exit(0)
+        elif pargs.packer:
+            self.operating_mode = MODE_PACKER
 
         if pargs.globals:
             self.globals_file = pargs.globals
@@ -759,7 +847,11 @@ class processTemplate(object):
         ast = env.parse(rendered)
         requested_vars = find_undeclared_variables(ast)
 
-        for item in sorted(requested_vars):
+        sorted_token_list = [tuple for x in requested_vars for tuple in self.supported_variable_list if tuple[0] == x]
+        sorted_token_list = sorted(sorted_token_list, key=lambda tuple: tuple[1])
+
+        for count, tuple in enumerate(sorted_token_list):
+            item = tuple[0]
             self.logger.info("Processing variable %s" % item)
             if item == 'CB_VERSION':
                 try:
@@ -1412,6 +1504,17 @@ class processTemplate(object):
             print("Can not write to new variable file: %s" % str(e))
             sys.exit(1)
 
+        if self.operating_mode == MODE_TFVAR:
+            cluster_map_file = 'cluster.tf'
+            cluster_map_path = self.template_dir + '/' + cluster_map_file
+            if not os.path.exists(cluster_map_path) or pargs.refresh:
+                try:
+                    self.create_cluster_config()
+                except Exception as e:
+                    print("Error: %s" % str(e))
+                    sys.exit(1)
+                print("Cluster configuration complete.")
+
     def get_dns_servers(self):
         server_list = []
         dns_lookup = dynamicDNS(self.domain_name)
@@ -1709,7 +1812,7 @@ class processTemplate(object):
                 config_list.append(config_string)
             request = gcp_client.machineTypes().list_next(previous_request=request, previous_response=response)
         selection = inquire.ask_long_list('GCP Machine Type', machine_type_list, config_list, separator='-')
-        self.gcp_machine_type = machine_type_list[selection]
+        self.gcp_machine_type = selection
 
     def gcp_get_cb_image_name(self):
         inquire = ask()
@@ -2350,10 +2453,12 @@ class processTemplate(object):
         vpcs = ec2_client.describe_vpcs()
         for i in range(len(vpcs['Vpcs'])):
             vpc_list.append(vpcs['Vpcs'][i]['VpcId'])
+            item_name = ''
             if 'Tags' in vpcs['Vpcs'][i]:
-                vpc_name_list.append(self.aws_get_tag('Name', vpcs['Vpcs'][i]['Tags']))
-            else:
-                vpc_name_list.append('')
+                item_tag = self.aws_get_tag('Name', vpcs['Vpcs'][i]['Tags'])
+                if item_tag:
+                    item_name = item_tag
+            vpc_name_list.append(item_name)
 
         selection = self.ask('Select VPC', vpc_list, vpc_name_list)
         self.aws_vpc_id = vpcs['Vpcs'][selection]['VpcId']
@@ -2376,10 +2481,12 @@ class processTemplate(object):
         subnets = ec2_client.describe_subnets(Filters=[vpc_filter, ])
         for i in range(len(subnets['Subnets'])):
             subnet_list.append(subnets['Subnets'][i]['SubnetId'])
+            item_name = ''
             if 'Tags' in subnets['Subnets'][i]:
-                subnet_name_list.append(self.aws_get_tag('Name', subnets['Subnets'][i]['Tags']))
-            else:
-                subnet_name_list.append('')
+                item_tag = self.aws_get_tag('Name', subnets['Subnets'][i]['Tags'])
+                if item_tag:
+                    item_name = item_tag
+            subnet_name_list.append(item_name)
 
         selection = self.ask('Select subnet', subnet_list, subnet_name_list)
         self.aws_subnet_id = subnets['Subnets'][selection]['SubnetId']
@@ -2453,15 +2560,35 @@ class processTemplate(object):
             self.cb_index_mem_type = 'memopt'
 
     def aws_get_instance_type(self):
-        default_selection = ''
-        if 'defaults' in self.local_var_json:
-            if 'instance_type' in self.local_var_json['defaults']:
-                default_selection = self.local_var_json['defaults']['instance_type']
-        self.logger.info("Default instance type is %s" % default_selection)
-        selection = self.ask_text('Instance type', default_selection)
-        self.aws_instance_type = selection
+        inquire = ask()
+        size_list = []
+        if not self.aws_region:
+            try:
+                self.aws_get_region()
+            except Exception:
+                raise
+        ec2_client = boto3.client('ec2', region_name=self.aws_region)
+        describe_args = {}
+        while True:
+            instance_types = ec2_client.describe_instance_types(**describe_args)
+            for machine_type in instance_types['InstanceTypes']:
+                config_block = {}
+                config_block['name'] = machine_type['InstanceType']
+                config_block['cpu'] = machine_type['VCpuInfo']['DefaultVCpus']
+                config_block['mem'] = int(machine_type['MemoryInfo']['SizeInMiB'] / 1024)
+                config_block['description'] = ",".join(machine_type['ProcessorInfo']['SupportedArchitectures']) \
+                                              + ' ' + str(machine_type['ProcessorInfo']['SustainedClockSpeedInGhz']) + 'GHz' \
+                                              + ', Network: ' + machine_type['NetworkInfo']['NetworkPerformance'] \
+                                              + ', Hypervisor: ' + machine_type['Hypervisor'] if 'Hypervisor' in machine_type else 'NA'
+                size_list.append(config_block)
+            if 'NextToken' not in instance_types:
+                break
+            describe_args['NextToken'] = instance_types['NextToken']
+        selection = inquire.ask_machine_type('AWS Instance Type', size_list)
+        self.aws_instance_type = size_list[selection]['name']
 
     def aws_get_ami_id(self):
+        inquire = ask()
         image_list = []
         image_name_list = []
         if not self.aws_region:
@@ -2473,9 +2600,21 @@ class processTemplate(object):
         images = ec2_client.describe_images(Owners=['self'])
         for i in range(len(images['Images'])):
             image_list.append(images['Images'][i]['ImageId'])
-            image_name_list.append(images['Images'][i]['Name'])
+            item_name = images['Images'][i]['Name']
+            if 'Tags' in images['Images'][i]:
+                item_release_tag = self.aws_get_tag('Release', images['Images'][i]['Tags'])
+                item_type_tag = self.aws_get_tag('Type', images['Images'][i]['Tags'])
+                item_version_tag = self.aws_get_tag('Version', images['Images'][i]['Tags'])
+                if item_type_tag:
+                    self.linux_type = item_type_tag
+                if item_release_tag:
+                    self.linux_release = item_release_tag
+                if item_version_tag:
+                    self.cb_version = item_version_tag
+                    item_name = item_name + ' => Version: ' + item_version_tag
+            image_name_list.append(item_name)
 
-        selection = self.ask('Select AMI', image_list, image_name_list)
+        selection = inquire.ask_list('Select AMI', image_list, image_name_list)
         self.aws_ami_id = images['Images'][selection]['ImageId']
 
     def aws_get_region(self):
@@ -2586,11 +2725,17 @@ class processTemplate(object):
     def reverse_list(self, list):
         return [item for item in reversed(list)]
 
+    def aws_tag_exists(self, key, tags):
+        for i in range(len(tags)):
+            if tags[i]['Key'] == key:
+                return True
+        return False
+
     def aws_get_tag(self, key, tags):
         for i in range(len(tags)):
             if tags[i]['Key'] == key:
                 return tags[i]['Value']
-        return ''
+        return None
 
     def ask(self, question, options=[], descriptions=[]):
         print("%s:" % question)
