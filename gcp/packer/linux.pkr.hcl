@@ -69,10 +69,10 @@ source "googlecompute" "cb-node" {
   ssh_username        = var.gcp_image_user
   ssh_timeout         = "1h"
   image_labels        = {
-    Name    = "${var.os_linux_type}-${var.os_linux_release}-${var.cb_version}"
-    Type    = "${var.os_linux_type}"
-    Release = "${var.os_linux_release}"
-    Version = "${var.cb_version}"
+    name    = format("%s-%s-%s", var.os_linux_type, var.os_linux_release, replace(var.cb_version, ".", "_"))
+    type    = "${var.os_linux_type}"
+    release = "${var.os_linux_release}"
+    version = replace(var.cb_version, ".", "_")
   }
 }
 

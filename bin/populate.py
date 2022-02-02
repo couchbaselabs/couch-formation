@@ -13,6 +13,7 @@ import json
 import re
 import os
 import getpass
+from itertools import cycle
 import subprocess
 import crypt
 import ipaddress
@@ -84,6 +85,7 @@ CB_CFG_NODE = """
       node_number     = {{ NODE_NUMBER }},
       node_services   = "{{ NODE_SERVICES }}",
       install_mode    = "{{ NODE_INSTALL_MODE }}",
+      node_zone       = "{{ NODE_ZONE }}",
       node_ip_address = "{{ NODE_IP_ADDRESS }}",
       node_netmask    = "{{ NODE_NETMASK }}",
       node_gateway    = "{{ NODE_GATEWAY }}",
@@ -115,11 +117,19 @@ class ask(object):
             else:
                 list_end = list_start + list_incr - 1
             for i in range(list_start, list_end + 1):
+                if type(options[i-1]) is dict:
+                    if 'name' not in options[i-1]:
+                        raise Exception("ask_list: name not found in option entry")
+                    option_display = options[i-1]['name']
+                else:
+                    option_display = options[i-1]
                 if i <= len(descriptions):
                     extra = '(' + descriptions[i-1] + ')'
+                elif type(options[i-1]) is dict and 'description' in options[i-1]:
+                    extra = '(' + options[i-1]['description'] + ')'
                 else:
                     extra = ''
-                print(" %02d) %s %s" % (i, options[i-1], extra))
+                print(" %02d) %s %s" % (i, option_display, extra))
             if list_end == list_lenghth:
                 answer = input("Selection [q=quit]: ")
             else:
@@ -281,6 +291,22 @@ class ask(object):
                 return answer
             except Exception:
                 print("Invalid input, please try again...")
+                continue
+
+    def ask_bool(self, question, default='true'):
+        while True:
+            prompt = question + ' [' + default + ']: '
+            answer = input(prompt)
+            answer = answer.rstrip("\n")
+            if len(answer) == 0:
+                answer = default
+            try:
+                if answer == 'true' or answer == 'false':
+                    return answer
+                else:
+                    raise Exception("please answer true or false")
+            except Exception as e:
+                print("Invalid input: %s, please try again..." % str(e))
                 continue
 
 class dynamicDNS(object):
@@ -568,6 +594,7 @@ class params(object):
         parser.add_argument('--test', action='store', help="Test Environment", type=int)
         parser.add_argument('--prod', action='store', help="Prod Environment", type=int)
         parser.add_argument('--location', action='store', help="Public/Private Cloud", default='aws')
+        parser.add_argument('--singlezone', action='store_true', help="Use One Availability Zone", default=False)
         parser.add_argument('--refresh', action='store_true', help="Packer file", default=False)
         parser.add_argument('--host', action='store', help="Host Name")
         parser.add_argument('--user', action='store', help="Host User")
@@ -602,6 +629,9 @@ class processTemplate(object):
         self.subnet_netmask = None
         self.default_gateway = pargs.gateway
         self.omit_range = pargs.omit
+        self.use_public_ip = False
+        self.use_single_zone = pargs.singlezone
+        self.availability_zone_cycle = None
         self.packer_mode = pargs.packer
         self.globals_file = None
         self.locals_file = None
@@ -621,6 +651,7 @@ class processTemplate(object):
         self.aws_image_owner = None
         self.aws_image_user = None
         self.aws_region = None
+        self.aws_availability_zones = []
         self.aws_ami_id = None
         self.aws_instance_type = None
         self.aws_ssh_key = None
@@ -663,6 +694,7 @@ class processTemplate(object):
         self.gcp_auth_json_project_id = None
         self.gcp_image_user = None
         self.gcp_zone = None
+        self.gcp_zone_list = []
         self.gcp_region = None
         self.gcp_machine_type = None
         self.gcp_subnet = None
@@ -675,6 +707,7 @@ class processTemplate(object):
         self.azure_image_offer = None
         self.azure_image_sku = None
         self.azure_location = None
+        self.azure_availability_zones = []
         self.azure_vnet = None
         self.azure_subnet = None
         self.azure_nsg = None
@@ -734,6 +767,7 @@ class processTemplate(object):
             ('LINUX_TYPE', 1),
             ('SSH_PRIVATE_KEY', 1),
             ('SSH_PUBLIC_KEY_FILE', 2),
+            ('USE_PUBLIC_IP', 2),
             ('VMWARE_BUILD_PASSWORD', 2),
             ('VMWARE_BUILD_PWD_ENCRYPTED', 2),
             ('VMWARE_BUILD_USERNAME', 2),
@@ -1412,6 +1446,14 @@ class processTemplate(object):
                         print("Error: %s" % str(e))
                         sys.exit(1)
                 self.logger.info("AZURE_DISK_SIZE = %s" % self.azure_disk_size)
+            elif item == 'USE_PUBLIC_IP':
+                if not self.use_public_ip:
+                    try:
+                        self.ask_to_use_public_ip()
+                    except Exception as e:
+                        print("Error: %s" % str(e))
+                        sys.exit(1)
+                self.logger.info("USE_PUBLIC_IP = %s" % self.use_public_ip)
 
         raw_template = jinja2.Template(raw_input)
         format_template = raw_template.render(
@@ -1420,6 +1462,7 @@ class processTemplate(object):
                                               LINUX_RELEASE=self.linux_release,
                                               DOMAIN_NAME=self.domain_name,
                                               DNS_SERVER_LIST=self.dns_server_list,
+                                              USE_PUBLIC_IP=self.use_public_ip,
                                               AWS_IMAGE=self.aws_image_name,
                                               AWS_AMI_OWNER=self.aws_image_owner,
                                               AWS_AMI_USER=self.aws_image_user,
@@ -1515,6 +1558,11 @@ class processTemplate(object):
                     sys.exit(1)
                 print("Cluster configuration complete.")
 
+    def ask_to_use_public_ip(self):
+        inquire = ask()
+        selection = inquire.ask_bool('Use Public IP', default='false')
+        self.use_public_ip = selection
+
     def get_dns_servers(self):
         server_list = []
         dns_lookup = dynamicDNS(self.domain_name)
@@ -1561,6 +1609,8 @@ class processTemplate(object):
         size_list = []
         if not self.azure_location:
             self.azure_get_location()
+        if self.azure_machine_type:
+            return
         credential = AzureCliCredential()
         compute_client = ComputeManagementClient(credential, self.azure_subscription_id)
         sizes = compute_client.virtual_machine_sizes.list(self.azure_location)
@@ -1583,7 +1633,7 @@ class processTemplate(object):
         images = compute_client.images.list_by_resource_group(self.azure_resource_group)
         for group in list(images):
             image_list.append(group.name)
-        selection = inquire.ask_list('Azure Network Security Group', image_list)
+        selection = inquire.ask_list('Azure Image Name', image_list)
         self.azure_image_name = image_list[selection]
 
     def azure_get_nsg(self):
@@ -1705,6 +1755,28 @@ class processTemplate(object):
                 location_list.append(group.location)
         selection = inquire.ask_list('Azure Location', location_list, location_name)
         self.azure_location = location_list[selection]
+        self.azure_get_machine_type()
+        self.azure_get_zones()
+
+    def azure_get_zones(self):
+        if not self.azure_location:
+            self.azure_get_location()
+        if len(self.azure_availability_zones) > 0:
+            return
+        print("Fetching Azure zone information, this may take a few minutes...")
+        credential = AzureCliCredential()
+        compute_client = ComputeManagementClient(credential, self.azure_subscription_id)
+        zone_list = compute_client.resource_skus.list()
+        for group in list(zone_list):
+            if group.resource_type == 'virtualMachines' \
+                    and group.name == self.azure_machine_type \
+                    and group.locations[0].lower() == self.azure_location.lower():
+                for resource_location in group.location_info:
+                    for zone_number in resource_location.zones:
+                        self.azure_availability_zones.append(zone_number)
+                self.azure_availability_zones = sorted(self.azure_availability_zones)
+                for zone_number in self.azure_availability_zones:
+                    self.logger.info("Added Azure availability zone %s" % zone_number)
 
     def azure_get_resource_group(self):
         inquire = ask()
@@ -1794,7 +1866,6 @@ class processTemplate(object):
     def gcp_get_machine_type(self):
         inquire = ask()
         machine_type_list = []
-        config_list = []
         if not self.gcp_account_file:
             self.gcp_get_account_file()
         if not self.gcp_zone:
@@ -1807,12 +1878,15 @@ class processTemplate(object):
         while request is not None:
             response = request.execute()
             for machine_type in response['items']:
-                machine_type_list.append(machine_type['name'])
-                config_string = str(machine_type['guestCpus']) + 'x' + "{:.0f}".format(machine_type['memoryMb']/1024) + 'Gb'
-                config_list.append(config_string)
+                config_block = {}
+                config_block['name'] = machine_type['name']
+                config_block['cpu'] = machine_type['guestCpus']
+                config_block['mem'] = int(machine_type['memoryMb']/1024)
+                config_block['description'] = machine_type['description']
+                machine_type_list.append(config_block)
             request = gcp_client.machineTypes().list_next(previous_request=request, previous_response=response)
-        selection = inquire.ask_long_list('GCP Machine Type', machine_type_list, config_list, separator='-')
-        self.gcp_machine_type = selection
+        selection = inquire.ask_machine_type('GCP Machine Type', machine_type_list)
+        self.gcp_machine_type = machine_type_list[selection]['name']
 
     def gcp_get_cb_image_name(self):
         inquire = ask()
@@ -1828,12 +1902,30 @@ class processTemplate(object):
             response = request.execute()
             if "items" in response:
                 for image in response['items']:
-                    image_list.append(image['name'])
+                    image_block = {}
+                    image_block['name'] = image['name']
+                    if 'labels' in image:
+                        if 'type' in image['labels']:
+                            image_block['type'] = image['labels']['type']
+                        if 'release' in image['labels']:
+                            image_block['release'] = image['labels']['release']
+                        if 'version' in image['labels']:
+                            image_block['version'] = image_block['description'] = image['labels']['version'].replace("_", ".")
+                    image_list.append(image_block)
                 request = gcp_client.images().list_next(previous_request=request, previous_response=response)
             else:
                 raise Exception("No images exist in this project")
         selection = inquire.ask_list('GCP Couchbase Image', image_list)
-        self.gcp_cb_image = image_list[selection]
+        self.gcp_cb_image = image_list[selection]['name']
+        if 'type' in image_list[selection]:
+            self.linux_type = image_list[selection]['type']
+            self.logger.info("Selecting linux type %s from image metadata" % self.linux_type)
+        if 'release' in image_list[selection]:
+            self.linux_release = image_list[selection]['release']
+            self.logger.info("Selecting linux release %s from image metadata" % self.linux_release)
+        if 'version' in image_list[selection]:
+            self.cb_version = image_list[selection]['version']
+            self.logger.info("Selecting couchbase version %s from image metadata" % self.cb_version)
 
     def gcp_get_subnet(self):
         inquire = ask()
@@ -1898,6 +1990,7 @@ class processTemplate(object):
             request = gcp_client.regions().list_next(previous_request=request, previous_response=response)
         selection = inquire.ask_list('GCP Region', region_list)
         self.gcp_region = region_list[selection]
+        self.get_gcp_zones()
 
     def get_country(self):
         session = requests.Session()
@@ -1919,14 +2012,10 @@ class processTemplate(object):
         return ip_location
 
     def get_gcp_zones(self):
-        inquire = ask()
-        zone_list = []
-        if not self.gcp_account_file:
-            self.gcp_get_account_file()
         if not self.gcp_region:
             self.get_gcp_region()
-        if not self.gcp_project:
-            self.get_gcp_project()
+        if len(self.gcp_zone_list) > 0:
+            return
         credentials = service_account.Credentials.from_service_account_file(self.gcp_account_file)
         gcp_client = googleapiclient.discovery.build('compute', 'v1', credentials=credentials)
         request = gcp_client.zones().list(project=self.gcp_project)
@@ -1935,10 +2024,12 @@ class processTemplate(object):
             for zone in response['items']:
                 if not zone['name'].startswith(self.gcp_region):
                     continue
-                zone_list.append(zone['name'])
+                self.gcp_zone_list.append(zone['name'])
             request = gcp_client.zones().list_next(previous_request=request, previous_response=response)
-        selection = inquire.ask_list('GCP Zone', zone_list)
-        self.gcp_zone = zone_list[selection]
+        self.gcp_zone_list = sorted(self.gcp_zone_list)
+        self.gcp_zone = self.gcp_zone_list[0]
+        for gcp_zone_name in self.gcp_zone_list:
+            self.logger.info("Added GCP zone %s" % gcp_zone_name)
 
     def get_gcp_project(self):
         inquire = ask()
@@ -2599,23 +2690,32 @@ class processTemplate(object):
         ec2_client = boto3.client('ec2', region_name=self.aws_region)
         images = ec2_client.describe_images(Owners=['self'])
         for i in range(len(images['Images'])):
-            image_list.append(images['Images'][i]['ImageId'])
-            item_name = images['Images'][i]['Name']
+            image_block = {}
+            image_block['name'] = images['Images'][i]['ImageId']
+            image_block['description'] = images['Images'][i]['Name']
             if 'Tags' in images['Images'][i]:
                 item_release_tag = self.aws_get_tag('Release', images['Images'][i]['Tags'])
                 item_type_tag = self.aws_get_tag('Type', images['Images'][i]['Tags'])
                 item_version_tag = self.aws_get_tag('Version', images['Images'][i]['Tags'])
                 if item_type_tag:
-                    self.linux_type = item_type_tag
+                    image_block['type'] = item_type_tag
                 if item_release_tag:
-                    self.linux_release = item_release_tag
+                    image_block['release'] = item_release_tag
                 if item_version_tag:
-                    self.cb_version = item_version_tag
-                    item_name = item_name + ' => Version: ' + item_version_tag
-            image_name_list.append(item_name)
-
-        selection = inquire.ask_list('Select AMI', image_list, image_name_list)
-        self.aws_ami_id = images['Images'][selection]['ImageId']
+                    image_block['version'] = item_version_tag
+                    image_block['description'] = image_block['description'] + ' => Version: ' + item_version_tag
+            image_list.append(image_block)
+        selection = inquire.ask_list('Select AMI', image_list)
+        self.aws_ami_id = image_list[selection]['name']
+        if 'type' in image_list[selection]:
+            self.linux_type = image_list[selection]['type']
+            self.logger.info("Selecting linux type %s from image metadata" % self.linux_type)
+        if 'release' in image_list[selection]:
+            self.linux_release = image_list[selection]['release']
+            self.logger.info("Selecting linux release %s from image metadata" % self.linux_release)
+        if 'version' in image_list[selection]:
+            self.cb_version = image_list[selection]['version']
+            self.logger.info("Selecting couchbase version %s from image metadata" % self.cb_version)
 
     def aws_get_region(self):
         if 'AWS_REGION' in os.environ:
@@ -2631,6 +2731,12 @@ class processTemplate(object):
             answer = input("AWS Region: ")
             answer = answer.rstrip("\n")
             self.aws_region = answer
+
+        ec2_client = boto3.client('ec2', region_name=self.aws_region)
+        zone_list = ec2_client.describe_availability_zones()
+        for availability_zone in zone_list['AvailabilityZones']:
+            self.logger.info("Added availability zone %s" % availability_zone['ZoneName'])
+            self.aws_availability_zones.append(availability_zone['ZoneName'])
 
     def get_aws_image_user(self):
         if not self.linux_type:
@@ -2822,6 +2928,33 @@ class processTemplate(object):
         selection = inquire.ask_net_range('Omit Network Range')
         self.omit_range = selection
 
+    def set_availability_zone_cycle(self):
+        inquire = ask()
+        if self.location == 'aws':
+            if len(self.aws_availability_zones) == 0:
+                self.aws_get_region()
+            availability_zone_list = self.aws_availability_zones
+        elif self.location == 'gcp':
+            if len(self.gcp_zone_list) == 0:
+                self.get_gcp_region()
+            availability_zone_list = self.gcp_zone_list
+        elif self.location == 'azure':
+            if len(self.azure_availability_zones) == 0:
+                self.azure_get_location()
+            availability_zone_list = self.azure_availability_zones
+        else:
+            self.availability_zone_cycle = None
+            return
+        if self.use_single_zone:
+            selection = inquire.ask_list('Select availability zone', availability_zone_list)
+            self.availability_zone_cycle = cycle([availability_zone_list[selection]])
+        else:
+            self.availability_zone_cycle = cycle(availability_zone_list)
+
+    @property
+    def get_next_availability_zone(self):
+        return next(self.availability_zone_cycle)
+
     def create_cluster_config(self):
         inquire = ask()
         resolver = dns.resolver.Resolver()
@@ -2829,6 +2962,7 @@ class processTemplate(object):
         config_segments.append(CB_CFG_HEAD)
         node = 1
         services = ['data', 'index', 'query', 'fts', 'analytics', 'eventing', ]
+        self.set_availability_zone_cycle()
 
         if self.dev_num:
             env_text = "dev{:02d}".format(self.dev_num)
@@ -2846,6 +2980,10 @@ class processTemplate(object):
             node_netmask = None
             node_gateway = None
             node_name = "cb-{}-n{:02d}".format(env_text, node)
+            if self.availability_zone_cycle:
+                availability_zone = self.get_next_availability_zone
+            else:
+                availability_zone = None
             if node == 1:
                 install_mode = 'init'
             else:
@@ -2909,16 +3047,17 @@ class processTemplate(object):
                 NODE_NUMBER=node,
                 NODE_SERVICES=','.join(selected_services),
                 NODE_INSTALL_MODE=install_mode,
+                NODE_ZONE=availability_zone,
                 NODE_IP_ADDRESS=node_ip_address,
                 NODE_NETMASK=node_netmask,
                 NODE_GATEWAY=node_gateway,
             )
             config_segments.append(format_template)
             if node >= 3:
-                answer = input("[?] Add another node? [y/n]: ")
-                answer = answer.rstrip("\n")
-                if answer == 'n' or answer == 'no':
+                print("")
+                if not inquire.ask_yn('  ==> Add another node'):
                     break
+                print("")
             node += 1
 
         config_segments.append(CB_CFG_TAIL)

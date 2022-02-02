@@ -9,8 +9,8 @@
       },
       {
         "version": "8",
-        "image": "centos-8-v20211214",
-        "family": "centos-8",
+        "image": "centos-stream-8-v20220128",
+        "family": "centos-stream-8",
         "user": "centos"
       }
     ],

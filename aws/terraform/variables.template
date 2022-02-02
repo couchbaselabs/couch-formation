@@ -81,3 +81,9 @@ variable "root_volume_type" {
   default     = "{{ AWS_ROOT_TYPE }}"
   type        = string
 }
+
+variable "use_public_ip" {
+  description = "Use public or private IP for SSH"
+  default     = {{ USE_PUBLIC_IP }}
+  type        = bool
+}
