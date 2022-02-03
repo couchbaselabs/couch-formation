@@ -712,6 +712,7 @@ class processTemplate(object):
         self.azure_availability_zones = []
         self.azure_vnet = None
         self.azure_subnet = None
+        self.azure_subnet_id = None
         self.azure_nsg = None
         self.azure_image_name = None
         self.azure_machine_type = None
@@ -1668,6 +1669,25 @@ class processTemplate(object):
         selection = inquire.ask_list('Azure Network Security Group', nsg_list)
         self.azure_nsg = nsg_list[selection]
 
+    def azure_get_availability_zone_list(self):
+        availability_zone_list = []
+        if not self.azure_location:
+            try:
+                self.azure_get_location()
+            except Exception:
+                raise
+        if not self.azure_subnet:
+            try:
+                self.azure_get_subnet()
+            except Exception:
+                raise
+        for zone in self.azure_availability_zones:
+            config_block = {}
+            config_block['name'] = zone
+            config_block['subnet'] = self.azure_subnet
+            availability_zone_list.append(config_block)
+        return availability_zone_list
+
     def azure_get_subnet(self):
         inquire = ask()
         subnet_list = []
@@ -1677,9 +1697,11 @@ class processTemplate(object):
         network_client = NetworkManagementClient(credential, self.azure_subscription_id)
         subnets = network_client.subnets.list(self.azure_resource_group, self.azure_vnet)
         for group in list(subnets):
-            subnet_list.append(group.name)
+            image_block = {}
+            image_block['name'] = group.name
+            subnet_list.append(image_block)
         selection = inquire.ask_list('Azure Subnet', subnet_list)
-        self.azure_subnet = subnet_list[selection]
+        self.azure_subnet = subnet_list[selection]['name']
 
     def azure_get_vnet(self):
         inquire = ask()
@@ -1945,6 +1967,25 @@ class processTemplate(object):
         if 'version' in image_list[selection]:
             self.cb_version = image_list[selection]['version']
             self.logger.info("Selecting couchbase version %s from image metadata" % self.cb_version)
+
+    def gcp_get_availability_zone_list(self):
+        availability_zone_list = []
+        if not self.gcp_region:
+            try:
+                self.get_gcp_region()
+            except Exception:
+                raise
+        if not self.gcp_subnet:
+            try:
+                self.gcp_get_subnet()
+            except Exception:
+                raise
+        for zone in self.gcp_zone_list:
+            config_block = {}
+            config_block['name'] = zone
+            config_block['subnet'] = self.gcp_subnet
+            availability_zone_list.append(config_block)
+        return availability_zone_list
 
     def gcp_get_subnet(self):
         inquire = ask()
@@ -2980,13 +3021,9 @@ class processTemplate(object):
         if self.location == 'aws':
             availability_zone_list = self.aws_get_availability_zone_list()
         elif self.location == 'gcp':
-            if len(self.gcp_zone_list) == 0:
-                self.get_gcp_region()
-            availability_zone_list = self.gcp_zone_list
+            availability_zone_list = self.gcp_get_availability_zone_list()
         elif self.location == 'azure':
-            if len(self.azure_availability_zones) == 0:
-                self.azure_get_location()
-            availability_zone_list = self.azure_availability_zones
+            availability_zone_list = self.azure_get_availability_zone_list()
         else:
             self.availability_zone_cycle = None
             return

@@ -25,7 +25,7 @@ resource "google_compute_instance" "couchbase_nodes" {
   for_each     = var.cluster_spec
   name         = each.key
   machine_type = var.gcp_machine_type
-  zone         = var.gcp_zone
+  zone         = each.value.node_zone
   project      = var.gcp_project
 
   boot_disk {
@@ -37,7 +37,7 @@ resource "google_compute_instance" "couchbase_nodes" {
   }
 
   network_interface {
-    subnetwork = var.gcp_subnet
+    subnetwork = each.value.node_subnet
     subnetwork_project = var.gcp_project
     access_config {
    }
@@ -55,10 +55,10 @@ resource "google_compute_instance" "couchbase_nodes" {
   provisioner "remote-exec" {
     inline = [
       "sudo /usr/local/hostprep/bin/refresh.sh",
-      "sudo /usr/local/hostprep/bin/clusterinit.sh -m write -i ${self.network_interface.0.network_ip} -e ${self.network_interface.0.access_config.0.nat_ip} -s ${each.value.node_services} -o ${var.index_memory}",
+      "sudo /usr/local/hostprep/bin/clusterinit.sh -m write -i ${self.network_interface.0.network_ip} -e ${self.network_interface.0.access_config.0.nat_ip} -s ${each.value.node_services} -o ${var.index_memory} -g ${each.value.node_zone}",
     ]
     connection {
-      host        = self.network_interface.0.network_ip
+      host        = var.use_public_ip ? self.network_interface.0.access_config.0.nat_ip : self.network_interface.0.network_ip
       type        = "ssh"
       user        = var.gcp_image_user
       private_key = file(var.ssh_private_key)
@@ -68,6 +68,7 @@ resource "google_compute_instance" "couchbase_nodes" {
 
 locals {
   rally_node = element([for node in google_compute_instance.couchbase_nodes: node.network_interface.0.network_ip], 0)
+  rally_node_public = element([for node in google_compute_instance.couchbase_nodes: node.network_interface.0.access_config.0.nat_ip], 0)
 }
 
 resource "time_sleep" "pause" {
@@ -81,7 +82,7 @@ resource "null_resource" "couchbase-init" {
     cb_nodes = join(",", keys(google_compute_instance.couchbase_nodes))
   }
   connection {
-    host        = each.value.network_interface.0.network_ip
+    host        = var.use_public_ip ? each.value.network_interface.0.access_config.0.nat_ip : each.value.network_interface.0.network_ip
     type        = "ssh"
     user        = var.gcp_image_user
     private_key = file(var.ssh_private_key)
@@ -99,7 +100,7 @@ resource "null_resource" "couchbase-rebalance" {
     cb_nodes = join(",", keys(google_compute_instance.couchbase_nodes))
   }
   connection {
-    host        = local.rally_node
+    host        = var.use_public_ip ? local.rally_node_public : local.rally_node
     type        = "ssh"
     user        = var.gcp_image_user
     private_key = file(var.ssh_private_key)

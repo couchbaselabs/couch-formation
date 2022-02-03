@@ -16,12 +16,6 @@ variable "azure_location" {
   type        = string
 }
 
-variable "azure_subnet" {
-  description = "Azure Subnet"
-  default     = "{{ AZURE_SUBNET }}"
-  type        = string
-}
-
 variable "azure_vnet" {
   description = "Azure Virtual Network"
   default     = "{{ AZURE_VNET }}"
@@ -80,4 +74,10 @@ variable "azure_disk_size" {
   description = "Azure Disk Size"
   default     = "{{ AZURE_DISK_SIZE }}"
   type        = string
+}
+
+variable "use_public_ip" {
+  description = "Use public or private IP for SSH"
+  default     = {{ USE_PUBLIC_IP }}
+  type        = bool
 }

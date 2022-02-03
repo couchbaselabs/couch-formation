@@ -46,12 +46,6 @@ variable "ssh_private_key" {
   type        = string
 }
 
-variable "gcp_subnet" {
-  description = "Subnet to launch the instances in"
-  default     = "{{ GCP_SUBNET }}"
-  type        = string
-}
-
 variable "gcp_disk_size" {
   description = "The root volume size"
   default     = "{{ GCP_ROOT_SIZE }}"
@@ -86,4 +80,10 @@ variable "gcp_zone" {
   description = "The GCP zone"
   default     = "{{ GCP_ZONE }}"
   type        = string
+}
+
+variable "use_public_ip" {
+  description = "Use public or private IP for SSH"
+  default     = {{ USE_PUBLIC_IP }}
+  type        = bool
 }
