@@ -136,7 +136,7 @@ variable "vm_guest_os_language" {
   type        = string
 }
 
-source "vsphere-iso" "kubernetes-node" {
+source "vsphere-iso" "cb-node" {
   vcenter_server       = var.vsphere_hostname
   username             = var.vsphere_username
   password             = var.vsphere_password
@@ -197,26 +197,15 @@ source "vsphere-iso" "kubernetes-node" {
 
 build {
   sources = [
-    "source.vsphere-iso.kubernetes-node"
+    "source.vsphere-iso.cb-node"
   ]
   provisioner "shell" {
   inline = [
+    "echo Installing Couchbase",
     "sleep 30",
-    "sudo apt-get update",
-    "sudo apt-get -y dist-upgrade",
-    "sudo apt-get -y autoremove",
-    "sudo apt-get -y clean",
-    "sudo apt-get install docker.io open-iscsi nfs-common jq git -y",
-    "sudo swapoff -a",
-    "sudo sed -i '/ swap / s/^/#/' /etc/fstab",
-    "sudo truncate -s 0 /etc/machine-id",
-    "sudo rm /var/lib/dbus/machine-id",
-    "sudo ln -s /etc/machine-id /var/lib/dbus/machine-id",
-    "sudo touch /etc/cloud/cloud-init.disabled",
-    "sudo rm /etc/cloud/cloud.cfg.d/*.cfg",
-    "sudo bash -c 'echo network: {config: disabled} > /etc/cloud/cloud.cfg.d/99-disable-network-config.cfg'",
-    "sudo cloud-init clean -s -l",
-    "sudo rm /etc/netplan/*.yaml",
+    "curl -sfL https://raw.githubusercontent.com/mminichino/hostprep/main/bin/bootstrap.sh | sudo -E bash -",
+    "sudo git clone https://github.com/mminichino/hostprep /usr/local/hostprep",
+    "sudo /usr/local/hostprep/bin/hostprep.sh -t couchbase -v ${var.cb_version}",
   ]
   }
 }

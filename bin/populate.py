@@ -3094,8 +3094,6 @@ class processTemplate(object):
                 if self.update_dns:
                     if not node_ip_address:
                         print("Node IP not assigned, attempting DNS update...")
-                        if not self.omit_range:
-                            self.get_omit_range()
                         dnsupd = dynamicDNS(self.domain_name)
                         if dnsupd.dns_prep():
                             dnsupd.dns_get_range(self.subnet_cidr, self.omit_range)
