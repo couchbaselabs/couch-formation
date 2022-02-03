@@ -88,7 +88,6 @@ build {
     "curl -sfL https://raw.githubusercontent.com/mminichino/hostprep/main/bin/bootstrap.sh | sudo -E bash -",
     "sudo git clone https://github.com/mminichino/hostprep /usr/local/hostprep",
     "sudo /usr/local/hostprep/bin/hostprep.sh -t couchbase -v ${var.cb_version}",
-    "/usr/sbin/waagent -force -deprovision+user && export HISTSIZE=0 && sync",
   ]
   }
 }

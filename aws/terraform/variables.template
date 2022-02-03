@@ -46,18 +46,6 @@ variable "ssh_private_key" {
   type        = string
 }
 
-variable "subnet_id" {
-  description = "Subnet to launch the instances in"
-  default     = "{{ AWS_SUBNET_ID }}"
-  type        = string
-}
-
-variable "vpc_id" {
-  description = "VPC Id"
-  default     = "{{ AWS_VPC_ID }}"
-  type        = string
-}
-
 variable "security_group_ids" {
   description = "Security group to assign to the instances"
   default     = ["{{ AWS_SECURITY_GROUP }}"]

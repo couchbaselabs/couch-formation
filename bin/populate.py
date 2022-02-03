@@ -86,6 +86,7 @@ CB_CFG_NODE = """
       node_services   = "{{ NODE_SERVICES }}",
       install_mode    = "{{ NODE_INSTALL_MODE }}",
       node_zone       = "{{ NODE_ZONE }}",
+      node_subnet     = "{{ NODE_SUBNET }}",
       node_ip_address = "{{ NODE_IP_ADDRESS }}",
       node_netmask    = "{{ NODE_NETMASK }}",
       node_gateway    = "{{ NODE_GATEWAY }}",
@@ -656,6 +657,7 @@ class processTemplate(object):
         self.aws_instance_type = None
         self.aws_ssh_key = None
         self.aws_subnet_id = None
+        self.aws_subnet_list = []
         self.aws_vpc_id = None
         self.aws_sg_id = None
         self.aws_root_iops = None
@@ -1632,9 +1634,26 @@ class processTemplate(object):
         compute_client = ComputeManagementClient(credential, self.azure_subscription_id)
         images = compute_client.images.list_by_resource_group(self.azure_resource_group)
         for group in list(images):
-            image_list.append(group.name)
+            image_block = {}
+            image_block['name'] = group.name
+            if 'Type' in group.tags:
+                image_block['type'] = group.tags['Type']
+            if 'Release' in group.tags:
+                image_block['release'] = group.tags['Release']
+            if 'Version' in group.tags:
+                image_block['version'] = image_block['description'] = group.tags['Version']
+            image_list.append(image_block)
         selection = inquire.ask_list('Azure Image Name', image_list)
-        self.azure_image_name = image_list[selection]
+        self.azure_image_name = image_list[selection]['name']
+        if 'type' in image_list[selection]:
+            self.linux_type = image_list[selection]['type']
+            self.logger.info("Selecting linux type %s from image metadata" % self.linux_type)
+        if 'release' in image_list[selection]:
+            self.linux_release = image_list[selection]['release']
+            self.logger.info("Selecting linux release %s from image metadata" % self.linux_release)
+        if 'version' in image_list[selection]:
+            self.cb_version = image_list[selection]['version']
+            self.logger.info("Selecting couchbase version %s from image metadata" % self.cb_version)
 
     def azure_get_nsg(self):
         inquire = ask()
@@ -2554,7 +2573,23 @@ class processTemplate(object):
         selection = self.ask('Select VPC', vpc_list, vpc_name_list)
         self.aws_vpc_id = vpcs['Vpcs'][selection]['VpcId']
 
-    def aws_get_subnet_id(self):
+    def aws_get_availability_zone_list(self):
+        availability_zone_list = []
+        if not self.aws_region:
+            try:
+                self.aws_get_region()
+            except Exception:
+                raise
+        for zone in self.aws_availability_zones:
+            config_block = {}
+            config_block['name'] = zone
+            self.aws_get_subnet_id(zone)
+            config_block['subnet'] = self.aws_subnet_id
+            availability_zone_list.append(config_block)
+        return availability_zone_list
+
+    def aws_get_subnet_id(self, availability_zone=None):
+        inquire = ask()
         if not self.aws_vpc_id:
             try:
                 self.aws_get_vpc_id()
@@ -2562,6 +2597,8 @@ class processTemplate(object):
                 raise
         subnet_list = []
         subnet_name_list = []
+        filter_list = []
+        question = "AWS Select Subnet"
         ec2_client = boto3.client('ec2', region_name=self.aws_region)
         vpc_filter = {
             'Name': 'vpc-id',
@@ -2569,7 +2606,17 @@ class processTemplate(object):
                 self.aws_vpc_id,
             ]
         }
-        subnets = ec2_client.describe_subnets(Filters=[vpc_filter, ])
+        filter_list.append(vpc_filter)
+        if availability_zone:
+            question = question + " for zone {}".format(availability_zone)
+            zone_filter = {
+                'Name': 'availability-zone',
+                'Values': [
+                    availability_zone,
+                ]
+            }
+            filter_list.append(zone_filter)
+        subnets = ec2_client.describe_subnets(Filters=filter_list)
         for i in range(len(subnets['Subnets'])):
             subnet_list.append(subnets['Subnets'][i]['SubnetId'])
             item_name = ''
@@ -2579,7 +2626,7 @@ class processTemplate(object):
                     item_name = item_tag
             subnet_name_list.append(item_name)
 
-        selection = self.ask('Select subnet', subnet_list, subnet_name_list)
+        selection = inquire.ask_list(question, subnet_list, subnet_name_list)
         self.aws_subnet_id = subnets['Subnets'][selection]['SubnetId']
 
     def get_private_key(self):
@@ -2931,9 +2978,7 @@ class processTemplate(object):
     def set_availability_zone_cycle(self):
         inquire = ask()
         if self.location == 'aws':
-            if len(self.aws_availability_zones) == 0:
-                self.aws_get_region()
-            availability_zone_list = self.aws_availability_zones
+            availability_zone_list = self.aws_get_availability_zone_list()
         elif self.location == 'gcp':
             if len(self.gcp_zone_list) == 0:
                 self.get_gcp_region()
@@ -2981,9 +3026,12 @@ class processTemplate(object):
             node_gateway = None
             node_name = "cb-{}-n{:02d}".format(env_text, node)
             if self.availability_zone_cycle:
-                availability_zone = self.get_next_availability_zone
+                zone_data = self.get_next_availability_zone
+                availability_zone = zone_data['name']
+                node_subnet = zone_data['subnet']
             else:
                 availability_zone = None
+                node_subnet = None
             if node == 1:
                 install_mode = 'init'
             else:
@@ -3048,6 +3096,7 @@ class processTemplate(object):
                 NODE_SERVICES=','.join(selected_services),
                 NODE_INSTALL_MODE=install_mode,
                 NODE_ZONE=availability_zone,
+                NODE_SUBNET=node_subnet,
                 NODE_IP_ADDRESS=node_ip_address,
                 NODE_NETMASK=node_netmask,
                 NODE_GATEWAY=node_gateway,
