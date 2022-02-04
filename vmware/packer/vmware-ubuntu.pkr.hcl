@@ -146,7 +146,7 @@ source "vsphere-iso" "cb-node" {
   datastore            = var.vsphere_datastore
   folder               = var.vsphere_folder
   guest_os_type        = var.vm_guest_os_type
-  vm_name              = "${var.os_linux_type}-${var.os_linux_release}-kubernetes-${local.timestamp}"
+  vm_name              = "${var.os_linux_type}-${var.os_linux_release}-couchbase-${local.timestamp}"
   firmware             = "bios"
   CPUs                 = 1
   cpu_cores            = var.vm_cpu_cores

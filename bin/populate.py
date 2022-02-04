@@ -98,6 +98,9 @@ CB_CFG_TAIL = """
 }
 """
 
+class DuplicateIP(Exception):
+    pass
+
 class ask(object):
 
     def __init__(self):
@@ -339,6 +342,13 @@ class dynamicDNS(object):
             print("dns_update: Unsupported type %s" % type)
             return False
 
+    def dns_delete(self, hostname, domain, address, prefix):
+        if self.type == 'tsig':
+            return self.tsig_delete(hostname, domain, address, prefix)
+        else:
+            print("dns_delete: Unsupported type %s" % type)
+            return False
+
     def dns_get_servers(self):
         server_list = []
         resolver = dns.resolver.Resolver()
@@ -375,7 +385,7 @@ class dynamicDNS(object):
                     if ipaddress.ip_address(ip) in ipaddress.ip_network(network):
                         subnet_list.append(ip)
                 for all_ip in ipaddress.ip_network(network).hosts():
-                    if not any(str(all_ip) in address for address in subnet_list):
+                    if not any(str(all_ip) == address for address in subnet_list):
                         if int(str(all_ip).split('.')[3]) >= 10:
                             free_list.append(str(all_ip))
                 if omit:
@@ -384,7 +394,7 @@ class dynamicDNS(object):
                         for ipaddr in ipaddress.summarize_address_range(ipaddress.IPv4Address(first),
                                                                         ipaddress.IPv4Address(last)):
                             for omit_ip in ipaddr:
-                                if any(str(omit_ip) in address for address in free_list):
+                                if any(str(omit_ip) == address for address in free_list):
                                     free_list.remove(str(omit_ip))
                     except Exception as e:
                         print("dns_get_range: problem with omit range %s: %s" % (omit, str(e)))
@@ -466,7 +476,6 @@ class dynamicDNS(object):
             return True
 
     def tsig_update(self, hostname, domain, address, prefix):
-        response = None
         try:
             host_fqdn = hostname + '.' + domain + '.'
             last_octet = address.split('.')[3]
@@ -482,8 +491,26 @@ class dynamicDNS(object):
             response = dns.query.tcp(update, self.dns_server)
             return True
         except Exception as e:
-            rcode = dns.rcode.to_text(response.rcode())
-            print("tsig_update: failed for %s server returned %s error %s" % (hostname, str(rcode), str(e)))
+            print("tsig_update: failed for %s error %s" % (hostname, str(e)))
+            return False
+
+    def tsig_delete(self, hostname, domain, address, prefix):
+        try:
+            host_fqdn = hostname + '.' + domain + '.'
+            last_octet = address.split('.')[3]
+            octets = 4 - math.trunc(prefix / 8)
+            reverse = dns.reversename.from_address(address)
+            arpa_zone = b'.'.join(dns.name.from_text(str(reverse)).labels[octets:]).decode('utf-8')
+            keyring = dns.tsigkeyring.from_text({self.tsig_keyName: self.tsig_key})
+            update = dns.update.Update(self.dns_domain, keyring=keyring, keyalgorithm=getattr(dns.tsig, self.tsig_keyAlgorithm))
+            update.delete(host_fqdn, 'A')
+            response = dns.query.tcp(update, self.dns_server)
+            update = dns.update.Update(arpa_zone, keyring=keyring, keyalgorithm=getattr(dns.tsig, self.tsig_keyAlgorithm))
+            update.delete(last_octet, 'PTR')
+            response = dns.query.tcp(update, self.dns_server)
+            return True
+        except Exception as e:
+            print("tsig_delete: failed for %s error %s" % (hostname, str(e)))
             return False
 
 class cbrelease(object):
@@ -615,7 +642,13 @@ class processTemplate(object):
         self.operating_mode = MODE_TFVAR
         self.cwd = os.getcwd()
         if not pargs.cluster:
-            self.template_file = pargs.template
+            if pargs.template:
+                self.template_file = pargs.template
+            else:
+                if pargs.packer:
+                    self.template_file = 'linux.pkrvars.template'
+                else:
+                    self.template_file = 'variables.template'
             self.template_dir = os.path.dirname(self.template_file)
         else:
             self.template_file = ''
@@ -3037,12 +3070,21 @@ class processTemplate(object):
     def get_next_availability_zone(self):
         return next(self.availability_zone_cycle)
 
+    def check_node_ip_address(self, node_ip):
+        if not self.subnet_cidr:
+            self.get_subnet_cidr()
+        if ipaddress.ip_address(node_ip) in ipaddress.ip_network(self.subnet_cidr):
+            return True
+        else:
+            return False
+
     def create_cluster_config(self):
         inquire = ask()
         resolver = dns.resolver.Resolver()
         config_segments = []
         config_segments.append(CB_CFG_HEAD)
         node = 1
+        change_node_ip_address = False
         services = ['data', 'index', 'query', 'fts', 'analytics', 'eventing', ]
         self.set_availability_zone_cycle()
 
@@ -3059,6 +3101,7 @@ class processTemplate(object):
         while True:
             selected_services = []
             node_ip_address = None
+            old_ip_address = None
             node_netmask = None
             node_gateway = None
             node_name = "cb-{}-n{:02d}".format(env_text, node)
@@ -3088,12 +3131,17 @@ class processTemplate(object):
                 node_fqdn = "{}.{}".format(node_name, self.domain_name)
                 try:
                     answer = resolver.resolve(node_fqdn, 'A')
-                    node_ip_address = answer[0]
+                    node_ip_address = answer[0].to_text()
                 except dns.resolver.NXDOMAIN:
                     print("[i] Warning Can not resolve node host name %s" % node_fqdn)
+                if node_ip_address:
+                    change_node_ip_address = not self.check_node_ip_address(node_ip_address)
+                    if change_node_ip_address:
+                        old_ip_address = node_ip_address
+                        print("Warning: node IP %s not in node subnet %s" % (node_ip_address, self.subnet_cidr))
                 if self.update_dns:
-                    if not node_ip_address:
-                        print("Node IP not assigned, attempting DNS update...")
+                    if not node_ip_address or change_node_ip_address:
+                        print("%s: Attempting to acquire node IP and update DNS" % node_name)
                         dnsupd = dynamicDNS(self.domain_name)
                         if dnsupd.dns_prep():
                             dnsupd.dns_get_range(self.subnet_cidr, self.omit_range)
@@ -3102,6 +3150,12 @@ class processTemplate(object):
                                 print("[i] Auto assigned IP %s to %s" % (node_ip_address, node_name))
                             else:
                                 node_ip_address = inquire.ask_text('Node IP Address')
+                            if change_node_ip_address:
+                                if dnsupd.dns_delete(node_name, self.domain_name, old_ip_address, self.subnet_netmask):
+                                    print("Deleted old IP %s for %s" % (old_ip_address, node_name))
+                                else:
+                                    print("Can not delete DNS record. Aborting.")
+                                    sys.exit(1)
                             if dnsupd.dns_update(node_name, self.domain_name, node_ip_address, self.subnet_netmask):
                                 print("Added address record for %s" % node_fqdn)
                             else:
