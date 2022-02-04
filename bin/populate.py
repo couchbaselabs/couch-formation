@@ -657,6 +657,7 @@ class processTemplate(object):
         self.test_num = pargs.test
         self.prod_num = pargs.prod
         self.location = pargs.location
+        self.cb_cluster_name = None
         self.static_ip = pargs.static
         self.update_dns = pargs.dns
         self.subnet_cidr = pargs.subnet
@@ -782,6 +783,7 @@ class processTemplate(object):
             ('AZURE_SUBNET', 2),
             ('AZURE_SUBSCRIPTION_ID', 2),
             ('AZURE_VNET', 2),
+            ('CB_CLUSTER_NAME', 2),
             ('CB_INDEX_MEM_TYPE', 2),
             ('CB_VERSION', 2),
             ('DNS_SERVER_LIST', 2),
@@ -1490,6 +1492,14 @@ class processTemplate(object):
                         print("Error: %s" % str(e))
                         sys.exit(1)
                 self.logger.info("USE_PUBLIC_IP = %s" % self.use_public_ip)
+            elif item == 'CB_CLUSTER_NAME':
+                if not self.cb_cluster_name:
+                    try:
+                        self.get_cb_cluster_name()
+                    except Exception as e:
+                        print("Error: %s" % str(e))
+                        sys.exit(1)
+                self.logger.info("CB_CLUSTER_NAME = %s" % self.cb_cluster_name)
 
         raw_template = jinja2.Template(raw_input)
         format_template = raw_template.render(
@@ -1499,6 +1509,7 @@ class processTemplate(object):
                                               DOMAIN_NAME=self.domain_name,
                                               DNS_SERVER_LIST=self.dns_server_list,
                                               USE_PUBLIC_IP=self.use_public_ip,
+                                              CB_CLUSTER_NAME=self.cb_cluster_name,
                                               AWS_IMAGE=self.aws_image_name,
                                               AWS_AMI_OWNER=self.aws_image_owner,
                                               AWS_AMI_USER=self.aws_image_user,
@@ -1593,6 +1604,19 @@ class processTemplate(object):
                     print("Error: %s" % str(e))
                     sys.exit(1)
                 print("Cluster configuration complete.")
+
+    def get_cb_cluster_name(self):
+        inquire = ask()
+        if self.dev_num:
+            cluster_name = "dev{:02d}db".format(self.dev_num)
+        elif self.test_num:
+            cluster_name = "test{:02d}db".format(self.test_num)
+        elif self.prod_num:
+            cluster_name = "prod{:02d}db".format(self.prod_num)
+        else:
+            cluster_name = 'cbdb'
+        selection = inquire.ask_text('Couchbase Cluster Name', cluster_name)
+        self.cb_cluster_name = selection
 
     def ask_to_use_public_ip(self):
         inquire = ask()

@@ -99,3 +99,9 @@ variable "ssh_private_key" {
   default     = "{{ SSH_PRIVATE_KEY }}"
   type        = string
 }
+
+variable "cb_cluster_name" {
+  description = "Couchbase cluster name"
+  default     = "{{ CB_CLUSTER_NAME }}"
+  type        = string
+}
