@@ -102,6 +102,7 @@ resource "azurerm_linux_virtual_machine" "couchbase_nodes" {
 locals {
   rally_node = element([for node in azurerm_linux_virtual_machine.couchbase_nodes: node.private_ip_address], 0)
   rally_node_public = element([for node in azurerm_linux_virtual_machine.couchbase_nodes: node.public_ip_address], 0)
+  cluster_init_name = var.cb_cluster_name != null ? var.cb_cluster_name : "cbdb"
 }
 
 resource "time_sleep" "pause" {
@@ -122,7 +123,7 @@ resource "null_resource" "couchbase-init" {
   }
   provisioner "remote-exec" {
     inline = [
-      "sudo /usr/local/hostprep/bin/clusterinit.sh -m config -r ${local.rally_node}",
+      "sudo /usr/local/hostprep/bin/clusterinit.sh -m config -r ${local.rally_node} -n ${local.cluster_init_name}",
     ]
   }
   depends_on = [azurerm_linux_virtual_machine.couchbase_nodes, time_sleep.pause]

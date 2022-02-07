@@ -75,3 +75,9 @@ variable "use_public_ip" {
   default     = {{ USE_PUBLIC_IP }}
   type        = bool
 }
+
+variable "cb_cluster_name" {
+  description = "Couchbase cluster name"
+  default     = "{{ CB_CLUSTER_NAME }}"
+  type        = string
+}

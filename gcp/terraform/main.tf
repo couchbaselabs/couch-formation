@@ -69,6 +69,7 @@ resource "google_compute_instance" "couchbase_nodes" {
 locals {
   rally_node = element([for node in google_compute_instance.couchbase_nodes: node.network_interface.0.network_ip], 0)
   rally_node_public = element([for node in google_compute_instance.couchbase_nodes: node.network_interface.0.access_config.0.nat_ip], 0)
+  cluster_init_name = var.cb_cluster_name != null ? var.cb_cluster_name : "cbdb"
 }
 
 resource "time_sleep" "pause" {
@@ -89,7 +90,7 @@ resource "null_resource" "couchbase-init" {
   }
   provisioner "remote-exec" {
     inline = [
-      "sudo /usr/local/hostprep/bin/clusterinit.sh -m config -r ${local.rally_node}",
+      "sudo /usr/local/hostprep/bin/clusterinit.sh -m config -r ${local.rally_node} -n ${local.cluster_init_name}",
     ]
   }
   depends_on = [google_compute_instance.couchbase_nodes, time_sleep.pause]
