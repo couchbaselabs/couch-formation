@@ -22,7 +22,10 @@ data "azurerm_subnet" "cb_subnet" {
 }
 
 resource "azurerm_public_ip" "node_external" {
-  for_each            = var.cluster_spec
+  for_each            = {
+    for k, v in var.cluster_spec : k => v
+    if var.use_public_ip
+  }
   name                = "${each.key}-pub"
   resource_group_name = var.azure_resource_group
   location            = var.azure_location
@@ -41,7 +44,7 @@ resource "azurerm_network_interface" "node_nic" {
     name                          = "internal"
     subnet_id                     = data.azurerm_subnet.cb_subnet[each.key].id
     private_ip_address_allocation = "Dynamic"
-    public_ip_address_id          = azurerm_public_ip.node_external[each.key].id
+    public_ip_address_id          = var.use_public_ip ? azurerm_public_ip.node_external[each.key].id : null
   }
 }
 
@@ -88,7 +91,7 @@ resource "azurerm_linux_virtual_machine" "couchbase_nodes" {
   provisioner "remote-exec" {
     inline = [
       "sudo /usr/local/hostprep/bin/refresh.sh",
-      "sudo /usr/local/hostprep/bin/clusterinit.sh -m write -i ${self.private_ip_address} -e ${self.public_ip_address} -s ${each.value.node_services} -o ${var.index_memory} -g zone${each.value.node_zone}",
+      "sudo /usr/local/hostprep/bin/clusterinit.sh -m write -i ${self.private_ip_address} -e ${var.use_public_ip ? self.public_ip_address : "none"} -s ${each.value.node_services} -o ${var.index_memory} -g zone${each.value.node_zone}",
     ]
     connection {
       host        = var.use_public_ip ? self.public_ip_address : self.private_ip_address
