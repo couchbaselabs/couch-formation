@@ -7,7 +7,9 @@ Build Terraform Config Files
 import logging
 import os
 import sys
+import signal
 import traceback
+import distutils.util
 import argparse
 import json
 import re
@@ -98,8 +100,10 @@ CB_CFG_TAIL = """
 }
 """
 
-class DuplicateIP(Exception):
-    pass
+def break_signal_handler(sig, frame):
+    print("")
+    print("Break received, aborting.")
+    sys.exit(1)
 
 class ask(object):
 
@@ -664,7 +668,7 @@ class processTemplate(object):
         self.subnet_netmask = None
         self.default_gateway = pargs.gateway
         self.omit_range = pargs.omit
-        self.use_public_ip = False
+        self.use_public_ip = None
         self.use_single_zone = pargs.singlezone
         self.availability_zone_cycle = None
         self.packer_mode = pargs.packer
@@ -756,19 +760,19 @@ class processTemplate(object):
         self.global_var_json = {}
         self.local_var_json = {}
         self.supported_variable_list = [
-            ('AWS_AMI_ID', 0),
+            ('AWS_AMI_ID', 1),
             ('AWS_AMI_OWNER', 2),
             ('AWS_AMI_USER', 2),
             ('AWS_IMAGE', 2),
-            ('AWS_INSTANCE_TYPE', 2),
-            ('AWS_REGION', 2),
-            ('AWS_ROOT_IOPS', 2),
-            ('AWS_ROOT_SIZE', 2),
-            ('AWS_ROOT_TYPE', 2),
-            ('AWS_SECURITY_GROUP', 2),
+            ('AWS_INSTANCE_TYPE', 6),
+            ('AWS_REGION', 0),
+            ('AWS_ROOT_IOPS', 7),
+            ('AWS_ROOT_SIZE', 8),
+            ('AWS_ROOT_TYPE', 9),
+            ('AWS_SECURITY_GROUP', 5),
             ('AWS_SSH_KEY', 0),
-            ('AWS_SUBNET_ID', 2),
-            ('AWS_VPC_ID', 2),
+            ('AWS_SUBNET_ID', 4),
+            ('AWS_VPC_ID', 3),
             ('AZURE_ADMIN_USER', 2),
             ('AZURE_DISK_SIZE', 2),
             ('AZURE_DISK_TYPE', 2),
@@ -805,7 +809,7 @@ class processTemplate(object):
             ('LINUX_TYPE', 1),
             ('SSH_PRIVATE_KEY', 1),
             ('SSH_PUBLIC_KEY_FILE', 2),
-            ('USE_PUBLIC_IP', 2),
+            ('USE_PUBLIC_IP', 1),
             ('VMWARE_BUILD_PASSWORD', 2),
             ('VMWARE_BUILD_PWD_ENCRYPTED', 2),
             ('VMWARE_BUILD_USERNAME', 2),
@@ -2706,6 +2710,7 @@ class processTemplate(object):
         }
         filter_list.append(vpc_filter)
         if availability_zone:
+            self.logger.info("AWS: Subnet: Filtering subnets by AZ %s" % availability_zone)
             question = question + " for zone {}".format(availability_zone)
             zone_filter = {
                 'Name': 'availability-zone',
@@ -2714,8 +2719,16 @@ class processTemplate(object):
                 ]
             }
             filter_list.append(zone_filter)
+        self.logger.info("AWS: Subnet: Use public IP is %s" % self.use_public_ip)
         subnets = ec2_client.describe_subnets(Filters=filter_list)
         for i in range(len(subnets['Subnets'])):
+            if bool(distutils.util.strtobool(self.use_public_ip)):
+                if not subnets['Subnets'][i]['MapPublicIpOnLaunch']:
+                    continue
+            else:
+                if subnets['Subnets'][i]['MapPublicIpOnLaunch']:
+                    continue
+            self.logger.info("AWS: Subnet: Found subnet %s" % subnets['Subnets'][i]['SubnetId'])
             subnet_list.append(subnets['Subnets'][i]['SubnetId'])
             item_name = ''
             if 'Tags' in subnets['Subnets'][i]:
@@ -2725,7 +2738,7 @@ class processTemplate(object):
             subnet_name_list.append(item_name)
 
         selection = inquire.ask_list(question, subnet_list, subnet_name_list)
-        self.aws_subnet_id = subnets['Subnets'][selection]['SubnetId']
+        self.aws_subnet_id = subnet_list[selection]
 
     def get_private_key(self):
         dir_list = []
@@ -3086,8 +3099,10 @@ class processTemplate(object):
             return
         if self.use_single_zone:
             selection = inquire.ask_list('Select availability zone', availability_zone_list)
+            self.logger.info("AWS AZ: %s" % availability_zone_list[selection]['subnet'])
             self.availability_zone_cycle = cycle([availability_zone_list[selection]])
         else:
+            self.logger.info("AWS AZ List: %s" % ",".join([e['subnet'] for e in availability_zone_list]))
             self.availability_zone_cycle = cycle(availability_zone_list)
 
     @property
@@ -3291,6 +3306,7 @@ class processTemplate(object):
                 raise
 
 def main():
+    signal.signal(signal.SIGINT, break_signal_handler)
     parms = params()
     parameters = parms.parser.parse_args()
     processTemplate(parameters)

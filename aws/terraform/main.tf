@@ -40,7 +40,7 @@ resource "aws_instance" "couchbase_nodes" {
   provisioner "remote-exec" {
     inline = [
       "sudo /usr/local/hostprep/bin/refresh.sh",
-      "sudo /usr/local/hostprep/bin/clusterinit.sh -m write -i ${self.private_ip} -e ${self.public_ip} -s ${each.value.node_services} -o ${var.index_memory} -g ${each.value.node_zone}",
+      "sudo /usr/local/hostprep/bin/clusterinit.sh -m write -i ${self.private_ip} -e ${var.use_public_ip ? self.public_ip : "none"} -s ${each.value.node_services} -o ${var.index_memory} -g ${each.value.node_zone}",
     ]
     connection {
       host        = var.use_public_ip ? self.public_ip : self.private_ip
