@@ -9,7 +9,7 @@ import os
 import sys
 import signal
 import traceback
-import distutils.util
+from distutils.util import strtobool
 import argparse
 import json
 import re
@@ -310,7 +310,7 @@ class ask(object):
                 answer = default
             try:
                 if answer == 'true' or answer == 'false':
-                    return answer
+                    return bool(strtobool(answer))
                 else:
                     raise Exception("please answer true or false")
             except Exception as e:
@@ -1512,7 +1512,7 @@ class processTemplate(object):
                                               LINUX_RELEASE=self.linux_release,
                                               DOMAIN_NAME=self.domain_name,
                                               DNS_SERVER_LIST=self.dns_server_list,
-                                              USE_PUBLIC_IP=self.use_public_ip,
+                                              USE_PUBLIC_IP=str(self.use_public_ip).lower(),
                                               CB_CLUSTER_NAME=self.cb_cluster_name,
                                               AWS_IMAGE=self.aws_image_name,
                                               AWS_AMI_OWNER=self.aws_image_owner,
@@ -2722,12 +2722,10 @@ class processTemplate(object):
         self.logger.info("AWS: Subnet: Use public IP is %s" % self.use_public_ip)
         subnets = ec2_client.describe_subnets(Filters=filter_list)
         for i in range(len(subnets['Subnets'])):
-            if bool(distutils.util.strtobool(self.use_public_ip)):
-                if not subnets['Subnets'][i]['MapPublicIpOnLaunch']:
-                    continue
-            else:
-                if subnets['Subnets'][i]['MapPublicIpOnLaunch']:
-                    continue
+            if self.use_public_ip and not subnets['Subnets'][i]['MapPublicIpOnLaunch']:
+                continue
+            elif not self.use_public_ip and subnets['Subnets'][i]['MapPublicIpOnLaunch']:
+                continue
             self.logger.info("AWS: Subnet: Found subnet %s" % subnets['Subnets'][i]['SubnetId'])
             subnet_list.append(subnets['Subnets'][i]['SubnetId'])
             item_name = ''

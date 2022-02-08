@@ -39,8 +39,10 @@ resource "google_compute_instance" "couchbase_nodes" {
   network_interface {
     subnetwork = each.value.node_subnet
     subnetwork_project = var.gcp_project
-    access_config {
-   }
+    dynamic "access_config" {
+    for_each = var.use_public_ip ? ["pub-ip"] : []
+    content {}
+  }
   }
 
   metadata = {
@@ -55,7 +57,7 @@ resource "google_compute_instance" "couchbase_nodes" {
   provisioner "remote-exec" {
     inline = [
       "sudo /usr/local/hostprep/bin/refresh.sh",
-      "sudo /usr/local/hostprep/bin/clusterinit.sh -m write -i ${self.network_interface.0.network_ip} -e ${self.network_interface.0.access_config.0.nat_ip} -s ${each.value.node_services} -o ${var.index_memory} -g ${each.value.node_zone}",
+      "sudo /usr/local/hostprep/bin/clusterinit.sh -m write -i ${self.network_interface.0.network_ip} -e ${var.use_public_ip ? self.network_interface.0.access_config.0.nat_ip : "none"} -s ${each.value.node_services} -o ${var.index_memory} -g ${each.value.node_zone}",
     ]
     connection {
       host        = var.use_public_ip ? self.network_interface.0.access_config.0.nat_ip : self.network_interface.0.network_ip
@@ -68,7 +70,7 @@ resource "google_compute_instance" "couchbase_nodes" {
 
 locals {
   rally_node = element([for node in google_compute_instance.couchbase_nodes: node.network_interface.0.network_ip], 0)
-  rally_node_public = element([for node in google_compute_instance.couchbase_nodes: node.network_interface.0.access_config.0.nat_ip], 0)
+  rally_node_public = var.use_public_ip ? element([for node in google_compute_instance.couchbase_nodes: node.network_interface.0.access_config.0.nat_ip], 0) : null
   cluster_init_name = var.cb_cluster_name != null ? var.cb_cluster_name : "cbdb"
 }
 
