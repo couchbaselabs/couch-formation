@@ -596,6 +596,11 @@ class tfvars(object):
             t.type = tfvars.reserved[t.value]
         return t
 
+    def t_NUMBER(self, t):
+        r'\d+'
+        t.value = int(t.value)
+        return t
+
     def read_file(self, filename):
         variable_data = []
         try:
@@ -639,9 +644,13 @@ class tfvars(object):
         if tok.type == 'LBRACKET':
             value = self.get_list()
             self.get_keyword('RBRACKET')
+        elif tok.type == 'LCURLY':
+            value = self.get_variable_values()
+            self.get_keyword('RCURLY')
         else:
             value = tok.value
-            value = value.strip('"')
+            if isinstance(value, str):
+                value = value.strip('"')
         return value
 
     def get_list(self, list_value=None):
@@ -661,6 +670,8 @@ class tfvars(object):
         self.get_keyword('EQUALS')
         value = self.get_value()
         value_block[key] = value
+        if self.next_token.type == 'COMMA':
+            self.get_keyword('COMMA')
         if self.next_token.type != 'RCURLY':
             value_block = self.get_variable_values(value_block)
         return value_block
@@ -818,6 +829,8 @@ class processTemplate(object):
             self.template_dir = ''
         self.cluster_map_file_name = 'cluster.tf'
         self.tf_variable_file_name = 'variables.tf'
+        self.previous_cluster_map = None
+        self.previous_tf_var_file = None
         self.dev_num = pargs.dev
         self.test_num = pargs.test
         self.prod_num = pargs.prod
@@ -1022,22 +1035,26 @@ class processTemplate(object):
                 sys.exit(1)
             self.template_file = self.template_dir + '/' + self.template_file
 
+        load_var_file = None
+        tf_vars = tfvars()
         if pargs.load:
-            tf_var_file = pargs.load
-        else:
-            if pargs.cluster:
-                tf_var_file = self.template_dir + '/' + self.cluster_map_file_name
-            else:
-                tf_var_file = self.template_dir + '/' + self.tf_variable_file_name
-        if os.path.exists(tf_var_file) or pargs.load:
-            try:
-                tf_vars = tfvars()
-                variable_list = tf_vars.read_file(tf_var_file)
-                for variable_parameters in variable_list:
-                    print(json.dumps(variable_parameters, indent=2))
-            except OSError as e:
-                print("Can not read variable file: %s" % str(e))
-                sys.exit(1)
+            load_var_file = pargs.load
+        cluster_map_file = self.template_dir + '/' + self.cluster_map_file_name
+        tf_var_file = self.template_dir + '/' + self.tf_variable_file_name
+        try:
+            if load_var_file and os.path.exists(load_var_file):
+                self.previous_tf_var_file = tf_vars.read_file(load_var_file)
+            elif os.path.exists(tf_var_file):
+                self.previous_tf_var_file = tf_vars.read_file(tf_var_file)
+            if os.path.exists(cluster_map_file):
+                self.previous_cluster_map = tf_vars.read_file(cluster_map_file)
+        except Exception as e:
+            print("Can not read variable file: %s" % str(e))
+            sys.exit(1)
+
+        if self.previous_tf_var_file:
+            for vp in self.previous_tf_var_file:
+                self.supported_variable_list = [(a, b, c, d) if (c != vp['name']) else (a, b, c, vp['default']) for (a, b, c, d) in self.supported_variable_list]
 
         if pargs.cluster:
             self.operating_mode = MODE_CLUSTER_MAP
