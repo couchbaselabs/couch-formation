@@ -112,7 +112,7 @@ class ask(object):
     def __init__(self):
         self.logger = logging.getLogger(self.__class__.__name__)
 
-    def ask_list(self, question, options=[], descriptions=[]):
+    def ask_list(self, question, options=[], descriptions=[], default=None):
         list_start = 1
         list_lenghth = len(options)
         list_remaining = list_lenghth
@@ -121,6 +121,14 @@ class ask(object):
         if list_lenghth == 1:
             return 0
         print("%s:" % question)
+        if default:
+            if type(options[0]) is dict:
+                default_selection = next((i for i, item in enumerate(options) if item['name'] == default), None)
+            else:
+                default_selection = next((i for i, item in enumerate(options) if item == default), None)
+            if default_selection:
+                if self.ask_yn("Use previous value: \"%s\"" % default, default=True):
+                    return default_selection
         while True:
             if list_remaining <= list_incr:
                 list_end = list_lenghth
@@ -1123,7 +1131,10 @@ class processTemplate(object):
 
         for count, tuple in enumerate(sorted_token_list):
             item = tuple[0]
+            default_value = tuple[3]
             self.logger.info("Processing variable %s" % item)
+            if default_value:
+                self.logger.info("Previous value for variable: %s" % default_value)
             if item == 'CB_VERSION':
                 try:
                     self.get_cb_version()
@@ -1182,7 +1193,7 @@ class processTemplate(object):
             elif item == 'AWS_AMI_ID':
                 if not self.aws_ami_id:
                     try:
-                        self.aws_get_ami_id()
+                        self.aws_get_ami_id(default=default_value)
                     except Exception as e:
                         print("Error: %s" % str(e))
                         sys.exit(1)
@@ -1206,7 +1217,7 @@ class processTemplate(object):
             elif item == 'AWS_SSH_KEY':
                 if not self.aws_ssh_key:
                     try:
-                        self.aws_get_ssh_key()
+                        self.aws_get_ssh_key(default=default_value)
                     except Exception as e:
                         print("Error: %s" % str(e))
                         sys.exit(1)
@@ -1804,7 +1815,7 @@ class processTemplate(object):
                     sys.exit(1)
                 print("Cluster configuration complete.")
 
-    def get_cb_cluster_name(self):
+    def get_cb_cluster_name(self, default=None):
         inquire = ask()
         if self.dev_num:
             cluster_name = "dev{:02d}db".format(self.dev_num)
@@ -1817,18 +1828,18 @@ class processTemplate(object):
         selection = inquire.ask_text('Couchbase Cluster Name', cluster_name)
         self.cb_cluster_name = selection
 
-    def ask_to_use_public_ip(self):
+    def ask_to_use_public_ip(self, default=None):
         inquire = ask()
         selection = inquire.ask_bool('Use Public IP', default='false')
         self.use_public_ip = selection
 
-    def get_dns_servers(self):
+    def get_dns_servers(self, default=None):
         server_list = []
         dns_lookup = dynamicDNS(self.domain_name)
         server_list = dns_lookup.dns_get_servers()
         self.dns_server_list = ','.join(f'"{s}"' for s in server_list)
 
-    def azure_get_root_type(self):
+    def azure_get_root_type(self, default=None):
         default_selection = ''
         if 'defaults' in self.local_var_json:
             if 'root_size' in self.local_var_json['defaults']:
@@ -1837,7 +1848,7 @@ class processTemplate(object):
         selection = self.ask_text('Root volume size', default_selection)
         self.azure_disk_type = selection
 
-    def azure_get_root_size(self):
+    def azure_get_root_size(self, default=None):
         default_selection = ''
         if 'defaults' in self.local_var_json:
             if 'root_size' in self.local_var_json['defaults']:
@@ -1846,7 +1857,7 @@ class processTemplate(object):
         selection = self.ask_text('Root volume size', default_selection)
         self.azure_disk_size = selection
 
-    def azure_get_image_user(self):
+    def azure_get_image_user(self, default=None):
         if not self.linux_type:
             try:
                 self.get_linux_type()
@@ -1863,7 +1874,7 @@ class processTemplate(object):
                 return True
         raise Exception("Can not locate suitable user for %s %s linux." % (self.linux_type, self.linux_release))
 
-    def azure_get_machine_type(self):
+    def azure_get_machine_type(self, default=None):
         inquire = ask()
         size_list = []
         if not self.azure_location:
@@ -1882,7 +1893,7 @@ class processTemplate(object):
         selection = inquire.ask_machine_type('Azure Machine Type', size_list)
         self.azure_machine_type = size_list[selection]['name']
 
-    def azure_get_image_name(self):
+    def azure_get_image_name(self, default=None):
         inquire = ask()
         image_list = []
         if not self.azure_resource_group:
@@ -1912,7 +1923,7 @@ class processTemplate(object):
             self.cb_version = image_list[selection]['version']
             self.logger.info("Selecting couchbase version %s from image metadata" % self.cb_version)
 
-    def azure_get_nsg(self):
+    def azure_get_nsg(self, default=None):
         inquire = ask()
         nsg_list = []
         if not self.azure_resource_group:
@@ -1925,7 +1936,7 @@ class processTemplate(object):
         selection = inquire.ask_list('Azure Network Security Group', nsg_list)
         self.azure_nsg = nsg_list[selection]
 
-    def azure_get_availability_zone_list(self):
+    def azure_get_availability_zone_list(self, default=None):
         availability_zone_list = []
         if not self.azure_location:
             try:
@@ -1944,7 +1955,7 @@ class processTemplate(object):
             availability_zone_list.append(config_block)
         return availability_zone_list
 
-    def azure_get_subnet(self):
+    def azure_get_subnet(self, default=None):
         inquire = ask()
         subnet_list = []
         if not self.azure_vnet:
@@ -1959,7 +1970,7 @@ class processTemplate(object):
         selection = inquire.ask_list('Azure Subnet', subnet_list)
         self.azure_subnet = subnet_list[selection]['name']
 
-    def azure_get_vnet(self):
+    def azure_get_vnet(self, default=None):
         inquire = ask()
         vnet_list = []
         if not self.azure_resource_group:
@@ -1972,7 +1983,7 @@ class processTemplate(object):
         selection = inquire.ask_list('Azure Virtual Network', vnet_list)
         self.azure_vnet = vnet_list[selection]
 
-    def azure_get_image_sku(self):
+    def azure_get_image_sku(self, default=None):
         if not self.linux_type:
             try:
                 self.get_linux_type()
@@ -1989,7 +2000,7 @@ class processTemplate(object):
                 return True
         raise Exception("Can not locate suitable sku for %s %s linux." % (self.linux_type, self.linux_release))
 
-    def azure_get_image_offer(self):
+    def azure_get_image_offer(self, default=None):
         if not self.linux_type:
             try:
                 self.get_linux_type()
@@ -2006,7 +2017,7 @@ class processTemplate(object):
                 return True
         raise Exception("Can not locate suitable offer for %s %s linux." % (self.linux_type, self.linux_release))
 
-    def azure_get_image_publisher(self):
+    def azure_get_image_publisher(self, default=None):
         if not self.linux_type:
             try:
                 self.get_linux_type()
@@ -2023,7 +2034,7 @@ class processTemplate(object):
                 return True
         raise Exception("Can not locate suitable publisher for %s %s linux." % (self.linux_type, self.linux_release))
 
-    def azure_get_all_locations(self):
+    def azure_get_all_locations(self, default=None):
         inquire = ask()
         location_list = []
         location_name = []
@@ -2038,7 +2049,7 @@ class processTemplate(object):
         selection = inquire.ask_list('Azure Location', location_list, location_name)
         self.azure_location = location_list[selection]
 
-    def azure_get_location(self):
+    def azure_get_location(self, default=None):
         inquire = ask()
         location_list = []
         location_name = []
@@ -2055,7 +2066,7 @@ class processTemplate(object):
         self.azure_get_machine_type()
         self.azure_get_zones()
 
-    def azure_get_zones(self):
+    def azure_get_zones(self, default=None):
         if not self.azure_location:
             self.azure_get_location()
         if len(self.azure_availability_zones) > 0:
@@ -2075,7 +2086,7 @@ class processTemplate(object):
                 for zone_number in self.azure_availability_zones:
                     self.logger.info("Added Azure availability zone %s" % zone_number)
 
-    def azure_get_resource_group(self):
+    def azure_get_resource_group(self, default=None):
         inquire = ask()
         group_list = []
         if not self.azure_subscription_id:
@@ -2088,7 +2099,7 @@ class processTemplate(object):
         selection = inquire.ask_list('Azure Resource Group', group_list)
         self.azure_resource_group = group_list[selection]
 
-    def azure_get_subscription_id(self):
+    def azure_get_subscription_id(self, default=None):
         inquire = ask()
         subscription_list = []
         subscription_name = []
@@ -2102,7 +2113,7 @@ class processTemplate(object):
         self.azure_subscription_id = subscription_list[selection]
         self.logger.info("Azure Subscription ID = %s" % self.azure_subscription_id)
 
-    def generate_public_key_file(self, public_file):
+    def generate_public_key_file(self, public_file, default=None):
         self.get_public_key()
         try:
             file_handle = open(public_file, 'w')
@@ -2114,7 +2125,7 @@ class processTemplate(object):
             print("generate_public_key_file: can not write public key file.")
             return False
 
-    def get_ssh_public_key_file(self):
+    def get_ssh_public_key_file(self, default=None):
         inquire = ask()
         dir_list = []
         key_file_list = []
@@ -2160,7 +2171,7 @@ class processTemplate(object):
         selection = self.ask('Select SSH public key', key_file_list)
         self.ssh_public_key_file = key_file_list[selection]
 
-    def gcp_get_machine_type(self):
+    def gcp_get_machine_type(self, default=None):
         inquire = ask()
         machine_type_list = []
         if not self.gcp_account_file:
@@ -2185,7 +2196,7 @@ class processTemplate(object):
         selection = inquire.ask_machine_type('GCP Machine Type', machine_type_list)
         self.gcp_machine_type = machine_type_list[selection]['name']
 
-    def gcp_get_cb_image_name(self):
+    def gcp_get_cb_image_name(self, default=None):
         inquire = ask()
         image_list = []
         if not self.gcp_account_file:
@@ -2224,7 +2235,7 @@ class processTemplate(object):
             self.cb_version = image_list[selection]['version']
             self.logger.info("Selecting couchbase version %s from image metadata" % self.cb_version)
 
-    def gcp_get_availability_zone_list(self):
+    def gcp_get_availability_zone_list(self, default=None):
         availability_zone_list = []
         if not self.gcp_region:
             try:
@@ -2243,7 +2254,7 @@ class processTemplate(object):
             availability_zone_list.append(config_block)
         return availability_zone_list
 
-    def gcp_get_subnet(self):
+    def gcp_get_subnet(self, default=None):
         inquire = ask()
         subnet_list = []
         if not self.gcp_account_file:
@@ -2263,7 +2274,7 @@ class processTemplate(object):
         selection = inquire.ask_list('GCP Subnet', subnet_list)
         self.gcp_subnet = subnet_list[selection]
 
-    def gcp_get_root_type(self):
+    def gcp_get_root_type(self, default=None):
         default_selection = ''
         if 'defaults' in self.local_var_json:
             if 'root_type' in self.local_var_json['defaults']:
@@ -2281,7 +2292,7 @@ class processTemplate(object):
         selection = self.ask_text('Root volume size', default_selection)
         self.gcp_root_size = selection
 
-    def get_gcp_region(self):
+    def get_gcp_region(self, default=None):
         inquire = ask()
         region_list = []
         current_location = self.get_country()
@@ -2308,7 +2319,7 @@ class processTemplate(object):
         self.gcp_region = region_list[selection]
         self.get_gcp_zones()
 
-    def get_country(self):
+    def get_country(self, default=None):
         session = requests.Session()
         retries = Retry(total=60,
                         backoff_factor=0.1,
@@ -2327,7 +2338,7 @@ class processTemplate(object):
             return None
         return ip_location
 
-    def get_gcp_zones(self):
+    def get_gcp_zones(self, default=None):
         if not self.gcp_region:
             self.get_gcp_region()
         if len(self.gcp_zone_list) > 0:
@@ -2347,7 +2358,7 @@ class processTemplate(object):
         for gcp_zone_name in self.gcp_zone_list:
             self.logger.info("Added GCP zone %s" % gcp_zone_name)
 
-    def get_gcp_project(self):
+    def get_gcp_project(self, default=None):
         inquire = ask()
         project_ids = []
         project_names = []
@@ -2375,7 +2386,7 @@ class processTemplate(object):
         selection = inquire.ask_list('GCP Project', project_ids, project_names)
         self.gcp_project = project_ids[selection]
 
-    def get_gcp_image_user(self):
+    def get_gcp_image_user(self, default=None):
         if not self.linux_type:
             try:
                 self.get_linux_type()
@@ -2392,14 +2403,14 @@ class processTemplate(object):
                 return True
         raise Exception("Can not locate suitable user for %s %s linux." % (self.linux_type, self.linux_release))
 
-    def get_gcp_image_family(self):
+    def get_gcp_image_family(self, default=None):
         if not self.gcp_image_family:
             try:
                 self.get_gcp_image_name()
             except Exception:
                 raise
 
-    def get_gcp_image_name(self):
+    def get_gcp_image_name(self, default=None):
         if not self.linux_type:
             try:
                 self.get_linux_type()
@@ -2418,7 +2429,7 @@ class processTemplate(object):
                 return True
         raise Exception("Can not locate suitable image for %s %s linux." % (self.linux_type, self.linux_release))
 
-    def gcp_get_account_file(self):
+    def gcp_get_account_file(self, default=None):
         dir_list = []
         auth_file_list = []
         auth_directory = os.environ['HOME'] + '/.config/gcloud'
@@ -2455,7 +2466,7 @@ class processTemplate(object):
         if 'client_email' in auth_data:
             self.gcp_service_account_email = auth_data['client_email']
 
-    def get_domain_name(self):
+    def get_domain_name(self, default=None):
         resolver = dns.resolver.Resolver()
         hostname = socket.gethostname()
         default_selection = ''
@@ -2472,7 +2483,7 @@ class processTemplate(object):
         selection = self.ask_text('DNS Domain Name', default_selection)
         self.domain_name = selection
 
-    def get_timezone(self):
+    def get_timezone(self, default=None):
         local_code = datetime.datetime.now(datetime.timezone.utc).astimezone().tzname()
         tzpath = '/etc/localtime'
         tzlist = []
@@ -2497,7 +2508,7 @@ class processTemplate(object):
         selection = self.ask('Select timezone', tzlist)
         self.vmware_timezone = tzlist[selection]
 
-    def vmware_get_template(self):
+    def vmware_get_template(self, default=None):
         if not self.vmware_hostname:
             self.vmware_get_hostname()
         templates = []
@@ -2517,7 +2528,7 @@ class processTemplate(object):
         except Exception:
             raise
 
-    def vmware_get_sw_url(self):
+    def vmware_get_sw_url(self, default=None):
         if not self.linux_type:
             try:
                 self.get_linux_type()
@@ -2534,7 +2545,7 @@ class processTemplate(object):
                 return True
         raise Exception("Can not locate software URL for %s %s linux." % (self.linux_type, self.linux_release))
 
-    def vmware_get_iso_checksum(self):
+    def vmware_get_iso_checksum(self, default=None):
         if not self.linux_type:
             try:
                 self.get_linux_type()
@@ -2551,7 +2562,7 @@ class processTemplate(object):
                 return True
         raise Exception("Can not locate ISO checksum for %s %s linux." % (self.linux_type, self.linux_release))
 
-    def get_public_key(self):
+    def get_public_key(self, default=None):
         if not self.ssh_private_key:
             self.get_private_key()
         fh = open(self.ssh_private_key, 'r')
@@ -2567,14 +2578,14 @@ class processTemplate(object):
         public_key = private_key.public_key().exportKey('OpenSSH')
         self.ssh_public_key = public_key.decode('utf-8')
 
-    def vmware_get_build_password(self):
+    def vmware_get_build_password(self, default=None):
         if not self.vmware_build_user:
             self.vmware_get_build_username()
         selection = self.ask_pass("Build user %s password" % self.vmware_build_user)
         self.vmware_build_password = selection
         self.vmware_build_pwd_encrypted = sha512_crypt.using(salt=''.join([random.choice(string.ascii_letters + string.digits) for _ in range(16)]), rounds=5000).hash(self.vmware_build_password)
 
-    def vmware_get_build_username(self):
+    def vmware_get_build_username(self, default=None):
         if not self.linux_type:
             try:
                 self.get_linux_type()
@@ -2591,7 +2602,7 @@ class processTemplate(object):
                 return True
         raise Exception("Can not locate build user for %s %s linux." % (self.linux_type, self.linux_release))
 
-    def vmware_get_dvs_network(self):
+    def vmware_get_dvs_network(self, default=None):
         if not self.vmware_hostname:
             self.vmware_get_hostname()
         folder = self.vmware_network_folder
@@ -2619,7 +2630,7 @@ class processTemplate(object):
         except Exception:
             raise
 
-    def vmware_get_disksize(self):
+    def vmware_get_disksize(self, default=None):
         default_selection = ''
         if 'defaults' in self.local_var_json:
             if 'vm_disk_size' in self.local_var_json['defaults']:
@@ -2628,7 +2639,7 @@ class processTemplate(object):
         selection = self.ask_text('Disk size', default_selection)
         self.vmware_disksize = selection
 
-    def vmware_get_memsize(self):
+    def vmware_get_memsize(self, default=None):
         default_selection = ''
         if 'defaults' in self.local_var_json:
             if 'vm_mem_size' in self.local_var_json['defaults']:
@@ -2637,7 +2648,7 @@ class processTemplate(object):
         selection = self.ask_text('Memory size', default_selection)
         self.vmware_memsize = selection
 
-    def vmware_get_cpucores(self):
+    def vmware_get_cpucores(self, default=None):
         default_selection = ''
         if 'defaults' in self.local_var_json:
             if 'vm_cpu_cores' in self.local_var_json['defaults']:
@@ -2646,7 +2657,7 @@ class processTemplate(object):
         selection = self.ask_text('CPU cores', default_selection)
         self.vmware_cpucores = selection
 
-    def vmware_get_isourl(self):
+    def vmware_get_isourl(self, default=None):
         if not self.linux_type:
             try:
                 self.get_linux_type()
@@ -2663,7 +2674,7 @@ class processTemplate(object):
                 return True
         raise Exception("Can not locate ISO URL for %s %s linux." % (self.linux_type, self.linux_release))
 
-    def vmware_get_ostype(self):
+    def vmware_get_ostype(self, default=None):
         if not self.linux_type:
             try:
                 self.get_linux_type()
@@ -2680,7 +2691,7 @@ class processTemplate(object):
                 return True
         raise Exception("Can not locate OS type for %s %s linux." % (self.linux_type, self.linux_release))
 
-    def vmware_get_folder(self):
+    def vmware_get_folder(self, default=None):
         default_selection = ''
         if self.packer_mode:
             if 'defaults' in self.local_var_json:
@@ -2710,7 +2721,7 @@ class processTemplate(object):
             except Exception:
                 raise
 
-    def vmware_get_datastore(self):
+    def vmware_get_datastore(self, default=None):
         if not self.vmware_hostname:
             self.vmware_get_hostname()
         try:
@@ -2738,7 +2749,7 @@ class processTemplate(object):
         except Exception:
             raise
 
-    def vmware_get_cluster(self):
+    def vmware_get_cluster(self, default=None):
         if not self.vmware_host_folder:
             self.vmware_get_datacenter()
         try:
@@ -2752,11 +2763,11 @@ class processTemplate(object):
         except Exception:
             raise
 
-    def vmware_get_datacenter(self):
+    def vmware_get_datacenter(self, default=None):
         if not self.vmware_datacenter:
             self.vmware_get_hostname()
 
-    def vmware_get_hostname(self):
+    def vmware_get_hostname(self, default=None):
         while True:
             if not self.vmware_hostname:
                 hostname = input("vSphere Host Name: ")
@@ -2787,18 +2798,18 @@ class processTemplate(object):
             except Exception:
                 print(" [!] Can not access vSphere with provided credentials.")
 
-    def vmware_get_username(self):
+    def vmware_get_username(self, default=None):
         useranswer = input("vSphere Admin User: ")
         self.vmware_username = useranswer.rstrip("\n")
         if not self.vmware_password:
             self.vmware_get_password()
 
-    def vmware_get_password(self):
+    def vmware_get_password(self, default=None):
         if not self.vmware_password:
             passanswer = getpass.getpass(prompt="vSphere Admin Password: ")
             self.vmware_password = passanswer.rstrip("\n")
 
-    def aws_get_root_type(self):
+    def aws_get_root_type(self, default=None):
         default_selection = ''
         if 'defaults' in self.local_var_json:
             if 'root_type' in self.local_var_json['defaults']:
@@ -2807,7 +2818,7 @@ class processTemplate(object):
         selection = self.ask_text('Root volume type', default_selection)
         self.aws_root_type = selection
 
-    def aws_get_root_size(self):
+    def aws_get_root_size(self, default=None):
         default_selection = ''
         if 'defaults' in self.local_var_json:
             if 'root_size' in self.local_var_json['defaults']:
@@ -2816,7 +2827,7 @@ class processTemplate(object):
         selection = self.ask_text('Root volume size', default_selection)
         self.aws_root_size = selection
 
-    def aws_get_root_iops(self):
+    def aws_get_root_iops(self, default=None):
         default_selection = ''
         if 'defaults' in self.local_var_json:
             if 'root_iops' in self.local_var_json['defaults']:
@@ -2825,7 +2836,7 @@ class processTemplate(object):
         selection = self.ask_text('Root volume IOPS', default_selection)
         self.aws_root_iops = selection
 
-    def aws_get_sg_id(self):
+    def aws_get_sg_id(self, default=None):
         if not self.aws_vpc_id:
             try:
                 self.aws_get_vpc_id()
@@ -2848,7 +2859,7 @@ class processTemplate(object):
         selection = self.ask('Select security group', sg_list, sg_name_list)
         self.aws_sg_id = sgs['SecurityGroups'][selection]['GroupId']
 
-    def aws_get_vpc_id(self):
+    def aws_get_vpc_id(self, default=None):
         vpc_list = []
         vpc_name_list = []
         if not self.aws_region:
@@ -2870,7 +2881,7 @@ class processTemplate(object):
         selection = self.ask('Select VPC', vpc_list, vpc_name_list)
         self.aws_vpc_id = vpcs['Vpcs'][selection]['VpcId']
 
-    def aws_get_availability_zone_list(self):
+    def aws_get_availability_zone_list(self, default=None):
         availability_zone_list = []
         if not self.aws_region:
             try:
@@ -2885,7 +2896,7 @@ class processTemplate(object):
             availability_zone_list.append(config_block)
         return availability_zone_list
 
-    def aws_get_subnet_id(self, availability_zone=None):
+    def aws_get_subnet_id(self, availability_zone=None, default=None):
         inquire = ask()
         if not self.aws_vpc_id:
             try:
@@ -2933,7 +2944,7 @@ class processTemplate(object):
         selection = inquire.ask_list(question, subnet_list, subnet_name_list)
         self.aws_subnet_id = subnet_list[selection]
 
-    def get_private_key(self):
+    def get_private_key(self, default=None):
         dir_list = []
         key_file_list = []
         key_directory = os.environ['HOME'] + '/.ssh'
@@ -2972,9 +2983,10 @@ class processTemplate(object):
         selection = self.ask('Select SSH private key', key_file_list)
         self.ssh_private_key = key_file_list[selection]
 
-    def aws_get_ssh_key(self):
+    def aws_get_ssh_key(self, default=None):
+        inquire = ask()
         key_list = []
-        key_name_list = []
+        key_id_list = []
         if not self.aws_region:
             try:
                 self.aws_get_region()
@@ -2983,14 +2995,14 @@ class processTemplate(object):
         ec2_client = boto3.client('ec2', region_name=self.aws_region)
         key_pairs = ec2_client.describe_key_pairs()
         for i in range(len(key_pairs['KeyPairs'])):
-            key_list.append(key_pairs['KeyPairs'][i]['KeyPairId'])
-            key_name_list.append(key_pairs['KeyPairs'][i]['KeyName'])
+            key_list.append(key_pairs['KeyPairs'][i]['KeyName'])
+            key_id_list.append(key_pairs['KeyPairs'][i]['KeyPairId'])
 
-        selection = self.ask('Select SSH key', key_list, key_name_list)
+        selection = inquire.ask_list('Select SSH key', key_list, key_id_list, default)
         self.aws_ssh_key = key_pairs['KeyPairs'][selection]['KeyName']
         self.ssh_key_fingerprint = key_pairs['KeyPairs'][selection]['KeyFingerprint']
 
-    def get_cb_index_mem_setting(self):
+    def get_cb_index_mem_setting(self, default=None):
         option_list = [
             'Standard Index Storage',
             'Memory-optimized',
@@ -3001,7 +3013,7 @@ class processTemplate(object):
         else:
             self.cb_index_mem_type = 'memopt'
 
-    def aws_get_instance_type(self):
+    def aws_get_instance_type(self, default=None):
         inquire = ask()
         size_list = []
         if not self.aws_region:
@@ -3029,7 +3041,7 @@ class processTemplate(object):
         selection = inquire.ask_machine_type('AWS Instance Type', size_list)
         self.aws_instance_type = size_list[selection]['name']
 
-    def aws_get_ami_id(self):
+    def aws_get_ami_id(self, default=None):
         inquire = ask()
         image_list = []
         image_name_list = []
@@ -3056,7 +3068,7 @@ class processTemplate(object):
                     image_block['version'] = item_version_tag
                     image_block['description'] = image_block['description'] + ' => Version: ' + item_version_tag
             image_list.append(image_block)
-        selection = inquire.ask_list('Select AMI', image_list)
+        selection = inquire.ask_list('Select AMI', image_list, default=default)
         self.aws_ami_id = image_list[selection]['name']
         if 'type' in image_list[selection]:
             self.linux_type = image_list[selection]['type']
@@ -3068,7 +3080,7 @@ class processTemplate(object):
             self.cb_version = image_list[selection]['version']
             self.logger.info("Selecting couchbase version %s from image metadata" % self.cb_version)
 
-    def aws_get_region(self):
+    def aws_get_region(self, default=None):
         if 'AWS_REGION' in os.environ:
             self.aws_region = os.environ['AWS_REGION']
         elif 'AWS_DEFAULT_REGION' in os.environ:
@@ -3089,7 +3101,7 @@ class processTemplate(object):
             self.logger.info("Added availability zone %s" % availability_zone['ZoneName'])
             self.aws_availability_zones.append(availability_zone['ZoneName'])
 
-    def get_aws_image_user(self):
+    def get_aws_image_user(self, default=None):
         if not self.linux_type:
             try:
                 self.get_linux_type()
@@ -3106,14 +3118,14 @@ class processTemplate(object):
                 return True
         raise Exception("Can not locate ssh user for %s %s linux." % (self.linux_type, self.linux_release))
 
-    def get_aws_image_owner(self):
+    def get_aws_image_owner(self, default=None):
         if not self.aws_image_owner:
             try:
                 self.get_aws_image_name()
             except Exception:
                 raise
 
-    def get_aws_image_name(self):
+    def get_aws_image_name(self, default=None):
         if not self.linux_type:
             try:
                 self.get_linux_type()
@@ -3132,7 +3144,7 @@ class processTemplate(object):
                 return True
         raise Exception("Can not locate suitable image for %s %s linux." % (self.linux_type, self.linux_release))
 
-    def get_cb_version(self):
+    def get_cb_version(self, default=None):
         inquire = ask()
         if not self.linux_type:
             try:
@@ -3154,7 +3166,7 @@ class processTemplate(object):
         selection = self.ask('Select Couchbase Version', release_list)
         self.cb_version = release_list[selection]
 
-    def get_linux_release(self):
+    def get_linux_release(self, default=None):
         version_list = []
         version_desc = []
         if 'linux' not in self.global_var_json:
@@ -3168,7 +3180,7 @@ class processTemplate(object):
         self.linux_release = self.global_var_json['linux'][self.linux_type][selection]['version']
         self.linux_pkgmgr = self.global_var_json['linux'][self.linux_type][selection]['type']
 
-    def get_linux_type(self):
+    def get_linux_type(self, default=None):
         distro_list = []
         if 'linux' not in self.global_var_json:
             raise Exception("Linux distribution global configuration required.")
