@@ -16,6 +16,8 @@ import re
 import os
 import getpass
 from itertools import cycle
+import ply.lex as lex
+import ply.yacc as yacc
 import subprocess
 import crypt
 import ipaddress
@@ -517,6 +519,162 @@ class dynamicDNS(object):
             print("tsig_delete: failed for %s error %s" % (hostname, str(e)))
             return False
 
+class tfvars(object):
+    reserved = {
+        'variable': 'VARIABLE',
+        'description': 'DESCRIPTION',
+        'default': 'DEFAULT',
+        'type': 'TYPE',
+    }
+    tokens = [
+        'NUMBER',
+        'EQUALS',
+        'COMMA',
+        'QUOTETEXT',
+        'TEXT',
+        'LCURLY',
+        'RCURLY',
+        'LBRACKET',
+        'RBRACKET',
+        'LPAREN',
+        'RPAREN',
+    ] + list(reserved.values())
+    t_EQUALS = r'='
+    t_COMMA = r','
+    t_LCURLY = r'\{'
+    t_RCURLY = r'\}'
+    t_LBRACKET = r'\['
+    t_RBRACKET = r'\]'
+    t_LPAREN = r'\('
+    t_RPAREN = r'\)'
+    t_ignore = ' \t'
+
+    def __init__(self):
+        self.lexer = lex.lex(module=self)
+        # self.parser = yacc.yacc(module=self)
+        self.tf_var_file = None
+        self.tf_var_data = None
+        self.current_token = None
+        self.next_token = None
+
+    def t_COMMENT(self, t):
+        r'\#.*'
+        pass
+
+    def t_newline(self, t):
+        r'\n+'
+        t.lexer.lineno += len(t.value)
+
+    def t_error(self, t):
+        print("Illegal character '%s'" % t.value[0])
+        t.lexer.skip(1)
+
+    def t_VARIABLE(self, t):
+        r'variable'
+        return t
+
+    def t_DESCRIPTION(self, t):
+        r'description'
+        return t
+
+    def t_DEFAULT(self, t):
+        r'default'
+        return t
+
+    def t_TYPE(self, t):
+        r'type'
+        return t
+
+    def t_QUOTETEXT(self, t):
+        # r'"[a-zA-Z0-9/\(\)_\. -]*"'
+        r'"([^"]|\\")*"'
+        return t
+
+    def t_TEXT(self, t):
+        r'[a-zA-Z_][a-zA-Z_0-9\(\)-]*'
+        if t.value in tfvars.reserved:
+            t.type = tfvars.reserved[t.value]
+        return t
+
+    def read_file(self, filename):
+        variable_data = []
+        try:
+            with open(filename, 'r') as varFile:
+                self.tf_var_data = varFile.read()
+                self.tf_var_file = filename
+            varFile.close()
+        except OSError as e:
+            print("Can not read global variable file: %s" % str(e))
+            raise Exception("tfvars: read_file: can not read file %s" % filename)
+        self.lexer.input(self.tf_var_data)
+        while True:
+            try:
+                variable_parameters = self.parse_variable_block()
+                variable_data.append(variable_parameters)
+            except Exception as e:
+                print("Syntax error: %s" % str(e))
+                sys.exit(1)
+            if not self.next_token:
+                return variable_data
+
+    def get_token(self):
+        if self.next_token:
+            tok = self.next_token
+        else:
+            tok = self.lexer.token()
+        self.next_token = self.lexer.token()
+        return tok
+
+    def get_keyword(self, type):
+        tok = self.get_token()
+        if not tok:
+            raise Exception("unexpected end of file")
+        if tok.type != type:
+            raise Exception("expecting %s at line %d position %d" % (type, tok.lineno, tok.lexpos))
+
+    def get_value(self):
+        tok = self.get_token()
+        if not tok:
+            raise Exception("unexpected end of file")
+        if tok.type == 'LBRACKET':
+            value = self.get_list()
+            self.get_keyword('RBRACKET')
+        else:
+            value = tok.value
+            value = value.strip('"')
+        return value
+
+    def get_list(self, list_value=None):
+        if not list_value:
+            list_value = []
+        element = self.get_value()
+        list_value.append(element)
+        if self.next_token.type != 'RBRACKET':
+            self.get_keyword('COMMA')
+            list_value = self.get_list(list_value)
+        return list_value
+
+    def get_variable_values(self, value_block=None):
+        if not value_block:
+            value_block = {}
+        key = self.get_value()
+        self.get_keyword('EQUALS')
+        value = self.get_value()
+        value_block[key] = value
+        if self.next_token.type != 'RCURLY':
+            value_block = self.get_variable_values(value_block)
+        return value_block
+
+    def parse_variable_block(self):
+        variable_block = {}
+        self.get_keyword('VARIABLE')
+        variable_block['name'] = self.get_value()
+        self.get_keyword('LCURLY')
+        value_block = self.get_variable_values()
+        variable_block.update(value_block)
+        self.get_keyword('RCURLY')
+        return variable_block
+
 class cbrelease(object):
 
     def __init__(self, type, release):
@@ -622,6 +780,7 @@ class params(object):
         parser.add_argument('--debug', action='store', help="Debug level", type=int, default=3)
         parser.add_argument('--packer', action='store_true', help="Packer mode", default=False)
         parser.add_argument('--cluster', action='store_true', help="Cluster only mode", default=False)
+        parser.add_argument('--load', action='store', help="Variable file")
         parser.add_argument('--dev', action='store', help="Development Environment", type=int)
         parser.add_argument('--test', action='store', help="Test Environment", type=int)
         parser.add_argument('--prod', action='store', help="Prod Environment", type=int)
@@ -657,6 +816,8 @@ class processTemplate(object):
         else:
             self.template_file = ''
             self.template_dir = ''
+        self.cluster_map_file_name = 'cluster.tf'
+        self.tf_variable_file_name = 'variables.tf'
         self.dev_num = pargs.dev
         self.test_num = pargs.test
         self.prod_num = pargs.prod
@@ -860,6 +1021,23 @@ class processTemplate(object):
                 print("Error: %s" % str(e))
                 sys.exit(1)
             self.template_file = self.template_dir + '/' + self.template_file
+
+        if pargs.load:
+            tf_var_file = pargs.load
+        else:
+            if pargs.cluster:
+                tf_var_file = self.template_dir + '/' + self.cluster_map_file_name
+            else:
+                tf_var_file = self.template_dir + '/' + self.tf_variable_file_name
+        if os.path.exists(tf_var_file) or pargs.load:
+            try:
+                tf_vars = tfvars()
+                variable_list = tf_vars.read_file(tf_var_file)
+                for variable_parameters in variable_list:
+                    print(json.dumps(variable_parameters, indent=2))
+            except OSError as e:
+                print("Can not read variable file: %s" % str(e))
+                sys.exit(1)
 
         if pargs.cluster:
             self.operating_mode = MODE_CLUSTER_MAP
