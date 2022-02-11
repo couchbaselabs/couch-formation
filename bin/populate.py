@@ -195,31 +195,46 @@ class ask(object):
         selection = self.ask_list(question, new_option_list, new_description_list)
         return new_option_list[selection]
 
-    def ask_quantity(self, question, num_list=[], mode=0):
+    def ask_quantity(self, question, options=[], mode=1, cpu_count=None):
         """Get CPU or Memory count"""
         list_incr = 15
-        label = None
         last_group = False
+        num_list = []
+        try:
+            if mode == 1:
+                for item in options:
+                    num = str(item['cpu'])
+                    if next((item for item in num_list if item[0] == num), None):
+                        continue
+                    if num == "1":
+                        label = "CPU"
+                    else:
+                        label = "CPUs"
+                    item_set = (num, label)
+                    num_list.append(item_set)
+            if mode == 2:
+                for item in options:
+                    num = item['mem']
+                    if not next((item for item in options if item['mem'] == num and item['cpu'] == cpu_count), None):
+                        continue
+                    num = "{:g}".format(num / 1024)
+                    if next((item for item in num_list if item[0] == num), None):
+                        continue
+                    label = "GiB"
+                    item_set = (num, label)
+                    num_list.append(item_set)
+        except KeyError:
+            raise Exception("ask_quantity: invalid options argument")
         if len(num_list) == 1:
             return 0
         print("%s:" % question)
+        num_list = sorted(num_list, key=lambda x: float(x[0]))
         divided_list = list(self.divide_list(num_list, list_incr))
         while True:
             for count, sub_list in enumerate(divided_list):
-                for num in sub_list:
-                    if mode == 1:
-                        if num == 1:
-                            label = "CPU"
-                        else:
-                            label = "CPUs"
-                    if mode == 2:
-                        if num < 1024:
-                            label = "MiB"
-                        else:
-                            num = "{:g}".format(num / 1024)
-                            label = "GiB"
-                    suffix = label.rjust(len(label) + 1) if label else ""
-                    print(str(num).rjust(10) + suffix)
+                for item_set in sub_list:
+                    suffix = item_set[1].rjust(len(item_set[1]) + 1)
+                    print(item_set[0].rjust(10) + suffix)
                 if count == len(divided_list) - 1:
                     answer = input("Selection [q=quit]: ")
                     last_group = True
@@ -231,16 +246,16 @@ class ask(object):
                 if answer == 'q':
                     sys.exit(0)
                 try:
-                    if mode == 2:
-                        multiplier = float(answer)
-                        value = int(multiplier * 1024)
+                    find_answer = next((item for item in num_list if item[0] == answer), None)
+                    if find_answer:
+                        if mode == 2:
+                            multiplier = float(answer)
+                            value = int(multiplier * 1024)
+                        else:
+                            value = int(answer)
+                        return value
                     else:
-                        value = int(answer)
-                    if value in num_list:
-                        return num_list.index(value)
-                    else:
-                        print("Incorrect selection, please try again...")
-                        continue
+                        raise Exception
                 except Exception:
                     print("Please select a value from the list.")
                     continue
@@ -252,22 +267,12 @@ class ask(object):
         name_list = []
         description_list = []
         select_list = []
-        num_cpu = None
-        num_mem = None
-        try:
-            for item in options:
-                cpu_list.append(item['cpu'])
-                mem_list.append(item['mem'])
-        except KeyError:
-            raise Exception("ask_machine_type: invalid options argument")
-        cpu_set = set(cpu_list)
-        mem_set = set(mem_list)
-        cpu_list = sorted(list(cpu_set))
-        mem_list = sorted(list(mem_set))
-        selection = self.ask_quantity('CPU count', cpu_list, 1)
-        num_cpu = cpu_list[selection]
-        selection = self.ask_quantity('Memory', mem_list, 2)
-        num_mem = mem_list[selection]
+        # cpu_set = set(cpu_list)
+        # mem_set = set(mem_list)
+        # cpu_list = sorted(list(cpu_set))
+        # mem_list = sorted(list(mem_set))
+        num_cpu = self.ask_quantity('CPU count', options, 1)
+        num_mem = self.ask_quantity('Memory', options, 2, cpu_count=num_cpu)
         try:
             for i in range(len(options)):
                 if options[i]['cpu'] == num_cpu and options[i]['mem'] == num_mem:
