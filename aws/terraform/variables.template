@@ -52,6 +52,12 @@ variable "security_group_ids" {
   type        = list(string)
 }
 
+variable "vpc_id" {
+  description = "AWS VPC ID"
+  default     = "{{ AWS_VPC_ID }}"
+  type        = string
+}
+
 variable "root_volume_iops" {
   description = "IOPS (only for io1 volume type)"
   default     = "{{ AWS_ROOT_IOPS }}"

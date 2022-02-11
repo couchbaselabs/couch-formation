@@ -195,13 +195,15 @@ class ask(object):
         selection = self.ask_list(question, new_option_list, new_description_list)
         return new_option_list[selection]
 
-    def ask_quantity(self, question, options=[], mode=1, cpu_count=None):
+    def ask_quantity(self, options=[], mode=1, cpu_count=None):
         """Get CPU or Memory count"""
         list_incr = 15
         last_group = False
         num_list = []
+        prompt_text = ""
         try:
             if mode == 1:
+                prompt_text = 'Select the desired CPU count'
                 for item in options:
                     num = str(item['cpu'])
                     if next((item for item in num_list if item[0] == num), None):
@@ -213,6 +215,7 @@ class ask(object):
                     item_set = (num, label)
                     num_list.append(item_set)
             if mode == 2:
+                prompt_text = 'Select the desired RAM size'
                 for item in options:
                     num = item['mem']
                     if not next((item for item in options if item['mem'] == num and item['cpu'] == cpu_count), None):
@@ -227,7 +230,7 @@ class ask(object):
             raise Exception("ask_quantity: invalid options argument")
         if len(num_list) == 1:
             return 0
-        print("%s:" % question)
+        print("%s:" % prompt_text)
         num_list = sorted(num_list, key=lambda x: float(x[0]))
         divided_list = list(self.divide_list(num_list, list_incr))
         while True:
@@ -262,17 +265,17 @@ class ask(object):
 
     def ask_machine_type(self, question, options=[], default=None):
         """Get Cloud instance type by selecting CPU and Memory"""
-        cpu_list = []
-        mem_list = []
         name_list = []
         description_list = []
         select_list = []
-        # cpu_set = set(cpu_list)
-        # mem_set = set(mem_list)
-        # cpu_list = sorted(list(cpu_set))
-        # mem_list = sorted(list(mem_set))
-        num_cpu = self.ask_quantity('CPU count', options, 1)
-        num_mem = self.ask_quantity('Memory', options, 2, cpu_count=num_cpu)
+        print("%s:" % question)
+        if default:
+            default_selection = next((i for i, item in enumerate(options) if item['name'] == default), None)
+            if default_selection:
+                if self.ask_yn("Use previous value: \"%s\"" % default, default=True):
+                    return default_selection
+        num_cpu = self.ask_quantity(options, 1)
+        num_mem = self.ask_quantity(options, 2, cpu_count=num_cpu)
         try:
             for i in range(len(options)):
                 if options[i]['cpu'] == num_cpu and options[i]['mem'] == num_mem:
@@ -288,18 +291,29 @@ class ask(object):
             selection = self.ask_list(question, name_list)
         return select_list[selection]
 
-    def ask_text(self, question, default=''):
+    def ask_text(self, question, recommendation=None, default=None):
+        """Get text input"""
+        print("%s:" % question)
+        if default:
+            if self.ask_yn("Use previous value: \"%s\"" % default, default=True):
+                return default
         while True:
-            prompt = question + ' [' + default + ']: '
+            if recommendation:
+                suffix = ' [q=quit enter="' + recommendation + '"]'
+            else:
+                suffix = ' [q=quit]'
+            prompt = 'Selection' + suffix + ': '
             answer = input(prompt)
             answer = answer.rstrip("\n")
+            if answer == 'q':
+                sys.exit(0)
             if len(answer) > 0:
                 return answer
             else:
-                if len(default) > 0:
-                    return default
+                if recommendation:
+                    return recommendation
                 else:
-                    print("Please make a selection.")
+                    print("Response can not be empty.")
                     continue
 
     def ask_pass(self, question):
@@ -371,13 +385,24 @@ class ask(object):
                 print("Invalid input, please try again...")
                 continue
 
-    def ask_bool(self, question, default='true'):
+    def ask_bool(self, question, recommendation='true', default=None):
+        """Get true or false response"""
+        print("%s:" % question)
+        if default:
+            if self.ask_yn("Use previous value: \"%s\"" % default, default=True):
+                return bool(strtobool(default))
         while True:
-            prompt = question + ' [' + default + ']: '
+            if recommendation:
+                suffix = ' [q=quit enter="' + recommendation + '"]'
+            else:
+                suffix = ' [q=quit]'
+            prompt = 'Selection' + suffix + ': '
             answer = input(prompt)
             answer = answer.rstrip("\n")
+            if answer == 'q':
+                sys.exit(0)
             if len(answer) == 0:
-                answer = default
+                answer = recommendation
             try:
                 if answer == 'true' or answer == 'false':
                     return bool(strtobool(answer))
@@ -1885,12 +1910,12 @@ class processTemplate(object):
             cluster_name = "prod{:02d}db".format(self.prod_num)
         else:
             cluster_name = 'cbdb'
-        selection = inquire.ask_text('Couchbase Cluster Name', cluster_name)
+        selection = inquire.ask_text('Couchbase Cluster Name', cluster_name, default=default)
         self.cb_cluster_name = selection
 
     def ask_to_use_public_ip(self, default=None):
         inquire = ask()
-        selection = inquire.ask_bool('Use Public IP', default='false')
+        selection = inquire.ask_bool('Use Public IP', recommendation='false', default=default)
         self.use_public_ip = selection
 
     def get_dns_servers(self, default=None):
@@ -2870,33 +2895,41 @@ class processTemplate(object):
             self.vmware_password = passanswer.rstrip("\n")
 
     def aws_get_root_type(self, default=None):
-        default_selection = ''
+        """Get root volume type"""
+        inquire = ask()
+        default_selection = None
         if 'defaults' in self.local_var_json:
             if 'root_type' in self.local_var_json['defaults']:
                 default_selection = self.local_var_json['defaults']['root_type']
         self.logger.info("Default root type is %s" % default_selection)
-        selection = self.ask_text('Root volume type', default_selection)
+        selection = inquire.ask_text('Root volume type', default_selection, default=default)
         self.aws_root_type = selection
 
     def aws_get_root_size(self, default=None):
-        default_selection = ''
+        """Get root volume size"""
+        inquire = ask()
+        default_selection = None
         if 'defaults' in self.local_var_json:
             if 'root_size' in self.local_var_json['defaults']:
                 default_selection = self.local_var_json['defaults']['root_size']
         self.logger.info("Default root size is %s" % default_selection)
-        selection = self.ask_text('Root volume size', default_selection)
+        selection = inquire.ask_text('Root volume size', default_selection, default=default)
         self.aws_root_size = selection
 
     def aws_get_root_iops(self, default=None):
-        default_selection = ''
+        """Get IOPS for root volume"""
+        inquire = ask()
+        default_selection = None
         if 'defaults' in self.local_var_json:
             if 'root_iops' in self.local_var_json['defaults']:
                 default_selection = self.local_var_json['defaults']['root_iops']
         self.logger.info("Default root IOPS is %s" % default_selection)
-        selection = self.ask_text('Root volume IOPS', default_selection)
+        selection = inquire.ask_text('Root volume IOPS', default_selection, default=default)
         self.aws_root_iops = selection
 
     def aws_get_sg_id(self, default=None):
+        """Get AWS security group ID"""
+        inquire = ask()
         if not self.aws_vpc_id:
             try:
                 self.aws_get_vpc_id()
@@ -2904,6 +2937,8 @@ class processTemplate(object):
                 raise
         sg_list = []
         sg_name_list = []
+        if type(default) == list:
+            default = default[0]
         ec2_client = boto3.client('ec2', region_name=self.aws_region)
         vpc_filter = {
             'Name': 'vpc-id',
@@ -2916,10 +2951,12 @@ class processTemplate(object):
             sg_list.append(sgs['SecurityGroups'][i]['GroupId'])
             sg_name_list.append(sgs['SecurityGroups'][i]['GroupName'])
 
-        selection = self.ask('Select security group', sg_list, sg_name_list)
+        selection = inquire.ask_list('Select security group', sg_list, sg_name_list, default=default)
         self.aws_sg_id = sgs['SecurityGroups'][selection]['GroupId']
 
     def aws_get_vpc_id(self, default=None):
+        """Get AWS VPC ID"""
+        inquire = ask()
         vpc_list = []
         vpc_name_list = []
         if not self.aws_region:
@@ -2938,10 +2975,11 @@ class processTemplate(object):
                     item_name = item_tag
             vpc_name_list.append(item_name)
 
-        selection = self.ask('Select VPC', vpc_list, vpc_name_list)
+        selection = inquire.ask_list('Select VPC', vpc_list, vpc_name_list, default=default)
         self.aws_vpc_id = vpcs['Vpcs'][selection]['VpcId']
 
     def aws_get_availability_zone_list(self, default=None):
+        """Build subnet list by availability zones"""
         availability_zone_list = []
         if not self.aws_region:
             try:
@@ -2951,12 +2989,13 @@ class processTemplate(object):
         for zone in self.aws_availability_zones:
             config_block = {}
             config_block['name'] = zone
-            self.aws_get_subnet_id(zone)
+            self.aws_get_subnet_id(zone, default=default)
             config_block['subnet'] = self.aws_subnet_id
             availability_zone_list.append(config_block)
         return availability_zone_list
 
     def aws_get_subnet_id(self, availability_zone=None, default=None):
+        """Get AWS subnet ID"""
         inquire = ask()
         if not self.aws_vpc_id:
             try:
@@ -3001,10 +3040,12 @@ class processTemplate(object):
                     item_name = item_tag
             subnet_name_list.append(item_name)
 
-        selection = inquire.ask_list(question, subnet_list, subnet_name_list)
+        selection = inquire.ask_list(question, subnet_list, subnet_name_list, default=default)
         self.aws_subnet_id = subnet_list[selection]
 
     def get_private_key(self, default=None):
+        """Get path to SSH private key PEM file"""
+        inquire = ask()
         dir_list = []
         key_file_list = []
         key_directory = os.environ['HOME'] + '/.ssh'
@@ -3040,10 +3081,11 @@ class processTemplate(object):
                 self.ssh_private_key = dir_list[i]
                 return True
 
-        selection = self.ask('Select SSH private key', key_file_list)
+        selection = inquire.ask_list('Select SSH private key', key_file_list, default=default)
         self.ssh_private_key = key_file_list[selection]
 
     def aws_get_ssh_key(self, default=None):
+        """Get the AWS SSH key pair to use for node access"""
         inquire = ask()
         key_list = []
         key_id_list = []
@@ -3058,20 +3100,25 @@ class processTemplate(object):
             key_list.append(key_pairs['KeyPairs'][i]['KeyName'])
             key_id_list.append(key_pairs['KeyPairs'][i]['KeyPairId'])
 
-        selection = inquire.ask_list('Select SSH key', key_list, key_id_list, default)
+        selection = inquire.ask_list('Select SSH key', key_list, key_id_list, default=default)
         self.aws_ssh_key = key_pairs['KeyPairs'][selection]['KeyName']
         self.ssh_key_fingerprint = key_pairs['KeyPairs'][selection]['KeyFingerprint']
 
     def get_cb_index_mem_setting(self, default=None):
+        """Get the index memory storage setting for the cluster"""
+        inquire = ask()
         option_list = [
-            'Standard Index Storage',
-            'Memory-optimized',
+            {
+                'name': 'default',
+                'description': 'Standard Index Storage'
+            },
+            {
+                'name': 'memopt',
+                'description': 'Memory-optimized'
+            },
         ]
-        selection = self.ask('Select index storage option', option_list)
-        if selection == 0:
-            self.cb_index_mem_type = 'default'
-        else:
-            self.cb_index_mem_type = 'memopt'
+        selection = inquire.ask_list('Select index storage option', option_list, default=default)
+        self.cb_index_mem_type = option_list[selection]['name']
 
     def aws_get_instance_type(self, default=None):
         """Get the AWS instance type"""
@@ -3099,7 +3146,7 @@ class processTemplate(object):
             if 'NextToken' not in instance_types:
                 break
             describe_args['NextToken'] = instance_types['NextToken']
-        selection = inquire.ask_machine_type('AWS Instance Type', size_list)
+        selection = inquire.ask_machine_type('AWS Instance Type', size_list, default=default)
         self.aws_instance_type = size_list[selection]['name']
 
     def aws_get_ami_id(self, default=None):
