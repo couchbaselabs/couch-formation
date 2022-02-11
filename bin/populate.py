@@ -112,6 +112,10 @@ class ask(object):
     def __init__(self):
         self.logger = logging.getLogger(self.__class__.__name__)
 
+    def divide_list(self, array, n):
+        for i in range(0, len(array), n):
+            yield array[i:i + n]
+
     def ask_list(self, question, options=[], descriptions=[], default=None):
         list_start = 1
         list_lenghth = len(options)
@@ -191,7 +195,58 @@ class ask(object):
         selection = self.ask_list(question, new_option_list, new_description_list)
         return new_option_list[selection]
 
-    def ask_machine_type(self, question, options=[]):
+    def ask_quantity(self, question, num_list=[], mode=0):
+        """Get CPU or Memory count"""
+        list_incr = 15
+        label = None
+        last_group = False
+        if len(num_list) == 1:
+            return 0
+        print("%s:" % question)
+        divided_list = list(self.divide_list(num_list, list_incr))
+        while True:
+            for count, sub_list in enumerate(divided_list):
+                for num in sub_list:
+                    if mode == 1:
+                        if num == 1:
+                            label = "CPU"
+                        else:
+                            label = "CPUs"
+                    if mode == 2:
+                        if num < 1024:
+                            label = "MiB"
+                        else:
+                            num = "{:g}".format(num / 1024)
+                            label = "GiB"
+                    suffix = label.rjust(len(label) + 1) if label else ""
+                    print(str(num).rjust(10) + suffix)
+                if count == len(divided_list) - 1:
+                    answer = input("Selection [q=quit]: ")
+                    last_group = True
+                else:
+                    answer = input("Selection [n=next, q=quit]: ")
+                answer = answer.rstrip("\n")
+                if answer == 'n' and not last_group:
+                    continue
+                if answer == 'q':
+                    sys.exit(0)
+                try:
+                    if mode == 2:
+                        multiplier = float(answer)
+                        value = int(multiplier * 1024)
+                    else:
+                        value = int(answer)
+                    if value in num_list:
+                        return num_list.index(value)
+                    else:
+                        print("Incorrect selection, please try again...")
+                        continue
+                except Exception:
+                    print("Please select a value from the list.")
+                    continue
+
+    def ask_machine_type(self, question, options=[], default=None):
+        """Get Cloud instance type by selecting CPU and Memory"""
         cpu_list = []
         mem_list = []
         name_list = []
@@ -209,9 +264,9 @@ class ask(object):
         mem_set = set(mem_list)
         cpu_list = sorted(list(cpu_set))
         mem_list = sorted(list(mem_set))
-        selection = self.ask_list('CPU count', cpu_list)
+        selection = self.ask_quantity('CPU count', cpu_list, 1)
         num_cpu = cpu_list[selection]
-        selection = self.ask_list('Memory', mem_list)
+        selection = self.ask_quantity('Memory', mem_list, 2)
         num_mem = mem_list[selection]
         try:
             for i in range(len(options)):
@@ -1137,7 +1192,7 @@ class processTemplate(object):
                 self.logger.info("Previous value for variable: %s" % default_value)
             if item == 'CB_VERSION':
                 try:
-                    self.get_cb_version()
+                    self.get_cb_version(default=default_value)
                 except Exception as e:
                     print("Error: %s" % str(e))
                     sys.exit(1)
@@ -1145,7 +1200,7 @@ class processTemplate(object):
             elif item == 'LINUX_TYPE':
                 if not self.linux_type:
                     try:
-                        self.get_linux_type()
+                        self.get_linux_type(default=default_value)
                     except Exception as e:
                         print("Error: %s" % str(e))
                         sys.exit(1)
@@ -1153,7 +1208,7 @@ class processTemplate(object):
             elif item == 'LINUX_RELEASE':
                 if not self.linux_release:
                     try:
-                        self.get_linux_release()
+                        self.get_linux_release(default=default_value)
                     except Exception as e:
                         print("Error: %s" % str(e))
                         sys.exit(1)
@@ -1161,7 +1216,7 @@ class processTemplate(object):
             elif item == 'AWS_IMAGE':
                 if not self.aws_image_name:
                     try:
-                        self.get_aws_image_name()
+                        self.get_aws_image_name(default=default_value)
                     except Exception as e:
                         print("Error: %s" % str(e))
                         sys.exit(1)
@@ -1169,7 +1224,7 @@ class processTemplate(object):
             elif item == 'AWS_AMI_OWNER':
                 if not self.aws_image_owner:
                     try:
-                        self.get_aws_image_owner()
+                        self.get_aws_image_owner(default=default_value)
                     except Exception as e:
                         print("Error: %s" % str(e))
                         sys.exit(1)
@@ -1177,7 +1232,7 @@ class processTemplate(object):
             elif item == 'AWS_AMI_USER':
                 if not self.aws_image_user:
                     try:
-                        self.get_aws_image_user()
+                        self.get_aws_image_user(default=default_value)
                     except Exception as e:
                         print("Error: %s" % str(e))
                         sys.exit(1)
@@ -1185,7 +1240,7 @@ class processTemplate(object):
             elif item == 'AWS_REGION':
                 if not self.aws_region:
                     try:
-                        self.aws_get_region()
+                        self.aws_get_region(default=default_value)
                     except Exception as e:
                         print("Error: %s" % str(e))
                         sys.exit(1)
@@ -1201,7 +1256,7 @@ class processTemplate(object):
             elif item == 'AWS_INSTANCE_TYPE':
                 if not self.aws_instance_type:
                     try:
-                        self.aws_get_instance_type()
+                        self.aws_get_instance_type(default=default_value)
                     except Exception as e:
                         print("Error: %s" % str(e))
                         sys.exit(1)
@@ -1209,7 +1264,7 @@ class processTemplate(object):
             elif item == 'CB_INDEX_MEM_TYPE':
                 if not self.cb_index_mem_type:
                     try:
-                        self.get_cb_index_mem_setting()
+                        self.get_cb_index_mem_setting(default=default_value)
                     except Exception as e:
                         print("Error: %s" % str(e))
                         sys.exit(1)
@@ -1225,7 +1280,7 @@ class processTemplate(object):
             elif item == 'SSH_PRIVATE_KEY':
                 if not self.ssh_private_key:
                     try:
-                        self.get_private_key()
+                        self.get_private_key(default=default_value)
                     except Exception as e:
                         print("Error: %s" % str(e))
                         sys.exit(1)
@@ -1233,7 +1288,7 @@ class processTemplate(object):
             elif item == 'AWS_SUBNET_ID':
                 if not self.aws_subnet_id:
                     try:
-                        self.aws_get_subnet_id()
+                        self.aws_get_subnet_id(default=default_value)
                     except Exception as e:
                         print("Error: %s" % str(e))
                         sys.exit(1)
@@ -1241,7 +1296,7 @@ class processTemplate(object):
             elif item == 'AWS_VPC_ID':
                 if not self.aws_vpc_id:
                     try:
-                        self.aws_get_vpc_id()
+                        self.aws_get_vpc_id(default=default_value)
                     except Exception as e:
                         print("Error: %s" % str(e))
                         sys.exit(1)
@@ -1249,7 +1304,7 @@ class processTemplate(object):
             elif item == 'AWS_SECURITY_GROUP':
                 if not self.aws_sg_id:
                     try:
-                        self.aws_get_sg_id()
+                        self.aws_get_sg_id(default=default_value)
                     except Exception as e:
                         print("Error: %s" % str(e))
                         sys.exit(1)
@@ -1257,7 +1312,7 @@ class processTemplate(object):
             elif item == 'AWS_ROOT_IOPS':
                 if not self.aws_root_iops:
                     try:
-                        self.aws_get_root_iops()
+                        self.aws_get_root_iops(default=default_value)
                     except Exception as e:
                         print("Error: %s" % str(e))
                         sys.exit(1)
@@ -1265,7 +1320,7 @@ class processTemplate(object):
             elif item == 'AWS_ROOT_SIZE':
                 if not self.aws_root_size:
                     try:
-                        self.aws_get_root_size()
+                        self.aws_get_root_size(default=default_value)
                     except Exception as e:
                         print("Error: %s" % str(e))
                         sys.exit(1)
@@ -1273,7 +1328,7 @@ class processTemplate(object):
             elif item == 'AWS_ROOT_TYPE':
                 if not self.aws_root_type:
                     try:
-                        self.aws_get_root_type()
+                        self.aws_get_root_type(default=default_value)
                     except Exception as e:
                         print("Error: %s" % str(e))
                         sys.exit(1)
@@ -1281,7 +1336,7 @@ class processTemplate(object):
             elif item == 'VMWARE_HOSTNAME':
                 if not self.vmware_hostname:
                     try:
-                        self.vmware_get_hostname()
+                        self.vmware_get_hostname(default=default_value)
                     except Exception as e:
                         print("Error: %s" % str(e))
                         sys.exit(1)
@@ -1289,7 +1344,7 @@ class processTemplate(object):
             elif item == 'VMWARE_USERNAME':
                 if not self.vmware_username:
                     try:
-                        self.vmware_get_username()
+                        self.vmware_get_username(default=default_value)
                     except Exception as e:
                         print("Error: %s" % str(e))
                         sys.exit(1)
@@ -1297,7 +1352,7 @@ class processTemplate(object):
             elif item == 'VMWARE_PASSWORD':
                 if not self.vmware_password:
                     try:
-                        self.vmware_get_password()
+                        self.vmware_get_password(default=default_value)
                     except Exception as e:
                         print("Error: %s" % str(e))
                         sys.exit(1)
@@ -1305,7 +1360,7 @@ class processTemplate(object):
             elif item == 'VMWARE_DATACENTER':
                 if not self.vmware_datacenter:
                     try:
-                        self.vmware_get_datacenter()
+                        self.vmware_get_datacenter(default=default_value)
                     except Exception as e:
                         print("Error: %s" % str(e))
                         sys.exit(1)
@@ -1313,7 +1368,7 @@ class processTemplate(object):
             elif item == 'VMWARE_CLUSTER':
                 if not self.vmware_cluster:
                     try:
-                        self.vmware_get_cluster()
+                        self.vmware_get_cluster(default=default_value)
                     except Exception as e:
                         print("Error: %s" % str(e))
                         sys.exit(1)
@@ -1321,7 +1376,7 @@ class processTemplate(object):
             elif item == 'VMWARE_DATASTORE':
                 if not self.vmware_datastore:
                     try:
-                        self.vmware_get_datastore()
+                        self.vmware_get_datastore(default=default_value)
                     except Exception as e:
                         print("Error: %s" % str(e))
                         sys.exit(1)
@@ -1329,7 +1384,7 @@ class processTemplate(object):
             elif item == 'VMWARE_FOLDER':
                 if not self.vmware_folder:
                     try:
-                        self.vmware_get_folder()
+                        self.vmware_get_folder(default=default_value)
                     except Exception as e:
                         print("Error: %s" % str(e))
                         sys.exit(1)
@@ -1337,7 +1392,7 @@ class processTemplate(object):
             elif item == 'VMWARE_OS_TYPE':
                 if not self.vmware_ostype:
                     try:
-                        self.vmware_get_ostype()
+                        self.vmware_get_ostype(default=default_value)
                     except Exception as e:
                         print("Error: %s" % str(e))
                         sys.exit(1)
@@ -1345,7 +1400,7 @@ class processTemplate(object):
             elif item == 'VMWARE_CPU_CORES':
                 if not self.vmware_cpucores:
                     try:
-                        self.vmware_get_cpucores()
+                        self.vmware_get_cpucores(default=default_value)
                     except Exception as e:
                         print("Error: %s" % str(e))
                         sys.exit(1)
@@ -1353,7 +1408,7 @@ class processTemplate(object):
             elif item == 'VMWARE_MEM_SIZE':
                 if not self.vmware_memsize:
                     try:
-                        self.vmware_get_memsize()
+                        self.vmware_get_memsize(default=default_value)
                     except Exception as e:
                         print("Error: %s" % str(e))
                         sys.exit(1)
@@ -1361,7 +1416,7 @@ class processTemplate(object):
             elif item == 'VMWARE_DISK_SIZE':
                 if not self.vmware_disksize:
                     try:
-                        self.vmware_get_disksize()
+                        self.vmware_get_disksize(default=default_value)
                     except Exception as e:
                         print("Error: %s" % str(e))
                         sys.exit(1)
@@ -1369,7 +1424,7 @@ class processTemplate(object):
             elif item == 'VMWARE_NETWORK':
                 if not self.vmware_network:
                     try:
-                        self.vmware_get_dvs_network()
+                        self.vmware_get_dvs_network(default=default_value)
                     except Exception as e:
                         print("Error: %s" % str(e))
                         sys.exit(1)
@@ -1377,7 +1432,7 @@ class processTemplate(object):
             elif item == 'VMWARE_DVS':
                 if not self.vmware_dvs:
                     try:
-                        self.vmware_get_dvs_network()
+                        self.vmware_get_dvs_network(default=default_value)
                     except Exception as e:
                         print("Error: %s" % str(e))
                         sys.exit(1)
@@ -1385,7 +1440,7 @@ class processTemplate(object):
             elif item == 'VMWARE_ISO_URL':
                 if not self.vmware_iso:
                     try:
-                        self.vmware_get_isourl()
+                        self.vmware_get_isourl(default=default_value)
                     except Exception as e:
                         print("Error: %s" % str(e))
                         sys.exit(1)
@@ -1393,7 +1448,7 @@ class processTemplate(object):
             elif item == 'VMWARE_ISO_CHECKSUM':
                 if not self.vmware_iso_checksum:
                     try:
-                        self.vmware_get_iso_checksum()
+                        self.vmware_get_iso_checksum(default=default_value)
                     except Exception as e:
                         print("Error: %s" % str(e))
                         sys.exit(1)
@@ -1401,7 +1456,7 @@ class processTemplate(object):
             elif item == 'VMWARE_SW_URL':
                 if not self.vmware_sw_url:
                     try:
-                        self.vmware_get_sw_url()
+                        self.vmware_get_sw_url(default=default_value)
                     except Exception as e:
                         print("Error: %s" % str(e))
                         sys.exit(1)
@@ -1409,7 +1464,7 @@ class processTemplate(object):
             elif item == 'VMWARE_BUILD_USERNAME':
                 if not self.vmware_build_user:
                     try:
-                        self.vmware_get_build_username()
+                        self.vmware_get_build_username(default=default_value)
                     except Exception as e:
                         print("Error: %s" % str(e))
                         sys.exit(1)
@@ -1417,7 +1472,7 @@ class processTemplate(object):
             elif item == 'VMWARE_BUILD_PASSWORD':
                 if not self.vmware_build_password:
                     try:
-                        self.vmware_get_build_password()
+                        self.vmware_get_build_password(default=default_value)
                     except Exception as e:
                         print("Error: %s" % str(e))
                         sys.exit(1)
@@ -1425,7 +1480,7 @@ class processTemplate(object):
             elif item == 'VMWARE_BUILD_PWD_ENCRYPTED':
                 if not self.vmware_build_pwd_encrypted:
                     try:
-                        self.vmware_get_build_password()
+                        self.vmware_get_build_password(default=default_value)
                     except Exception as e:
                         print("Error: %s" % str(e))
                         sys.exit(1)
@@ -1433,7 +1488,7 @@ class processTemplate(object):
             elif item == 'VMWARE_KEY':
                 if not self.ssh_public_key:
                     try:
-                        self.get_public_key()
+                        self.get_public_key(default=default_value)
                     except Exception as e:
                         print("Error: %s" % str(e))
                         sys.exit(1)
@@ -1441,7 +1496,7 @@ class processTemplate(object):
             elif item == 'VMWARE_TIMEZONE':
                 if not self.vmware_timezone:
                     try:
-                        self.get_timezone()
+                        self.get_timezone(default=default_value)
                     except Exception as e:
                         print("Error: %s" % str(e))
                         sys.exit(1)
@@ -1449,7 +1504,7 @@ class processTemplate(object):
             elif item == 'VMWARE_TEMPLATE':
                 if not self.vmware_template:
                     try:
-                        self.vmware_get_template()
+                        self.vmware_get_template(default=default_value)
                     except Exception as e:
                         print("Error: %s" % str(e))
                         sys.exit(1)
@@ -1457,7 +1512,7 @@ class processTemplate(object):
             elif item == 'DOMAIN_NAME':
                 if not self.domain_name:
                     try:
-                        self.get_domain_name()
+                        self.get_domain_name(default=default_value)
                     except Exception as e:
                         print("Error: %s" % str(e))
                         sys.exit(1)
@@ -1465,7 +1520,7 @@ class processTemplate(object):
             elif item == 'DNS_SERVER_LIST':
                 if not self.dns_server_list:
                     try:
-                        self.get_dns_servers()
+                        self.get_dns_servers(default=default_value)
                     except Exception as e:
                         print("Error: %s" % str(e))
                         sys.exit(1)
@@ -1473,7 +1528,7 @@ class processTemplate(object):
             elif item == 'GCP_ACCOUNT_FILE':
                 if not self.gcp_account_file:
                     try:
-                        self.gcp_get_account_file()
+                        self.gcp_get_account_file(default=default_value)
                     except Exception as e:
                         print("Error: %s" % str(e))
                         sys.exit(1)
@@ -1481,7 +1536,7 @@ class processTemplate(object):
             elif item == 'GCP_IMAGE':
                 if not self.gcp_image_name:
                     try:
-                        self.get_gcp_image_name()
+                        self.get_gcp_image_name(default=default_value)
                     except Exception as e:
                         print("Error: %s" % str(e))
                         sys.exit(1)
@@ -1489,7 +1544,7 @@ class processTemplate(object):
             elif item == 'GCP_IMAGE_FAMILY':
                 if not self.gcp_image_family:
                     try:
-                        self.get_gcp_image_family()
+                        self.get_gcp_image_family(default=default_value)
                     except Exception as e:
                         print("Error: %s" % str(e))
                         sys.exit(1)
@@ -1497,7 +1552,7 @@ class processTemplate(object):
             elif item == 'GCP_IMAGE_USER':
                 if not self.gcp_image_user:
                     try:
-                        self.get_gcp_image_user()
+                        self.get_gcp_image_user(default=default_value)
                     except Exception as e:
                         print("Error: %s" % str(e))
                         sys.exit(1)
@@ -1505,7 +1560,7 @@ class processTemplate(object):
             elif item == 'GCP_PROJECT':
                 if not self.gcp_project:
                     try:
-                        self.get_gcp_project()
+                        self.get_gcp_project(default=default_value)
                     except Exception as e:
                         print("Error: %s" % str(e))
                         sys.exit(1)
@@ -1513,7 +1568,7 @@ class processTemplate(object):
             elif item == 'GCP_ZONE':
                 if not self.gcp_zone:
                     try:
-                        self.get_gcp_zones()
+                        self.get_gcp_zones(default=default_value)
                     except Exception as e:
                         print("Error: %s" % str(e))
                         sys.exit(1)
@@ -1521,7 +1576,7 @@ class processTemplate(object):
             elif item == 'GCP_REGION':
                 if not self.gcp_region:
                     try:
-                        self.get_gcp_region()
+                        self.get_gcp_region(default=default_value)
                     except Exception as e:
                         print("Error: %s" % str(e))
                         sys.exit(1)
@@ -1529,7 +1584,7 @@ class processTemplate(object):
             elif item == 'GCP_CB_IMAGE':
                 if not self.gcp_cb_image:
                     try:
-                        self.gcp_get_cb_image_name()
+                        self.gcp_get_cb_image_name(default=default_value)
                     except Exception as e:
                         print("Error: %s" % str(e))
                         sys.exit(1)
@@ -1537,7 +1592,7 @@ class processTemplate(object):
             elif item == 'GCP_MACHINE_TYPE':
                 if not self.gcp_machine_type:
                     try:
-                        self.gcp_get_machine_type()
+                        self.gcp_get_machine_type(default=default_value)
                     except Exception as e:
                         print("Error: %s" % str(e))
                         sys.exit(1)
@@ -1545,7 +1600,7 @@ class processTemplate(object):
             elif item == 'GCP_SUBNET':
                 if not self.gcp_subnet:
                     try:
-                        self.gcp_get_subnet()
+                        self.gcp_get_subnet(default=default_value)
                     except Exception as e:
                         print("Error: %s" % str(e))
                         sys.exit(1)
@@ -1553,7 +1608,7 @@ class processTemplate(object):
             elif item == 'GCP_ROOT_SIZE':
                 if not self.gcp_root_size:
                     try:
-                        self.gcp_get_root_size()
+                        self.gcp_get_root_size(default=default_value)
                     except Exception as e:
                         print("Error: %s" % str(e))
                         sys.exit(1)
@@ -1561,7 +1616,7 @@ class processTemplate(object):
             elif item == 'GCP_ROOT_TYPE':
                 if not self.gcp_root_type:
                     try:
-                        self.gcp_get_root_type()
+                        self.gcp_get_root_type(default=default_value)
                     except Exception as e:
                         print("Error: %s" % str(e))
                         sys.exit(1)
@@ -1569,7 +1624,7 @@ class processTemplate(object):
             elif item == 'SSH_PUBLIC_KEY_FILE':
                 if not self.ssh_public_key_file:
                     try:
-                        self.get_ssh_public_key_file()
+                        self.get_ssh_public_key_file(default=default_value)
                     except Exception as e:
                         print("Error: %s" % str(e))
                         sys.exit(1)
@@ -1577,7 +1632,7 @@ class processTemplate(object):
             elif item == 'GCP_SA_EMAIL':
                 if not self.gcp_service_account_email:
                     try:
-                        self.gcp_get_account_file()
+                        self.gcp_get_account_file(default=default_value)
                     except Exception as e:
                         print("Error: %s" % str(e))
                         sys.exit(1)
@@ -1585,7 +1640,7 @@ class processTemplate(object):
             elif item == 'AZURE_SUBSCRIPTION_ID':
                 if not self.azure_subscription_id:
                     try:
-                        self.azure_get_subscription_id()
+                        self.azure_get_subscription_id(default=default_value)
                     except Exception as e:
                         print("Error: %s" % str(e))
                         sys.exit(1)
@@ -1593,7 +1648,7 @@ class processTemplate(object):
             elif item == 'AZURE_RG':
                 if not self.azure_resource_group:
                     try:
-                        self.azure_get_resource_group()
+                        self.azure_get_resource_group(default=default_value)
                     except Exception as e:
                         print("Error: %s" % str(e))
                         sys.exit(1)
@@ -1601,7 +1656,7 @@ class processTemplate(object):
             elif item == 'AZURE_LOCATION':
                 if not self.azure_location:
                     try:
-                        self.azure_get_location()
+                        self.azure_get_location(default=default_value)
                     except Exception as e:
                         print("Error: %s" % str(e))
                         sys.exit(1)
@@ -1609,7 +1664,7 @@ class processTemplate(object):
             elif item == 'AZURE_PUBLISHER':
                 if not self.azure_image_publisher:
                     try:
-                        self.azure_get_image_publisher()
+                        self.azure_get_image_publisher(default=default_value)
                     except Exception as e:
                         print("Error: %s" % str(e))
                         sys.exit(1)
@@ -1617,7 +1672,7 @@ class processTemplate(object):
             elif item == 'AZURE_OFFER':
                 if not self.azure_image_offer:
                     try:
-                        self.azure_get_image_offer()
+                        self.azure_get_image_offer(default=default_value)
                     except Exception as e:
                         print("Error: %s" % str(e))
                         sys.exit(1)
@@ -1625,7 +1680,7 @@ class processTemplate(object):
             elif item == 'AZURE_SKU':
                 if not self.azure_image_sku:
                     try:
-                        self.azure_get_image_sku()
+                        self.azure_get_image_sku(default=default_value)
                     except Exception as e:
                         print("Error: %s" % str(e))
                         sys.exit(1)
@@ -1633,7 +1688,7 @@ class processTemplate(object):
             elif item == 'AZURE_VNET':
                 if not self.azure_vnet:
                     try:
-                        self.azure_get_vnet()
+                        self.azure_get_vnet(default=default_value)
                     except Exception as e:
                         print("Error: %s" % str(e))
                         sys.exit(1)
@@ -1641,7 +1696,7 @@ class processTemplate(object):
             elif item == 'AZURE_SUBNET':
                 if not self.azure_subnet:
                     try:
-                        self.azure_get_subnet()
+                        self.azure_get_subnet(default=default_value)
                     except Exception as e:
                         print("Error: %s" % str(e))
                         sys.exit(1)
@@ -1649,7 +1704,7 @@ class processTemplate(object):
             elif item == 'AZURE_NSG':
                 if not self.azure_nsg:
                     try:
-                        self.azure_get_nsg()
+                        self.azure_get_nsg(default=default_value)
                     except Exception as e:
                         print("Error: %s" % str(e))
                         sys.exit(1)
@@ -1657,7 +1712,7 @@ class processTemplate(object):
             elif item == 'AZURE_IMAGE_NAME':
                 if not self.azure_image_name:
                     try:
-                        self.azure_get_image_name()
+                        self.azure_get_image_name(default=default_value)
                     except Exception as e:
                         print("Error: %s" % str(e))
                         sys.exit(1)
@@ -1665,7 +1720,7 @@ class processTemplate(object):
             elif item == 'AZURE_MACHINE_TYPE':
                 if not self.azure_machine_type:
                     try:
-                        self.azure_get_machine_type()
+                        self.azure_get_machine_type(default=default_value)
                     except Exception as e:
                         print("Error: %s" % str(e))
                         sys.exit(1)
@@ -1673,7 +1728,7 @@ class processTemplate(object):
             elif item == 'AZURE_ADMIN_USER':
                 if not self.azure_admin_user:
                     try:
-                        self.azure_get_image_user()
+                        self.azure_get_image_user(default=default_value)
                     except Exception as e:
                         print("Error: %s" % str(e))
                         sys.exit(1)
@@ -1681,7 +1736,7 @@ class processTemplate(object):
             elif item == 'AZURE_DISK_TYPE':
                 if not self.azure_disk_type:
                     try:
-                        self.azure_get_root_type()
+                        self.azure_get_root_type(default=default_value)
                     except Exception as e:
                         print("Error: %s" % str(e))
                         sys.exit(1)
@@ -1689,7 +1744,7 @@ class processTemplate(object):
             elif item == 'AZURE_DISK_SIZE':
                 if not self.azure_disk_size:
                     try:
-                        self.azure_get_root_size()
+                        self.azure_get_root_size(default=default_value)
                     except Exception as e:
                         print("Error: %s" % str(e))
                         sys.exit(1)
@@ -1697,7 +1752,7 @@ class processTemplate(object):
             elif item == 'USE_PUBLIC_IP':
                 if not self.use_public_ip:
                     try:
-                        self.ask_to_use_public_ip()
+                        self.ask_to_use_public_ip(default=default_value)
                     except Exception as e:
                         print("Error: %s" % str(e))
                         sys.exit(1)
@@ -1705,7 +1760,7 @@ class processTemplate(object):
             elif item == 'CB_CLUSTER_NAME':
                 if not self.cb_cluster_name:
                     try:
-                        self.get_cb_cluster_name()
+                        self.get_cb_cluster_name(default=default_value)
                     except Exception as e:
                         print("Error: %s" % str(e))
                         sys.exit(1)
@@ -3014,6 +3069,7 @@ class processTemplate(object):
             self.cb_index_mem_type = 'memopt'
 
     def aws_get_instance_type(self, default=None):
+        """Get the AWS instance type"""
         inquire = ask()
         size_list = []
         if not self.aws_region:
@@ -3028,8 +3084,8 @@ class processTemplate(object):
             for machine_type in instance_types['InstanceTypes']:
                 config_block = {}
                 config_block['name'] = machine_type['InstanceType']
-                config_block['cpu'] = machine_type['VCpuInfo']['DefaultVCpus']
-                config_block['mem'] = int(machine_type['MemoryInfo']['SizeInMiB'] / 1024)
+                config_block['cpu'] = int(machine_type['VCpuInfo']['DefaultVCpus'])
+                config_block['mem'] = int(machine_type['MemoryInfo']['SizeInMiB'])
                 config_block['description'] = ",".join(machine_type['ProcessorInfo']['SupportedArchitectures']) \
                                               + ' ' + str(machine_type['ProcessorInfo']['SustainedClockSpeedInGhz']) + 'GHz' \
                                               + ', Network: ' + machine_type['NetworkInfo']['NetworkPerformance'] \
@@ -3042,6 +3098,7 @@ class processTemplate(object):
         self.aws_instance_type = size_list[selection]['name']
 
     def aws_get_ami_id(self, default=None):
+        """Get the Couchbase AMI to use"""
         inquire = ask()
         image_list = []
         image_name_list = []
@@ -3081,6 +3138,8 @@ class processTemplate(object):
             self.logger.info("Selecting couchbase version %s from image metadata" % self.cb_version)
 
     def aws_get_region(self, default=None):
+        """Get the AWS Region"""
+        inquire = ask()
         if 'AWS_REGION' in os.environ:
             self.aws_region = os.environ['AWS_REGION']
         elif 'AWS_DEFAULT_REGION' in os.environ:
@@ -3091,9 +3150,8 @@ class processTemplate(object):
             self.aws_region = boto3.Session().region_name
 
         if not self.aws_region:
-            answer = input("AWS Region: ")
-            answer = answer.rstrip("\n")
-            self.aws_region = answer
+            selection = inquire.ask_text('AWS Region', default=default)
+            self.aws_region = selection
 
         ec2_client = boto3.client('ec2', region_name=self.aws_region)
         zone_list = ec2_client.describe_availability_zones()
@@ -3102,6 +3160,7 @@ class processTemplate(object):
             self.aws_availability_zones.append(availability_zone['ZoneName'])
 
     def get_aws_image_user(self, default=None):
+        """Get the account name to use for SSH to the base AMI"""
         if not self.linux_type:
             try:
                 self.get_linux_type()
@@ -3119,6 +3178,7 @@ class processTemplate(object):
         raise Exception("Can not locate ssh user for %s %s linux." % (self.linux_type, self.linux_release))
 
     def get_aws_image_owner(self, default=None):
+        """Get the AWS base image owner as it is required by Packer"""
         if not self.aws_image_owner:
             try:
                 self.get_aws_image_name()
@@ -3126,6 +3186,8 @@ class processTemplate(object):
                 raise
 
     def get_aws_image_name(self, default=None):
+        """Get the base AWS AMI to use to build the Couchbase AMI"""
+        inquire = ask()
         if not self.linux_type:
             try:
                 self.get_linux_type()
@@ -3145,6 +3207,7 @@ class processTemplate(object):
         raise Exception("Can not locate suitable image for %s %s linux." % (self.linux_type, self.linux_release))
 
     def get_cb_version(self, default=None):
+        """Get the Couchbase version to install"""
         inquire = ask()
         if not self.linux_type:
             try:
@@ -3163,10 +3226,12 @@ class processTemplate(object):
         except Exception:
             raise
 
-        selection = self.ask('Select Couchbase Version', release_list)
+        selection = inquire.ask_list('Select Couchbase Version', release_list, default=default)
         self.cb_version = release_list[selection]
 
     def get_linux_release(self, default=None):
+        """Get the release to deploy for the selected distribution"""
+        inquire = ask()
         version_list = []
         version_desc = []
         if 'linux' not in self.global_var_json:
@@ -3176,11 +3241,13 @@ class processTemplate(object):
             version_list.append(self.global_var_json['linux'][self.linux_type][i]['version'])
             version_desc.append(self.global_var_json['linux'][self.linux_type][i]['name'])
 
-        selection = self.ask('Select Version', version_list, version_desc)
+        selection = inquire.ask_list('Select Version', version_list, version_desc, default=default)
         self.linux_release = self.global_var_json['linux'][self.linux_type][selection]['version']
         self.linux_pkgmgr = self.global_var_json['linux'][self.linux_type][selection]['type']
 
     def get_linux_type(self, default=None):
+        """Get the Linux distribution type"""
+        inquire = ask()
         distro_list = []
         if 'linux' not in self.global_var_json:
             raise Exception("Linux distribution global configuration required.")
@@ -3188,7 +3255,7 @@ class processTemplate(object):
         for key in self.global_var_json['linux']:
             distro_list.append(key)
 
-        selection = self.ask('Select Linux Distribution', distro_list)
+        selection = inquire.ask_list('Select Linux Distribution', distro_list, default=default)
         self.linux_type = distro_list[selection]
 
     def reverse_list(self, list):
