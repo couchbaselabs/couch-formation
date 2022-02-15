@@ -117,13 +117,14 @@ class ask(object):
             yield array[i:i + n]
 
     def ask_list(self, question, options=[], descriptions=[], default=None):
-        list_start = 1
+        """Get selection from list"""
         list_lenghth = len(options)
-        list_remaining = list_lenghth
+        last_group = False
         list_incr = 15
-        list_end = list_lenghth
-        if list_lenghth == 1:
-            return 0
+        answer = None
+        input_list = []
+        option_width = 0
+        description_width = 0
         print("%s:" % question)
         if default:
             if type(options[0]) is dict:
@@ -133,43 +134,47 @@ class ask(object):
             if default_selection:
                 if self.ask_yn("Use previous value: \"%s\"" % default, default=True):
                     return default_selection
+        if list_lenghth == 1:
+            return 0
+        for i, item in enumerate(options):
+            if type(item) is dict:
+                if len(item['name']) > option_width:
+                    option_width = len(item['name'])
+                if 'description' in item:
+                    if len(item['description']) > description_width:
+                        description_width = len(item['description'])
+                input_list.append((i, item['name'], item['description'] if 'description' in item else None))
+            else:
+                if len(item) > option_width:
+                    option_width = len(item)
+                if i < len(descriptions):
+                    if len(descriptions[i]) > description_width:
+                        description_width = len(descriptions[i])
+                input_list.append((i, item, descriptions[i] if i < len(descriptions) else None))
+        divided_list = list(self.divide_list(input_list, list_incr))
         while True:
-            if list_remaining <= list_incr:
-                list_end = list_lenghth
-            else:
-                list_end = list_start + list_incr - 1
-            for i in range(list_start, list_end + 1):
-                if type(options[i-1]) is dict:
-                    if 'name' not in options[i-1]:
-                        raise Exception("ask_list: name not found in option entry")
-                    option_display = options[i-1]['name']
+            for count, sub_list in enumerate(divided_list):
+                suffix = " {:-^{n}}".format('', n=description_width) if description_width > 0 else ""
+                print("---- " + "{:-^{n}}".format('', n=option_width) + suffix)
+                for item_set in sub_list:
+                    suffix = " {}".format(item_set[2]) if item_set[2] else ""
+                    print("{:d}) ".format(item_set[0] + 1).rjust(5) + "{}".format(item_set[1]).ljust(option_width) + suffix)
+                if count == len(divided_list) - 1:
+                    answer = input("Selection [q=quit]: ")
+                    last_group = True
                 else:
-                    option_display = options[i-1]
-                if i <= len(descriptions):
-                    extra = '(' + descriptions[i-1] + ')'
-                elif type(options[i-1]) is dict and 'description' in options[i-1]:
-                    extra = '(' + options[i-1]['description'] + ')'
-                else:
-                    extra = ''
-                print(" %02d) %s %s" % (i, option_display, extra))
-            if list_end == list_lenghth:
-                answer = input("Selection [q=quit]: ")
-            else:
-                answer = input("Selection [n=next, q=quit]: ")
-            answer = answer.rstrip("\n")
-            if answer == 'n':
-                list_start += list_incr
-                list_remaining = list_remaining - list_incr
-                continue
-            if answer == 'q':
-                sys.exit(0)
+                    answer = input("Selection [n=next, q=quit]: ")
+                answer = answer.rstrip("\n")
+                if answer == 'n' and not last_group:
+                    continue
+                if answer == 'q':
+                    sys.exit(0)
             try:
                 value = int(answer)
                 if value > 0 and value <= len(options):
                     return value - 1
                 else:
-                    print("Incorrect value, please try again...")
-                    continue
+                    raise Exception
             except Exception:
                 print("Please select the number corresponding to your selection.")
                 continue
@@ -1059,8 +1064,8 @@ class processTemplate(object):
             ('CB_VERSION', 2, 'cb_version', None),
             ('DNS_SERVER_LIST', 2, 'dns_server_list', None),
             ('DOMAIN_NAME', 2, 'domain_name', None),
-            ('GCP_ACCOUNT_FILE', 2, 'gcp_account_file', None),
-            ('GCP_CB_IMAGE', 0, 'gcp_cb_image', None),
+            ('GCP_ACCOUNT_FILE', 0, 'gcp_account_file', None),
+            ('GCP_CB_IMAGE', 1, 'gcp_cb_image', None),
             ('GCP_IMAGE', 2, 'gcp_image_name', None),
             ('GCP_IMAGE_FAMILY', 2, 'gcp_image_family', None),
             ('GCP_IMAGE_USER', 2, 'gcp_image_user', None),
@@ -1136,10 +1141,13 @@ class processTemplate(object):
         tf_var_file = self.template_dir + '/' + self.tf_variable_file_name
         try:
             if load_var_file and os.path.exists(load_var_file):
+                self.logger.info("Loading previous variable values from %s" % load_var_file)
                 self.previous_tf_var_file = tf_vars.read_file(load_var_file)
             elif os.path.exists(tf_var_file):
+                self.logger.info("Loading previous variable values from %s" % tf_var_file)
                 self.previous_tf_var_file = tf_vars.read_file(tf_var_file)
             if os.path.exists(cluster_map_file):
+                self.logger.info("Loading previous variable values from %s" % cluster_map_file)
                 self.previous_cluster_map = tf_vars.read_file(cluster_map_file)
         except Exception as e:
             print("Can not read variable file: %s" % str(e))
@@ -2368,7 +2376,7 @@ class processTemplate(object):
         selection = self.ask_text('Root volume type', default_selection)
         self.gcp_root_type = selection
 
-    def gcp_get_root_size(self):
+    def gcp_get_root_size(self, default=None):
         default_selection = ''
         if 'defaults' in self.local_var_json:
             if 'root_size' in self.local_var_json['defaults']:
@@ -2444,6 +2452,7 @@ class processTemplate(object):
             self.logger.info("Added GCP zone %s" % gcp_zone_name)
 
     def get_gcp_project(self, default=None):
+        """Get GCP Project"""
         inquire = ask()
         project_ids = []
         project_names = []
@@ -2468,10 +2477,11 @@ class processTemplate(object):
                 self.logger.info("Can not get project ID from auth JSON")
                 self.gcp_project = inquire.ask_text('GCP Project ID')
                 return True
-        selection = inquire.ask_list('GCP Project', project_ids, project_names)
+        selection = inquire.ask_list('GCP Project', project_ids, project_names, default=default)
         self.gcp_project = project_ids[selection]
 
     def get_gcp_image_user(self, default=None):
+        """Get GCP base image user for SSH access"""
         if not self.linux_type:
             try:
                 self.get_linux_type()
@@ -2489,6 +2499,7 @@ class processTemplate(object):
         raise Exception("Can not locate suitable user for %s %s linux." % (self.linux_type, self.linux_release))
 
     def get_gcp_image_family(self, default=None):
+        """Get GCP base image family"""
         if not self.gcp_image_family:
             try:
                 self.get_gcp_image_name()
@@ -2496,6 +2507,7 @@ class processTemplate(object):
                 raise
 
     def get_gcp_image_name(self, default=None):
+        """Get GCP base image name"""
         if not self.linux_type:
             try:
                 self.get_linux_type()
@@ -2515,6 +2527,8 @@ class processTemplate(object):
         raise Exception("Can not locate suitable image for %s %s linux." % (self.linux_type, self.linux_release))
 
     def gcp_get_account_file(self, default=None):
+        """Get GCP auth JSON file path"""
+        inquire = ask()
         dir_list = []
         auth_file_list = []
         auth_directory = os.environ['HOME'] + '/.config/gcloud'
@@ -2540,7 +2554,7 @@ class processTemplate(object):
             if file_type == 'service_account':
                 auth_file_list.append(dir_list[i])
 
-        selection = self.ask('Select GCP auth JSON', auth_file_list)
+        selection = inquire.ask_list('Select GCP auth JSON', auth_file_list, default=default)
         self.gcp_account_file = auth_file_list[selection]
 
         file_handle = open(self.gcp_account_file, 'r')
