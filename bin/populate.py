@@ -127,11 +127,14 @@ class ask(object):
         description_width = 0
         print("%s:" % question)
         if default:
+            self.logger.debug("checking default value %s" % default)
             if type(options[0]) is dict:
+                self.logger.debug("default check: options provided as type dict")
                 default_selection = next((i for i, item in enumerate(options) if item['name'] == default), None)
             else:
+                self.logger.debug("default check: options provided as a list")
                 default_selection = next((i for i, item in enumerate(options) if item == default), None)
-            if default_selection:
+            if default_selection is not None:
                 if self.ask_yn("Use previous value: \"%s\"" % default, default=True):
                     return default_selection
         if list_lenghth == 1:
@@ -1065,18 +1068,18 @@ class processTemplate(object):
             ('DNS_SERVER_LIST', 2, 'dns_server_list', None),
             ('DOMAIN_NAME', 2, 'domain_name', None),
             ('GCP_ACCOUNT_FILE', 0, 'gcp_account_file', None),
-            ('GCP_CB_IMAGE', 1, 'gcp_cb_image', None),
-            ('GCP_IMAGE', 2, 'gcp_image_name', None),
-            ('GCP_IMAGE_FAMILY', 2, 'gcp_image_family', None),
-            ('GCP_IMAGE_USER', 2, 'gcp_image_user', None),
-            ('GCP_MACHINE_TYPE', 2, 'gcp_machine_type', None),
-            ('GCP_PROJECT', 2, 'gcp_project', None),
-            ('GCP_REGION', 2, 'gcp_region', None),
-            ('GCP_ROOT_SIZE', 2, 'gcp_disk_size', None),
-            ('GCP_ROOT_TYPE', 2, 'gcp_disk_type', None),
+            ('GCP_CB_IMAGE', 3, 'gcp_cb_image', None),
+            ('GCP_IMAGE', 3, 'gcp_image_name', None),
+            ('GCP_IMAGE_FAMILY', 5, 'gcp_image_family', None),
+            ('GCP_IMAGE_USER', 6, 'gcp_image_user', None),
+            ('GCP_MACHINE_TYPE', 7, 'gcp_machine_type', None),
+            ('GCP_PROJECT', 1, 'gcp_project', None),
+            ('GCP_REGION', 2, 'gcp_region', None),#
+            ('GCP_ROOT_SIZE', 8, 'gcp_disk_size', None),
+            ('GCP_ROOT_TYPE', 9, 'gcp_disk_type', None),
             ('GCP_SA_EMAIL', 2, 'gcp_service_account_email', None),
-            ('GCP_SUBNET', 2, 'gcp_subnet', None),
-            ('GCP_ZONE', 2, 'gcp_zone', None),
+            ('GCP_SUBNET', 10, 'gcp_subnet', None),
+            ('GCP_ZONE', 4, 'gcp_zone', None),
             ('LINUX_RELEASE', 1, 'os_linux_release', None),
             ('LINUX_TYPE', 1, 'os_linux_type', None),
             ('SSH_PRIVATE_KEY', 1, 'ssh_private_key', None),
@@ -2193,6 +2196,7 @@ class processTemplate(object):
         self.azure_resource_group = group_list[selection]
 
     def azure_get_subscription_id(self, default=None):
+        """Get Azure subscription ID"""
         inquire = ask()
         subscription_list = []
         subscription_name = []
@@ -2202,12 +2206,13 @@ class processTemplate(object):
         for group in list(subscriptions):
             subscription_list.append(group.subscription_id)
             subscription_name.append(group.display_name)
-        selection = inquire.ask_list('Azure Subscription ID', subscription_list, subscription_name)
+        selection = inquire.ask_list('Azure Subscription ID', subscription_list, subscription_name, default=default)
         self.azure_subscription_id = subscription_list[selection]
         self.logger.info("Azure Subscription ID = %s" % self.azure_subscription_id)
 
     def generate_public_key_file(self, public_file, default=None):
-        self.get_public_key()
+        """Write public key file from data in class variable"""
+        self.get_public_key(default=default)
         try:
             file_handle = open(public_file, 'w')
             file_handle.write(self.ssh_public_key)
@@ -2219,6 +2224,7 @@ class processTemplate(object):
             return False
 
     def get_ssh_public_key_file(self, default=None):
+        """Get SSH public key file"""
         inquire = ask()
         dir_list = []
         key_file_list = []
@@ -2261,10 +2267,11 @@ class processTemplate(object):
             self.logger.info("Found public key %s" % dir_list[i])
             key_file_list.append(dir_list[i])
 
-        selection = self.ask('Select SSH public key', key_file_list)
+        selection = inquire.ask_list('Select SSH public key', key_file_list, default=default)
         self.ssh_public_key_file = key_file_list[selection]
 
     def gcp_get_machine_type(self, default=None):
+        """Get GCP machine type"""
         inquire = ask()
         machine_type_list = []
         if not self.gcp_account_file:
@@ -2286,10 +2293,11 @@ class processTemplate(object):
                 config_block['description'] = machine_type['description']
                 machine_type_list.append(config_block)
             request = gcp_client.machineTypes().list_next(previous_request=request, previous_response=response)
-        selection = inquire.ask_machine_type('GCP Machine Type', machine_type_list)
+        selection = inquire.ask_machine_type('GCP Machine Type', machine_type_list, default=default)
         self.gcp_machine_type = machine_type_list[selection]['name']
 
     def gcp_get_cb_image_name(self, default=None):
+        """Select Couchbase GCP image"""
         inquire = ask()
         image_list = []
         if not self.gcp_account_file:
@@ -2316,7 +2324,7 @@ class processTemplate(object):
                 request = gcp_client.images().list_next(previous_request=request, previous_response=response)
             else:
                 raise Exception("No images exist in this project")
-        selection = inquire.ask_list('GCP Couchbase Image', image_list)
+        selection = inquire.ask_list('GCP Couchbase Image', image_list, default=default)
         self.gcp_cb_image = image_list[selection]['name']
         if 'type' in image_list[selection]:
             self.linux_type = image_list[selection]['type']
@@ -2329,6 +2337,7 @@ class processTemplate(object):
             self.logger.info("Selecting couchbase version %s from image metadata" % self.cb_version)
 
     def gcp_get_availability_zone_list(self, default=None):
+        """Build GCP availability zone data structure"""
         availability_zone_list = []
         if not self.gcp_region:
             try:
@@ -2348,6 +2357,7 @@ class processTemplate(object):
         return availability_zone_list
 
     def gcp_get_subnet(self, default=None):
+        """Get GCP subnet"""
         inquire = ask()
         subnet_list = []
         if not self.gcp_account_file:
@@ -2364,28 +2374,33 @@ class processTemplate(object):
             for subnet in response['items']:
                 subnet_list.append(subnet['name'])
             request = gcp_client.subnetworks().list_next(previous_request=request, previous_response=response)
-        selection = inquire.ask_list('GCP Subnet', subnet_list)
+        selection = inquire.ask_list('GCP Subnet', subnet_list, default=default)
         self.gcp_subnet = subnet_list[selection]
 
     def gcp_get_root_type(self, default=None):
+        """Get GCP root disk type"""
+        inquire = ask()
         default_selection = ''
         if 'defaults' in self.local_var_json:
             if 'root_type' in self.local_var_json['defaults']:
                 default_selection = self.local_var_json['defaults']['root_type']
         self.logger.info("Default root type is %s" % default_selection)
-        selection = self.ask_text('Root volume type', default_selection)
+        selection = inquire.ask_text('Root volume type', recommendation=default_selection, default=default)
         self.gcp_root_type = selection
 
     def gcp_get_root_size(self, default=None):
+        """Get GCP root disk size"""
+        inquire = ask()
         default_selection = ''
         if 'defaults' in self.local_var_json:
             if 'root_size' in self.local_var_json['defaults']:
                 default_selection = self.local_var_json['defaults']['root_size']
         self.logger.info("Default root size is %s" % default_selection)
-        selection = self.ask_text('Root volume size', default_selection)
+        selection = inquire.ask_text('Root volume size', recommendation=default_selection, default=default)
         self.gcp_root_size = selection
 
     def get_gcp_region(self, default=None):
+        """Get GCP region"""
         inquire = ask()
         region_list = []
         current_location = self.get_country()
@@ -2408,11 +2423,12 @@ class processTemplate(object):
                             continue
                 region_list.append(region['name'])
             request = gcp_client.regions().list_next(previous_request=request, previous_response=response)
-        selection = inquire.ask_list('GCP Region', region_list)
+        selection = inquire.ask_list('GCP Region', region_list, default=default)
         self.gcp_region = region_list[selection]
         self.get_gcp_zones()
 
     def get_country(self, default=None):
+        """Attempt to identify the location of the user"""
         session = requests.Session()
         retries = Retry(total=60,
                         backoff_factor=0.1,
@@ -2427,11 +2443,23 @@ class processTemplate(object):
         response = requests.get('http://api.hostip.info/country.php?ip=' + public_ip, verify=False, timeout=15)
         if response.status_code == 200:
             ip_location = response.text.rstrip()
+            if ip_location.lower() == "xx":
+                response = requests.get('http://ipwhois.app/json/' + public_ip, verify=False, timeout=15)
+                if response.status_code == 200:
+                    try:
+                        response_json = json.loads(response.text)
+                        ip_location = response_json['country_code']
+                    except Exception:
+                        return None
+                else:
+                    return None
         else:
             return None
+        self.logger.info("Determined current location to be %s" % ip_location)
         return ip_location
 
     def get_gcp_zones(self, default=None):
+        """Collect GCP availability zones"""
         if not self.gcp_region:
             self.get_gcp_region()
         if len(self.gcp_zone_list) > 0:
@@ -2663,7 +2691,7 @@ class processTemplate(object):
 
     def get_public_key(self, default=None):
         if not self.ssh_private_key:
-            self.get_private_key()
+            self.get_private_key(default=default)
         fh = open(self.ssh_private_key, 'r')
         key_pem = fh.read()
         fh.close()
