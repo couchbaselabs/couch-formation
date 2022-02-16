@@ -1074,7 +1074,7 @@ class processTemplate(object):
             ('GCP_IMAGE_USER', 6, 'gcp_image_user', None),
             ('GCP_MACHINE_TYPE', 7, 'gcp_machine_type', None),
             ('GCP_PROJECT', 1, 'gcp_project', None),
-            ('GCP_REGION', 2, 'gcp_region', None),#
+            ('GCP_REGION', 2, 'gcp_region', None),
             ('GCP_ROOT_SIZE', 8, 'gcp_disk_size', None),
             ('GCP_ROOT_TYPE', 9, 'gcp_disk_type', None),
             ('GCP_SA_EMAIL', 2, 'gcp_service_account_email', None),
