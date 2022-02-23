@@ -131,12 +131,11 @@ class ask(object):
                     raise Exception("get_option_struct_type: unknown options data type")
         raise Exception("ask: no options to select from")
 
-    def get_first_option_text(self, options):
-        option_type, list_length = self.get_option_struct_type(options)
+    def get_option_text(self, options, option_type, index=0):
         if option_type == ask.type_dict:
-            return options[0]['name']
+            return options[index]['name']
         else:
-            return options[0]
+            return options[index]
 
     def ask_list(self, question, options=[], descriptions=[], default=None):
         """Get selection from list"""
@@ -157,7 +156,7 @@ class ask(object):
                 if self.ask_yn("Use previous value: \"%s\"" % default, default=True):
                     return default_selection
         if list_lenghth == 1:
-            print("Auto selecting only option available => %s" % self.get_first_option_text(options))
+            print("Auto selecting the only option available => %s" % self.get_option_text(options, option_type))
             return 0
         for i, item in enumerate(options):
             if type(item) is dict:
