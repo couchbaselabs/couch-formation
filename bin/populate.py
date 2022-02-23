@@ -108,6 +108,8 @@ def break_signal_handler(sig, frame):
     sys.exit(1)
 
 class ask(object):
+    type_list = 0
+    type_dict = 1
 
     def __init__(self):
         self.logger = logging.getLogger(self.__class__.__name__)
@@ -116,28 +118,46 @@ class ask(object):
         for i in range(0, len(array), n):
             yield array[i:i + n]
 
+    def get_option_struct_type(self, options):
+        if options:
+            if len(options) > 0:
+                if type(options[0]) is dict:
+                    self.logger.info("get_option_struct_type: options provided as type dict")
+                    return 1, len(options)
+                elif type(options) is list:
+                    self.logger.info("get_option_struct_type: options provided as a list")
+                    return 0, len(options)
+                else:
+                    raise Exception("get_option_struct_type: unknown options data type")
+        raise Exception("ask: no options to select from")
+
+    def get_first_option_text(self, options):
+        option_type, list_length = self.get_option_struct_type(options)
+        if option_type == ask.type_dict:
+            return options[0]['name']
+        else:
+            return options[0]
+
     def ask_list(self, question, options=[], descriptions=[], default=None):
         """Get selection from list"""
-        list_lenghth = len(options)
-        last_group = False
         list_incr = 15
         answer = None
         input_list = []
         option_width = 0
         description_width = 0
+        option_type, list_lenghth = self.get_option_struct_type(options)
         print("%s:" % question)
         if default:
-            self.logger.debug("checking default value %s" % default)
-            if type(options[0]) is dict:
-                self.logger.debug("default check: options provided as type dict")
+            self.logger.info("ask_list: checking default value %s" % default)
+            if option_type == ask.type_dict:
                 default_selection = next((i for i, item in enumerate(options) if item['name'] == default), None)
             else:
-                self.logger.debug("default check: options provided as a list")
                 default_selection = next((i for i, item in enumerate(options) if item == default), None)
             if default_selection is not None:
                 if self.ask_yn("Use previous value: \"%s\"" % default, default=True):
                     return default_selection
         if list_lenghth == 1:
+            print("Auto selecting only option available => %s" % self.get_first_option_text(options))
             return 0
         for i, item in enumerate(options):
             if type(item) is dict:
@@ -156,6 +176,7 @@ class ask(object):
                 input_list.append((i, item, descriptions[i] if i < len(descriptions) else None))
         divided_list = list(self.divide_list(input_list, list_incr))
         while True:
+            last_group = False
             for count, sub_list in enumerate(divided_list):
                 suffix = " {:-^{n}}".format('', n=description_width) if description_width > 0 else ""
                 print("---- " + "{:-^{n}}".format('', n=option_width) + suffix)
@@ -170,8 +191,10 @@ class ask(object):
                 answer = answer.rstrip("\n")
                 if answer == 'n' and not last_group:
                     continue
-                if answer == 'q':
+                elif answer == 'q':
                     sys.exit(0)
+                else:
+                    break
             try:
                 value = int(answer)
                 if value > 0 and value <= len(options):
@@ -278,6 +301,7 @@ class ask(object):
         select_list = []
         print("%s:" % question)
         if default:
+            self.logger.info("ask_machine_type: checking default value %s" % default)
             default_selection = next((i for i, item in enumerate(options) if item['name'] == default), None)
             if default_selection:
                 if self.ask_yn("Use previous value: \"%s\"" % default, default=True):
@@ -1048,20 +1072,20 @@ class processTemplate(object):
             ('AWS_SSH_KEY', 0, 'ssh_key', None),
             ('AWS_SUBNET_ID', 4, 'subnet_id', None),
             ('AWS_VPC_ID', 3, 'vpc_id', None),
-            ('AZURE_ADMIN_USER', 2, 'azure_admin_user', None),
-            ('AZURE_DISK_SIZE', 2, 'azure_disk_size', None),
-            ('AZURE_DISK_TYPE', 2, 'azure_disk_type', None),
-            ('AZURE_IMAGE_NAME', 0, 'azure_image_name', None),
-            ('AZURE_LOCATION', 2, 'azure_location', None),
+            ('AZURE_ADMIN_USER', 4, 'azure_admin_user', None),
+            ('AZURE_DISK_SIZE', 9, 'azure_disk_size', None),
+            ('AZURE_DISK_TYPE', 10, 'azure_disk_type', None),
+            ('AZURE_IMAGE_NAME', 3, 'azure_image_name', None),
+            ('AZURE_LOCATION', 1, 'azure_location', None),
             ('AZURE_MACHINE_TYPE', 2, 'azure_machine_type', None),
             ('AZURE_NSG', 2, 'azure_nsg', None),
-            ('AZURE_OFFER', 2, 'azure_image_offer', None),
-            ('AZURE_PUBLISHER', 2, 'azure_image_publisher', None),
-            ('AZURE_RG', 2, 'azure_resource_group', None),
-            ('AZURE_SKU', 2, 'azure_image_sku', None),
-            ('AZURE_SUBNET', 2, 'azure_subnet', None),
-            ('AZURE_SUBSCRIPTION_ID', 2, 'azure_subscription_id', None),
-            ('AZURE_VNET', 2, 'azure_vnet', None),
+            ('AZURE_OFFER', 4, 'azure_image_offer', None),
+            ('AZURE_PUBLISHER', 5, 'azure_image_publisher', None),
+            ('AZURE_RG', 0, 'azure_resource_group', None),
+            ('AZURE_SKU', 6, 'azure_image_sku', None),
+            ('AZURE_SUBNET', 8, 'azure_subnet', None),
+            ('AZURE_SUBSCRIPTION_ID', 0, 'azure_subscription_id', None),
+            ('AZURE_VNET', 7, 'azure_vnet', None),
             ('CB_CLUSTER_NAME', 2, 'cb_cluster_name', None),
             ('CB_INDEX_MEM_TYPE', 2, 'index_memory', None),
             ('CB_VERSION', 2, 'cb_version', None),
@@ -1900,18 +1924,24 @@ class processTemplate(object):
             print("Can not write to new variable file: %s" % str(e))
             sys.exit(1)
 
-        if self.operating_mode == MODE_TFVAR:
-            cluster_map_file = 'cluster.tf'
-            cluster_map_path = self.template_dir + '/' + cluster_map_file
-            if not os.path.exists(cluster_map_path) or pargs.refresh:
-                try:
-                    self.create_cluster_config()
-                except Exception as e:
-                    print("Error: %s" % str(e))
-                    sys.exit(1)
-                print("Cluster configuration complete.")
+        cluster_map_file = 'cluster.tf'
+        cluster_map_path = self.template_dir + '/' + cluster_map_file
+
+        if os.path.exists(cluster_map_path) and not pargs.refresh:
+            print("")
+            if not inquire.ask_yn('Recreate cluster configuration', default=True):
+                sys.exit(0)
+
+        print("")
+        try:
+            self.create_cluster_config()
+        except Exception as e:
+            print("Error: %s" % str(e))
+            sys.exit(1)
+        print("Cluster configuration complete.")
 
     def get_cb_cluster_name(self, default=None):
+        """Get the Couchbase Cluster Name"""
         inquire = ask()
         if self.dev_num:
             cluster_name = "dev{:02d}db".format(self.dev_num)
@@ -1925,35 +1955,42 @@ class processTemplate(object):
         self.cb_cluster_name = selection
 
     def ask_to_use_public_ip(self, default=None):
+        """Ask if the public IP should be assigned and used for SSH"""
         inquire = ask()
         selection = inquire.ask_bool('Use Public IP', recommendation='false', default=default)
         self.use_public_ip = selection
 
     def get_dns_servers(self, default=None):
+        """Get list of DNS servers"""
         server_list = []
         dns_lookup = dynamicDNS(self.domain_name)
         server_list = dns_lookup.dns_get_servers()
         self.dns_server_list = ','.join(f'"{s}"' for s in server_list)
 
     def azure_get_root_type(self, default=None):
+        """Get Azure root disk type"""
+        inquire = ask()
         default_selection = ''
         if 'defaults' in self.local_var_json:
             if 'root_size' in self.local_var_json['defaults']:
                 default_selection = self.local_var_json['defaults']['root_type']
         self.logger.info("Default root size is %s" % default_selection)
-        selection = self.ask_text('Root volume size', default_selection)
+        selection = inquire.ask_text('Root volume size', recommendation=default_selection, default=default)
         self.azure_disk_type = selection
 
     def azure_get_root_size(self, default=None):
+        """Get Azure root disk size"""
+        inquire = ask()
         default_selection = ''
         if 'defaults' in self.local_var_json:
             if 'root_size' in self.local_var_json['defaults']:
                 default_selection = self.local_var_json['defaults']['root_size']
         self.logger.info("Default root size is %s" % default_selection)
-        selection = self.ask_text('Root volume size', default_selection)
+        selection = inquire.ask_text('Root volume size', recommendation=default_selection, default=default)
         self.azure_disk_size = selection
 
     def azure_get_image_user(self, default=None):
+        """Get Azure Image User for SSH"""
         if not self.linux_type:
             try:
                 self.get_linux_type()
@@ -1971,25 +2008,27 @@ class processTemplate(object):
         raise Exception("Can not locate suitable user for %s %s linux." % (self.linux_type, self.linux_release))
 
     def azure_get_machine_type(self, default=None):
+        """Get Azure Machine Type"""
         inquire = ask()
         size_list = []
-        if not self.azure_location:
-            self.azure_get_location()
         if self.azure_machine_type:
             return
+        if not self.azure_location:
+            self.azure_get_location()
         credential = AzureCliCredential()
         compute_client = ComputeManagementClient(credential, self.azure_subscription_id)
         sizes = compute_client.virtual_machine_sizes.list(self.azure_location)
         for group in list(sizes):
             config_block = {}
             config_block['name'] = group.name
-            config_block['cpu'] = group.number_of_cores
-            config_block['mem'] = int(group.memory_in_mb / 1024)
+            config_block['cpu'] = int(group.number_of_cores)
+            config_block['mem'] = int(group.memory_in_mb)
             size_list.append(config_block)
-        selection = inquire.ask_machine_type('Azure Machine Type', size_list)
+        selection = inquire.ask_machine_type('Azure Machine Type', size_list, default=default)
         self.azure_machine_type = size_list[selection]['name']
 
     def azure_get_image_name(self, default=None):
+        """Get Azure Couchbase Image Name"""
         inquire = ask()
         image_list = []
         if not self.azure_resource_group:
@@ -2007,7 +2046,7 @@ class processTemplate(object):
             if 'Version' in group.tags:
                 image_block['version'] = image_block['description'] = group.tags['Version']
             image_list.append(image_block)
-        selection = inquire.ask_list('Azure Image Name', image_list)
+        selection = inquire.ask_list('Azure Image Name', image_list, default=default)
         self.azure_image_name = image_list[selection]['name']
         if 'type' in image_list[selection]:
             self.linux_type = image_list[selection]['type']
@@ -2020,6 +2059,7 @@ class processTemplate(object):
             self.logger.info("Selecting couchbase version %s from image metadata" % self.cb_version)
 
     def azure_get_nsg(self, default=None):
+        """Get Azure Network Security Group"""
         inquire = ask()
         nsg_list = []
         if not self.azure_resource_group:
@@ -2029,14 +2069,15 @@ class processTemplate(object):
         nsgs = network_client.network_security_groups.list(self.azure_resource_group)
         for group in list(nsgs):
             nsg_list.append(group.name)
-        selection = inquire.ask_list('Azure Network Security Group', nsg_list)
+        selection = inquire.ask_list('Azure Network Security Group', nsg_list, default=default)
         self.azure_nsg = nsg_list[selection]
 
     def azure_get_availability_zone_list(self, default=None):
+        """Build Azure Availability Zone Data structure"""
         availability_zone_list = []
-        if not self.azure_location:
+        if not self.azure_availability_zones:
             try:
-                self.azure_get_location()
+                self.azure_get_zones()
             except Exception:
                 raise
         if not self.azure_subnet:
@@ -2052,6 +2093,7 @@ class processTemplate(object):
         return availability_zone_list
 
     def azure_get_subnet(self, default=None):
+        """Get Azure Subnet"""
         inquire = ask()
         subnet_list = []
         if not self.azure_vnet:
@@ -2060,13 +2102,14 @@ class processTemplate(object):
         network_client = NetworkManagementClient(credential, self.azure_subscription_id)
         subnets = network_client.subnets.list(self.azure_resource_group, self.azure_vnet)
         for group in list(subnets):
-            image_block = {}
-            image_block['name'] = group.name
-            subnet_list.append(image_block)
-        selection = inquire.ask_list('Azure Subnet', subnet_list)
+            subnet_block = {}
+            subnet_block['name'] = group.name
+            subnet_list.append(subnet_block)
+        selection = inquire.ask_list('Azure Subnet', subnet_list, default=default)
         self.azure_subnet = subnet_list[selection]['name']
 
     def azure_get_vnet(self, default=None):
+        """Get Azure Virtual Network"""
         inquire = ask()
         vnet_list = []
         if not self.azure_resource_group:
@@ -2076,10 +2119,11 @@ class processTemplate(object):
         vnetworks = network_client.virtual_networks.list(self.azure_resource_group)
         for group in list(vnetworks):
             vnet_list.append(group.name)
-        selection = inquire.ask_list('Azure Virtual Network', vnet_list)
+        selection = inquire.ask_list('Azure Virtual Network', vnet_list, default=default)
         self.azure_vnet = vnet_list[selection]
 
     def azure_get_image_sku(self, default=None):
+        """Get Azure Image SKU"""
         if not self.linux_type:
             try:
                 self.get_linux_type()
@@ -2097,6 +2141,7 @@ class processTemplate(object):
         raise Exception("Can not locate suitable sku for %s %s linux." % (self.linux_type, self.linux_release))
 
     def azure_get_image_offer(self, default=None):
+        """Get Azure Base Image Offer"""
         if not self.linux_type:
             try:
                 self.get_linux_type()
@@ -2114,6 +2159,7 @@ class processTemplate(object):
         raise Exception("Can not locate suitable offer for %s %s linux." % (self.linux_type, self.linux_release))
 
     def azure_get_image_publisher(self, default=None):
+        """Get Azure Base Image Publisher"""
         if not self.linux_type:
             try:
                 self.get_linux_type()
@@ -2131,6 +2177,7 @@ class processTemplate(object):
         raise Exception("Can not locate suitable publisher for %s %s linux." % (self.linux_type, self.linux_release))
 
     def azure_get_all_locations(self, default=None):
+        """Get Azure Location from all Locations"""
         inquire = ask()
         location_list = []
         location_name = []
@@ -2142,10 +2189,11 @@ class processTemplate(object):
         for group in list(locations):
             location_list.append(group.name)
             location_name.append(group.display_name)
-        selection = inquire.ask_list('Azure Location', location_list, location_name)
+        selection = inquire.ask_list('Azure Location', location_list, location_name, default=default)
         self.azure_location = location_list[selection]
 
     def azure_get_location(self, default=None):
+        """Get Azure Locations by Subscription ID"""
         inquire = ask()
         location_list = []
         location_name = []
@@ -2157,14 +2205,15 @@ class processTemplate(object):
         for group in list(resource_group):
             if group.name == self.azure_resource_group:
                 location_list.append(group.location)
-        selection = inquire.ask_list('Azure Location', location_list, location_name)
+        selection = inquire.ask_list('Azure Location', location_list, location_name, default=default)
         self.azure_location = location_list[selection]
-        self.azure_get_machine_type()
-        self.azure_get_zones()
 
     def azure_get_zones(self, default=None):
+        """Get Azure Availability Zone List"""
         if not self.azure_location:
             self.azure_get_location()
+        if not self.azure_machine_type:
+            self.azure_get_machine_type()
         if len(self.azure_availability_zones) > 0:
             return
         print("Fetching Azure zone information, this may take a few minutes...")
@@ -2183,6 +2232,7 @@ class processTemplate(object):
                     self.logger.info("Added Azure availability zone %s" % zone_number)
 
     def azure_get_resource_group(self, default=None):
+        """Get Azure Resource Group"""
         inquire = ask()
         group_list = []
         if not self.azure_subscription_id:
@@ -2192,7 +2242,7 @@ class processTemplate(object):
         groups = resource_client.resource_groups.list()
         for group in list(groups):
             group_list.append(group.name)
-        selection = inquire.ask_list('Azure Resource Group', group_list)
+        selection = inquire.ask_list('Azure Resource Group', group_list, default=default)
         self.azure_resource_group = group_list[selection]
 
     def azure_get_subscription_id(self, default=None):
@@ -2288,8 +2338,8 @@ class processTemplate(object):
             for machine_type in response['items']:
                 config_block = {}
                 config_block['name'] = machine_type['name']
-                config_block['cpu'] = machine_type['guestCpus']
-                config_block['mem'] = int(machine_type['memoryMb']/1024)
+                config_block['cpu'] = int(machine_type['guestCpus'])
+                config_block['mem'] = int(machine_type['memoryMb'])
                 config_block['description'] = machine_type['description']
                 machine_type_list.append(config_block)
             request = gcp_client.machineTypes().list_next(previous_request=request, previous_response=response)
