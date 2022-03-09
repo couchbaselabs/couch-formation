@@ -9,7 +9,7 @@
       },
       {
         "version": "8",
-        "image": "CentOS 8.4.2105 x86_64",
+        "image": "CentOS Stream 8 x86_64",
         "owner": "125523088429",
         "user": "centos"
       }
