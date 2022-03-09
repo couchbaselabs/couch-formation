@@ -77,10 +77,17 @@ MODE_TFVAR = 0x0001
 MODE_CLUSTER_MAP = 0x0002
 MODE_PACKER = 0x0003
 MODE_KUBE_MAP = 0x0004
+MODE_APP_MAP = 0x0005
 
 CB_CFG_HEAD = """####
 variable "cluster_spec" {
   description = "Map of cluster nodes and services."
+  type        = map
+  default     = {"""
+
+APP_CFG_HEAD = """####
+variable "app_spec" {
+  description = "Map of app nodes."
   type        = map
   default     = {"""
 
@@ -919,6 +926,7 @@ class params(object):
         parser.add_argument('--dev', action='store', help="Development Environment", type=int)
         parser.add_argument('--test', action='store', help="Test Environment", type=int)
         parser.add_argument('--prod', action='store', help="Prod Environment", type=int)
+        parser.add_argument('--app', action='store', help="Application Environment", type=int)
         parser.add_argument('--location', action='store', help="Cloud type", default='aws')
         parser.add_argument('--singlezone', action='store_true', help="Use One Availability Zone", default=False)
         parser.add_argument('--refresh', action='store_true', help="Overwrite configuration files", default=False)
@@ -951,8 +959,11 @@ class processTemplate(object):
         else:
             self.template_file = ''
             self.template_dir = ''
+        self.app_directory = None
         self.cluster_map_file_name = 'cluster.tf'
         self.tf_variable_file_name = 'variables.tf'
+        self.tf_variable_file_path = None
+        self.app_map_file_name = 'app.tf'
         self.previous_cluster_map = None
         self.previous_tf_var_file = None
         self.dev_num = pargs.dev
@@ -970,6 +981,7 @@ class processTemplate(object):
         self.use_single_zone = pargs.singlezone
         self.availability_zone_cycle = None
         self.packer_mode = pargs.packer
+        self.app_env_number = pargs.app
         self.globals_file = None
         self.locals_file = None
         self.linux_type = None
@@ -1914,6 +1926,7 @@ class processTemplate(object):
             output_file = 'variables.tf'
 
         output_file = self.template_dir + '/' + output_file
+        self.tf_variable_file_path = output_file
         try:
             with open(output_file, 'w') as write_file:
                 write_file.write(format_template)
@@ -1923,21 +1936,33 @@ class processTemplate(object):
             print("Can not write to new variable file: %s" % str(e))
             sys.exit(1)
 
+        if pargs.packer:
+            sys.exit(0)
+
         cluster_map_file = 'cluster.tf'
         cluster_map_path = self.template_dir + '/' + cluster_map_file
 
-        if os.path.exists(cluster_map_path) and not pargs.refresh:
+        print("")
+        if inquire.ask_yn('Create cluster configuration', default=True):
             print("")
-            if not inquire.ask_yn('Recreate cluster configuration', default=True):
-                sys.exit(0)
+            try:
+                self.create_cluster_config()
+            except Exception as e:
+                print("Error: %s" % str(e))
+                sys.exit(1)
+            print("Cluster configuration complete.")
 
         print("")
-        try:
-            self.create_cluster_config()
-        except Exception as e:
-            print("Error: %s" % str(e))
-            sys.exit(1)
-        print("Cluster configuration complete.")
+        if self.app_directory:
+            if inquire.ask_yn('Create app configuration', default=True):
+                try:
+                    self.create_app_config()
+                    destination = self.app_directory + '/' + self.tf_variable_file_name
+                    copyfile(self.tf_variable_file_path, destination)
+                except Exception as e:
+                    print("Error: %s" % str(e))
+                    sys.exit(1)
+                print("App node configuration complete.")
 
     def get_cb_cluster_name(self, default=None):
         """Get the Couchbase Cluster Name"""
@@ -3532,6 +3557,76 @@ class processTemplate(object):
         else:
             return False
 
+    def get_env_string(self):
+        if self.dev_num:
+            env_text = "dev{:02d}".format(self.dev_num)
+        elif self.test_num:
+            env_text = "tst{:02d}".format(self.test_num)
+        elif self.prod_num:
+            env_text = "prd{:02d}".format(self.prod_num)
+        else:
+            env_text = 'server'
+        return env_text
+
+    def get_static_ip(self, node_name):
+        inquire = ask()
+        resolver = dns.resolver.Resolver()
+        change_node_ip_address = False
+        old_ip_address = None
+        node_ip_address = None
+
+        if not self.domain_name:
+            self.get_domain_name()
+        if not self.subnet_cidr:
+            self.get_subnet_cidr()
+        if not self.subnet_netmask:
+            self.get_subnet_mask()
+        if not self.default_gateway:
+            self.get_subnet_gateway()
+        node_netmask = self.subnet_netmask
+        node_gateway = self.default_gateway
+        node_fqdn = "{}.{}".format(node_name, self.domain_name)
+        try:
+            answer = resolver.resolve(node_fqdn, 'A')
+            node_ip_address = answer[0].to_text()
+        except dns.resolver.NXDOMAIN:
+            print("[i] Warning Can not resolve node host name %s" % node_fqdn)
+        if node_ip_address:
+            change_node_ip_address = not self.check_node_ip_address(node_ip_address)
+            if change_node_ip_address:
+                old_ip_address = node_ip_address
+                print("Warning: node IP %s not in node subnet %s" % (node_ip_address, self.subnet_cidr))
+        if self.update_dns:
+            if not node_ip_address or change_node_ip_address:
+                print("%s: Attempting to acquire node IP and update DNS" % node_name)
+                dnsupd = dynamicDNS(self.domain_name)
+                if dnsupd.dns_prep():
+                    dnsupd.dns_get_range(self.subnet_cidr, self.omit_range)
+                    if dnsupd.free_list_size > 0:
+                        node_ip_address = dnsupd.get_free_ip
+                        print("[i] Auto assigned IP %s to %s" % (node_ip_address, node_name))
+                    else:
+                        node_ip_address = inquire.ask_text('Node IP Address')
+                    if change_node_ip_address:
+                        if dnsupd.dns_delete(node_name, self.domain_name, old_ip_address, self.subnet_netmask):
+                            print("Deleted old IP %s for %s" % (old_ip_address, node_name))
+                        else:
+                            print("Can not delete DNS record. Aborting.")
+                            sys.exit(1)
+                    if dnsupd.dns_update(node_name, self.domain_name, node_ip_address, self.subnet_netmask):
+                        print("Added address record for %s" % node_fqdn)
+                    else:
+                        print("Can not add DNS record, aborting.")
+                        sys.exit(1)
+                else:
+                    print("Can not setup dynamic update, aborting.")
+                    sys.exit(1)
+        else:
+            if not node_ip_address:
+                node_ip_address = inquire.ask_text('Node IP Address')
+
+        return node_ip_address, node_netmask, node_gateway
+
     def create_cluster_config(self):
         inquire = ask()
         resolver = dns.resolver.Resolver()
@@ -3542,14 +3637,7 @@ class processTemplate(object):
         services = ['data', 'index', 'query', 'fts', 'analytics', 'eventing', ]
         self.set_availability_zone_cycle()
 
-        if self.dev_num:
-            env_text = "dev{:02d}".format(self.dev_num)
-        elif self.test_num:
-            env_text = "tst{:02d}".format(self.test_num)
-        elif self.prod_num:
-            env_text = "prd{:02d}".format(self.prod_num)
-        else:
-            env_text = 'server'
+        env_text = self.get_env_string()
 
         print("Building cluster configuration")
         while True:
@@ -3665,6 +3753,61 @@ class processTemplate(object):
             print("Can not write to new cluster file: %s" % str(e))
             sys.exit(1)
 
+    def create_app_config(self):
+        inquire = ask()
+        config_segments = []
+        config_segments.append(APP_CFG_HEAD)
+        node = 1
+        self.set_availability_zone_cycle()
+
+        env_text = self.get_env_string()
+
+        print("Building app configuration")
+        while True:
+            node_ip_address = None
+            node_netmask = None
+            node_gateway = None
+            node_name = "app-{}-n{:02d}".format(env_text, node)
+            if self.availability_zone_cycle:
+                zone_data = self.get_next_availability_zone
+                availability_zone = zone_data['name']
+                node_subnet = zone_data['subnet']
+            else:
+                availability_zone = None
+                node_subnet = None
+            print("Configuring node %d" % node)
+            if self.static_ip:
+                node_ip_address, node_netmask, node_gateway = self.get_static_ip(node_name)
+            raw_template = jinja2.Template(CB_CFG_NODE)
+            format_template = raw_template.render(
+                NODE_NAME=node_name,
+                NODE_NUMBER=node,
+                NODE_ZONE=availability_zone,
+                NODE_SUBNET=node_subnet,
+                NODE_IP_ADDRESS=node_ip_address,
+                NODE_NETMASK=node_netmask,
+                NODE_GATEWAY=node_gateway,
+            )
+            config_segments.append(format_template)
+            print("")
+            if not inquire.ask_yn('  ==> Add another node'):
+                break
+            print("")
+            node += 1
+
+        config_segments.append(CB_CFG_TAIL)
+        output_file = self.app_map_file_name
+        output_file = self.app_directory + '/' + output_file
+        try:
+            with open(output_file, 'w') as write_file:
+                for i in range(len(config_segments)):
+                    write_file.write(config_segments[i])
+                write_file.write("\n")
+                write_file.close()
+        except OSError as e:
+            print("Can not write to new app file: %s" % str(e))
+            sys.exit(1)
+
     def create_env_dir(self, overwrite=False):
         parent_dir = os.path.dirname(self.template_dir)
         copy_files = [
@@ -3673,6 +3816,10 @@ class processTemplate(object):
             'variables.template',
             'outputs.tf',
         ]
+        app_files = [
+            'app_main.tf',
+            'app_outputs.tf',
+        ]
         if not os.path.exists(self.template_dir):
             try:
                 self.logger.info("Creating %s" % self.template_dir)
@@ -3680,6 +3827,15 @@ class processTemplate(object):
             except Exception as e:
                 self.logger.error("create_env_dir: %s" % str(e))
                 raise
+
+        if self.app_directory:
+            if not os.path.exists(self.app_directory):
+                try:
+                    self.logger.info("Creating %s" % self.app_directory)
+                    os.mkdir(self.app_directory)
+                except Exception as e:
+                    self.logger.error("create_env_dir: app dir: %s" % str(e))
+                    raise
 
         for file_name in copy_files:
             source = parent_dir + '/' + file_name
@@ -3691,6 +3847,18 @@ class processTemplate(object):
                 except Exception as e:
                     self.logger.error("create_env_dir: copy: %s: %s" % (source, str(e)))
                     raise
+
+        if self.app_directory:
+            for file_name in app_files:
+                source = parent_dir + '/' + file_name
+                destination = self.app_directory + '/' + file_name
+                if not os.path.exists(destination) or overwrite:
+                    try:
+                        self.logger.info("Copying %s -> %s" % (source, destination))
+                        copyfile(source, destination)
+                    except Exception as e:
+                        self.logger.error("create_env_dir: app dir: copy: %s: %s" % (source, str(e)))
+                        raise
 
     def get_paths(self, refresh=False):
         if self.packer_mode:
@@ -3714,6 +3882,8 @@ class processTemplate(object):
                 self.template_dir = relative_path + '/' + prod_directory
             else:
                 raise Exception("Environment not specified.")
+            if self.app_env_number:
+                self.app_directory = self.template_dir + '/' + "app-{:02d}".format(self.app_env_number)
             try:
                 self.create_env_dir(overwrite=refresh)
             except Exception as e:
