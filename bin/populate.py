@@ -354,7 +354,10 @@ class ask(object):
                     print("Response can not be empty.")
                     continue
 
-    def ask_pass(self, question):
+    def ask_pass(self, question, default=None):
+        if default:
+            if self.ask_yn("Use previously stored password", default=True):
+                return default
         while True:
             passanswer = getpass.getpass(prompt=question + ': ')
             passanswer = passanswer.rstrip("\n")
@@ -1101,7 +1104,7 @@ class processTemplate(object):
             ('CB_INDEX_MEM_TYPE', 2, 'index_memory', None),
             ('CB_VERSION', 2, 'cb_version', None),
             ('DNS_SERVER_LIST', 2, 'dns_server_list', None),
-            ('DOMAIN_NAME', 2, 'domain_name', None),
+            ('DOMAIN_NAME', 1, 'domain_name', None),
             ('GCP_ACCOUNT_FILE', 0, 'gcp_account_file', None),
             ('GCP_CB_IMAGE', 3, 'gcp_cb_image', None),
             ('GCP_IMAGE', 3, 'gcp_image_name', None),
@@ -1120,28 +1123,28 @@ class processTemplate(object):
             ('SSH_PRIVATE_KEY', 1, 'ssh_private_key', None),
             ('SSH_PUBLIC_KEY_FILE', 2, 'ssh_public_key_file', None),
             ('USE_PUBLIC_IP', 1, 'use_public_ip', None),
-            ('VMWARE_BUILD_PASSWORD', 2, 'build_password', None),
-            ('VMWARE_BUILD_PWD_ENCRYPTED', 2, 'build_password_encrypted', None),
-            ('VMWARE_BUILD_USERNAME', 2, 'build_username', None),
-            ('VMWARE_CLUSTER', 2, 'vsphere_cluster', None),
-            ('VMWARE_CPU_CORES', 2, 'vm_cpu_cores', None),
-            ('VMWARE_DATACENTER', 2, 'vsphere_datacenter', None),
-            ('VMWARE_DATASTORE', 2, 'vsphere_datastore', None),
-            ('VMWARE_DISK_SIZE', 2, 'vm_disk_size', None),
-            ('VMWARE_DVS', 2, 'vsphere_dvs_switch', None),
-            ('VMWARE_FOLDER', 2, 'vsphere_folder', None),
-            ('VMWARE_HOSTNAME', 0, 'vsphere_server', None),
-            ('VMWARE_ISO_CHECKSUM', 2, 'iso_checksum', None),
-            ('VMWARE_ISO_URL', 2, 'iso_url', None),
-            ('VMWARE_KEY', 2, 'build_key', None),
-            ('VMWARE_MEM_SIZE', 2, 'vm_mem_size', None),
-            ('VMWARE_NETWORK', 2, 'vsphere_network', None),
-            ('VMWARE_OS_TYPE', 2, 'vm_guest_os_type', None),
-            ('VMWARE_PASSWORD', 0, 'vsphere_password', None),
-            ('VMWARE_SW_URL', 2, 'sw_url', None),
-            ('VMWARE_TEMPLATE', 1, 'vsphere_template', None),
-            ('VMWARE_TIMEZONE', 2, 'vm_guest_os_timezone', None),
-            ('VMWARE_USERNAME', 0, 'vsphere_username', None),
+            ('VMWARE_BUILD_PASSWORD', 20, 'build_password', None),
+            ('VMWARE_BUILD_PWD_ENCRYPTED', 19, 'build_password_encrypted', None),
+            ('VMWARE_BUILD_USERNAME', 18, 'build_username', None),
+            ('VMWARE_CLUSTER', 4, 'vsphere_cluster', None),
+            ('VMWARE_CPU_CORES', 16, 'vm_cpu_cores', None),
+            ('VMWARE_DATACENTER', 3, 'vsphere_datacenter', None),
+            ('VMWARE_DATASTORE', 7, 'vsphere_datastore', None),
+            ('VMWARE_DISK_SIZE', 15, 'vm_disk_size', None),
+            ('VMWARE_DVS', 5, 'vsphere_dvs_switch', None),
+            ('VMWARE_FOLDER', 14, 'vsphere_folder', None),
+            ('VMWARE_HOSTNAME', 2, 'vsphere_server', None),
+            ('VMWARE_ISO_CHECKSUM', 9, 'iso_checksum', None),
+            ('VMWARE_ISO_URL', 8, 'iso_url', None),
+            ('VMWARE_KEY', 13, 'build_key', None),
+            ('VMWARE_MEM_SIZE', 17, 'vm_mem_size', None),
+            ('VMWARE_NETWORK', 6, 'vsphere_network', None),
+            ('VMWARE_OS_TYPE', 4, 'vm_guest_os_type', None),
+            ('VMWARE_PASSWORD', 1, 'vsphere_password', None),
+            ('VMWARE_SW_URL', 10, 'sw_url', None),
+            ('VMWARE_TEMPLATE', 11, 'vsphere_template', None),
+            ('VMWARE_TIMEZONE', 12, 'vm_guest_os_timezone', None),
+            ('VMWARE_USERNAME', 0, 'vsphere_user', None),
         ]
         inquire = ask()
 
@@ -1508,7 +1511,7 @@ class processTemplate(object):
             elif item == 'VMWARE_DVS':
                 if not self.vmware_dvs:
                     try:
-                        self.vmware_get_dvs_network(default=default_value)
+                        self.vmware_get_dvs_switch(default=default_value)
                     except Exception as e:
                         print("Error: %s" % str(e))
                         sys.exit(1)
@@ -1963,6 +1966,28 @@ class processTemplate(object):
                     print("Error: %s" % str(e))
                     sys.exit(1)
                 print("App node configuration complete.")
+
+    def get_linux_release_from_image_name(self, name):
+        try:
+            linux_release = name.split('-')[1]
+            for linux_type in self.local_var_json['linux']:
+                for i in range(len(self.local_var_json['linux'][linux_type])):
+                    if self.local_var_json['linux'][linux_type][i]['version'] == linux_release:
+                        return linux_release
+            else:
+                return None
+        except IndexError:
+            return None
+
+    def get_linux_type_from_image_name(self, name):
+        try:
+            linux_type = name.split('-')[0]
+            if linux_type in self.local_var_json['linux']:
+                return linux_type
+            else:
+                return None
+        except IndexError:
+            return None
 
     def get_cb_cluster_name(self, default=None):
         """Get the Couchbase Cluster Name"""
@@ -2668,23 +2693,25 @@ class processTemplate(object):
             self.gcp_service_account_email = auth_data['client_email']
 
     def get_domain_name(self, default=None):
+        inquire = ask()
         resolver = dns.resolver.Resolver()
         hostname = socket.gethostname()
         default_selection = ''
         try:
             ip_result = resolver.resolve(hostname, 'A')
             arpa_result = dns.reversename.from_address(ip_result[0].to_text())
-            fqdn_result = resolver.resolve(arpa_result, 'PTR')
+            fqdn_result = resolver.resolve(arpa_result.to_text(), 'PTR')
             host_fqdn = fqdn_result[0].to_text()
             domain_name = host_fqdn.split('.', 1)[1].rstrip('.')
             self.logger.info("Host domain is %s" % domain_name)
             default_selection = domain_name
         except dns.resolver.NXDOMAIN:
             pass
-        selection = self.ask_text('DNS Domain Name', default_selection)
+        selection = inquire.ask_text('DNS Domain Name', recommendation=default_selection, default=default)
         self.domain_name = selection
 
     def get_timezone(self, default=None):
+        inquire = ask()
         local_code = datetime.datetime.now(datetime.timezone.utc).astimezone().tzname()
         tzpath = '/etc/localtime'
         tzlist = []
@@ -2706,10 +2733,11 @@ class processTemplate(object):
             code = datetime.datetime.now(tzone).tzname()
             if code == local_code:
                 tzlist.append(tzone)
-        selection = self.ask('Select timezone', tzlist)
+        selection = inquire.ask_list('Select timezone', tzlist, default=default)
         self.vmware_timezone = tzlist[selection]
 
     def vmware_get_template(self, default=None):
+        inquire = ask()
         if not self.vmware_hostname:
             self.vmware_get_hostname()
         templates = []
@@ -2724,7 +2752,7 @@ class processTemplate(object):
                 if managed_object_ref.config.template:
                     templates.append(managed_object_ref.name)
             container.Destroy()
-            selection = self.ask('Select template', templates)
+            selection = inquire.ask_list('Select template', templates, default=default)
             self.vmware_template = templates[selection]
         except Exception:
             raise
@@ -2780,23 +2808,34 @@ class processTemplate(object):
         self.ssh_public_key = public_key.decode('utf-8')
 
     def vmware_get_build_password(self, default=None):
+        inquire = ask()
         if not self.vmware_build_user:
             self.vmware_get_build_username()
-        selection = self.ask_pass("Build user %s password" % self.vmware_build_user)
+        selection = inquire.ask_pass("Build user %s password" % self.vmware_build_user, default=default)
         self.vmware_build_password = selection
         self.vmware_build_pwd_encrypted = sha512_crypt.using(salt=''.join([random.choice(string.ascii_letters + string.digits) for _ in range(16)]), rounds=5000).hash(self.vmware_build_password)
 
     def vmware_get_build_username(self, default=None):
         if not self.linux_type:
-            try:
-                self.get_linux_type()
-            except Exception:
-                raise
+            if self.vmware_template:
+                linux_type = self.get_linux_type_from_image_name(self.vmware_template)
+                if linux_type:
+                    self.linux_type = linux_type
+            if not self.linux_type:
+                try:
+                    self.get_linux_type()
+                except Exception:
+                    raise
         if not self.linux_release:
-            try:
-                self.get_linux_release()
-            except Exception:
-                raise
+            if self.vmware_template:
+                linux_release = self.get_linux_release_from_image_name(self.vmware_template)
+                if linux_release:
+                    self.linux_release = linux_release
+            if not self.linux_release:
+                try:
+                    self.get_linux_release()
+                except Exception:
+                    raise
         for i in range(len(self.local_var_json['linux'][self.linux_type])):
             if self.local_var_json['linux'][self.linux_type][i]['version'] == self.linux_release:
                 self.vmware_build_user = self.local_var_json['linux'][self.linux_type][i]['user']
@@ -2804,10 +2843,10 @@ class processTemplate(object):
         raise Exception("Can not locate build user for %s %s linux." % (self.linux_type, self.linux_release))
 
     def vmware_get_dvs_network(self, default=None):
+        inquire = ask()
         if not self.vmware_hostname:
             self.vmware_get_hostname()
         folder = self.vmware_network_folder
-        dvsList = []
         pgList = []
         try:
             si = SmartConnectNoSSL(host=self.vmware_hostname,
@@ -2815,47 +2854,68 @@ class processTemplate(object):
                                    pwd=self.vmware_password,
                                    port=443)
             content = si.RetrieveContent()
-            container = content.viewManager.CreateContainerView(folder, [vim.dvs.VmwareDistributedVirtualSwitch], True)
-            for managed_object_ref in container.view:
-                dvsList.append(managed_object_ref.name)
-            container.Destroy()
             container = content.viewManager.CreateContainerView(folder, [vim.dvs.DistributedVirtualPortgroup], True)
             for managed_object_ref in container.view:
                 pgList.append(managed_object_ref.name)
             container.Destroy()
             pgList = sorted(set(pgList))
-            selection = self.ask('Distributed switch', dvsList)
-            self.vmware_dvs = dvsList[selection]
-            selection = self.ask('Select datastore', pgList)
+            selection = inquire.ask_list('Select port group', pgList, default=default)
             self.vmware_network = pgList[selection]
         except Exception:
             raise
 
+    def vmware_get_dvs_switch(self, default=None):
+        inquire = ask()
+        if not self.vmware_dvs:
+            if not self.vmware_datacenter:
+                self.vmware_get_datacenter()
+            folder = self.vmware_network_folder
+            dvsList = []
+            try:
+                si = SmartConnectNoSSL(host=self.vmware_hostname,
+                                       user=self.vmware_username,
+                                       pwd=self.vmware_password,
+                                       port=443)
+                content = si.RetrieveContent()
+                container = content.viewManager.CreateContainerView(folder,
+                                                                    [vim.dvs.VmwareDistributedVirtualSwitch],
+                                                                    True)
+                for managed_object_ref in container.view:
+                    dvsList.append(managed_object_ref.name)
+                container.Destroy()
+                selection = inquire.ask_list('Select distributed switch', dvsList, default=default)
+                self.vmware_dvs = dvsList[selection]
+            except Exception:
+                raise
+
     def vmware_get_disksize(self, default=None):
+        inquire = ask()
         default_selection = ''
         if 'defaults' in self.local_var_json:
             if 'vm_disk_size' in self.local_var_json['defaults']:
                 default_selection = self.local_var_json['defaults']['vm_disk_size']
         self.logger.info("Default disk size is %s" % default_selection)
-        selection = self.ask_text('Disk size', default_selection)
+        selection = inquire.ask_text('Disk size', recommendation=default_selection, default=default)
         self.vmware_disksize = selection
 
     def vmware_get_memsize(self, default=None):
+        inquire = ask()
         default_selection = ''
         if 'defaults' in self.local_var_json:
             if 'vm_mem_size' in self.local_var_json['defaults']:
                 default_selection = self.local_var_json['defaults']['vm_mem_size']
         self.logger.info("Default memory size is %s" % default_selection)
-        selection = self.ask_text('Memory size', default_selection)
+        selection = inquire.ask_text('Memory size', recommendation=default_selection, default=default)
         self.vmware_memsize = selection
 
     def vmware_get_cpucores(self, default=None):
+        inquire = ask()
         default_selection = ''
         if 'defaults' in self.local_var_json:
             if 'vm_cpu_cores' in self.local_var_json['defaults']:
                 default_selection = self.local_var_json['defaults']['vm_cpu_cores']
         self.logger.info("Default CPU cores is %s" % default_selection)
-        selection = self.ask_text('CPU cores', default_selection)
+        selection = inquire.ask_text('CPU cores', recommendation=default_selection, default=default)
         self.vmware_cpucores = selection
 
     def vmware_get_isourl(self, default=None):
@@ -2893,6 +2953,7 @@ class processTemplate(object):
         raise Exception("Can not locate OS type for %s %s linux." % (self.linux_type, self.linux_release))
 
     def vmware_get_folder(self, default=None):
+        inquire = ask()
         default_selection = ''
         if self.packer_mode:
             if 'defaults' in self.local_var_json:
@@ -2908,7 +2969,7 @@ class processTemplate(object):
             else:
                 default_selection = 'couchbase-database'
         self.logger.info("Default folder is %s" % default_selection)
-        selection = self.ask_text('Folder', default_selection)
+        selection = inquire.ask_text('Folder', recommendation=default_selection, default=default)
         self.vmware_folder = selection
         if self.packer_mode:
             for folder in self.vmware_dc_folder.vmFolder.childEntity:
@@ -2923,6 +2984,7 @@ class processTemplate(object):
                 raise
 
     def vmware_get_datastore(self, default=None):
+        inquire = ask()
         if not self.vmware_hostname:
             self.vmware_get_hostname()
         try:
@@ -2943,7 +3005,7 @@ class processTemplate(object):
                         continue
                     datastore_name.append(host_mount_info.volume.name)
                     datastore_type.append(host_mount_info.volume.type)
-            selection = self.ask('Select datastore', datastore_name, datastore_type)
+            selection = inquire.ask_list('Select datastore', datastore_name, datastore_type, default=default)
             self.vmware_datastore = datastore_name[selection]
             container.Destroy()
             return True
@@ -2951,6 +3013,7 @@ class processTemplate(object):
             raise
 
     def vmware_get_cluster(self, default=None):
+        inquire = ask()
         if not self.vmware_host_folder:
             self.vmware_get_datacenter()
         try:
@@ -2958,25 +3021,21 @@ class processTemplate(object):
             for c in self.vmware_host_folder.childEntity:
                 if isinstance(c, vim.ClusterComputeResource):
                     clusters.append(c.name)
-            selection = self.ask('Select cluster', clusters)
+            selection = inquire.ask_list('Select cluster', clusters, default=default)
             self.vmware_cluster = clusters[selection]
             return True
         except Exception:
             raise
 
     def vmware_get_datacenter(self, default=None):
+        inquire = ask()
         if not self.vmware_datacenter:
-            self.vmware_get_hostname()
-
-    def vmware_get_hostname(self, default=None):
-        while True:
-            if not self.vmware_hostname:
-                hostname = input("vSphere Host Name: ")
-                self.vmware_hostname = hostname.rstrip("\n")
             if not self.vmware_username:
                 self.vmware_get_username()
             if not self.vmware_password:
                 self.vmware_get_password()
+            if not self.vmware_hostname:
+                self.vmware_get_hostname()
             try:
                 si = SmartConnectNoSSL(host=self.vmware_hostname,
                                        user=self.vmware_username,
@@ -2987,7 +3046,7 @@ class processTemplate(object):
                 container = content.viewManager.CreateContainerView(content.rootFolder, [vim.Datacenter], True)
                 for c in container.view:
                     datacenter.append(c.name)
-                selection = self.ask('Select datacenter', datacenter)
+                selection = inquire.ask_list('Select datacenter', datacenter, default=default)
                 self.vmware_datacenter = datacenter[selection]
                 for c in container.view:
                     if c.name == self.vmware_datacenter:
@@ -2996,19 +3055,25 @@ class processTemplate(object):
                         self.vmware_host_folder = c.hostFolder
                 container.Destroy()
                 return True
-            except Exception:
-                print(" [!] Can not access vSphere with provided credentials.")
+            except Exception as e:
+                print(" [!] Can not access vSphere: %s." % str(e))
+
+    def vmware_get_hostname(self, default=None):
+        inquire = ask()
+        if not self.vmware_hostname:
+            self.vmware_hostname = inquire.ask_text("vSphere Host Name: ", default=default)
 
     def vmware_get_username(self, default=None):
-        useranswer = input("vSphere Admin User: ")
-        self.vmware_username = useranswer.rstrip("\n")
-        if not self.vmware_password:
-            self.vmware_get_password()
+        inquire = ask()
+        if not self.vmware_username:
+            self.vmware_username = inquire.ask_text("vSphere Admin User: ",
+                                                    recommendation='administrator@vsphere.local',
+                                                    default=default)
 
     def vmware_get_password(self, default=None):
+        inquire = ask()
         if not self.vmware_password:
-            passanswer = getpass.getpass(prompt="vSphere Admin Password: ")
-            self.vmware_password = passanswer.rstrip("\n")
+            self.vmware_password = inquire.ask_pass("vSphere Admin Password", default=default)
 
     def aws_get_root_type(self, default=None):
         """Get root volume type"""
