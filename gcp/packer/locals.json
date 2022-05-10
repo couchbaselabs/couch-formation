@@ -5,13 +5,17 @@
         "version": "7",
         "image": "centos-7-v20211214",
         "family": "centos-7",
-        "user": "centos"
+        "user": "centos",
+        "vars": "centos-7.pkrvars.hcl",
+        "hcl": "linux.pkr.hcl"
       },
       {
         "version": "8",
         "image": "centos-stream-8-v20220128",
         "family": "centos-stream-8",
-        "user": "centos"
+        "user": "centos",
+        "vars": "centos-8.pkrvars.hcl",
+        "hcl": "linux.pkr.hcl"
       }
     ],
     "ubuntu": [
@@ -19,13 +23,17 @@
         "version": "bionic",
         "image": "ubuntu-1804-bionic-v20220111",
         "family": "ubuntu-1804-lts",
-        "user": "ubuntu"
+        "user": "ubuntu",
+        "vars": "ubuntu-bionic.pkrvars.hcl",
+        "hcl": "linux.pkr.hcl"
       },
       {
         "version": "focal",
         "image": "ubuntu-2004-focal-v20220110",
         "family": "ubuntu-2004-lts",
-        "user": "ubuntu"
+        "user": "ubuntu",
+        "vars": "ubuntu-focal.pkrvars.hcl",
+        "hcl": "linux.pkr.hcl"
       }
     ]
   }

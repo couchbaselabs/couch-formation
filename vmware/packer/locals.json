@@ -7,7 +7,9 @@
         "sw_url": "http://mirror.centos.org/centos/7.9.2009/os/x86_64",
         "checksum": "sha256:07b94e6b1a0b0260b94c83d6bb76b26bf7a310dc78d7a9c7432809fb9bc6194a",
         "type": "centos7_64Guest",
-        "user": "centos"
+        "user": "centos",
+        "vars": "centos-7.pkrvars.hcl",
+        "hcl": "vmware-centos.pkr.hcl"
       },
       {
         "version": "8",
@@ -15,7 +17,9 @@
         "sw_url": "http://mirror.centos.org/centos/8-stream/BaseOS/x86_64/os",
         "checksum": "sha256:b55a435ec74a4f1c7757ed06930c2b103107aede0c90adb848326b4f597e668b",
         "type": "centos8_64Guest",
-        "user": "centos"
+        "user": "centos",
+        "vars": "centos-8.pkrvars.hcl",
+        "hcl": "vmware-centos.pkr.hcl"
       }
     ],
     "ubuntu": [
@@ -25,7 +29,9 @@
         "sw_url": "http://archive.ubuntu.com/ubuntu/dists/bionic",
         "checksum": "sha256:6c647b1ab4318e8c560d5748f908e108be654bad1e165f7cf4f3c1fc43995934",
         "type": "ubuntu64Guest",
-        "user": "ubuntu"
+        "user": "ubuntu",
+        "vars": "ubuntu-bionic.pkrvars.hcl",
+        "hcl": "vmware-ubuntu.pkr.hcl"
       },
       {
         "version": "focal",
@@ -33,7 +39,9 @@
         "sw_url": "http://archive.ubuntu.com/ubuntu/dists/focal",
         "checksum": "sha256:f8e3086f3cea0fb3fefb29937ab5ed9d19e767079633960ccb50e76153effc98",
         "type": "ubuntu64Guest",
-        "user": "ubuntu"
+        "user": "ubuntu",
+        "vars": "ubuntu-focal.pkrvars.hcl",
+        "hcl": "vmware-ubuntu.pkr.hcl"
       }
     ]
   },

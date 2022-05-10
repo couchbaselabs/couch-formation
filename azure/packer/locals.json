@@ -6,14 +6,18 @@
         "type": "Linux",
         "publisher": "OpenLogic",
         "offer": "CentOS",
-        "sku": "7_9"
+        "sku": "7_9",
+        "vars": "centos-7.pkrvars.hcl",
+        "hcl": "linux.pkr.hcl"
       },
       {
         "version": "8",
         "type": "Linux",
         "publisher": "OpenLogic",
         "offer": "CentOS",
-        "sku": "8_4"
+        "sku": "8_4",
+        "vars": "centos-8.pkrvars.hcl",
+        "hcl": "linux.pkr.hcl"
       }
     ],
     "ubuntu": [
@@ -22,14 +26,18 @@
         "type": "Linux",
         "publisher": "Canonical",
         "offer": "UbuntuServer",
-        "sku": "18.04-LTS "
+        "sku": "18.04-LTS",
+        "vars": "ubuntu-bionic.pkrvars.hcl",
+        "hcl": "linux.pkr.hcl"
       },
       {
         "version": "focal",
         "type": "Linux",
         "publisher": "Canonical",
         "offer": "0001-com-ubuntu-server-focal",
-        "sku": "20_04-lts"
+        "sku": "20_04-lts",
+        "vars": "ubuntu-focal.pkrvars.hcl",
+        "hcl": "linux.pkr.hcl"
       }
     ]
   }
