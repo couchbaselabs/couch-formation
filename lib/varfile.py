@@ -51,6 +51,56 @@ class varfile(object):
         except KeyError:
             raise VarFileError(f"value {key} not in aws defaults")
 
+    def gcp_get_default(self, key: str) -> str:
+        try:
+            return self.gcp_tf_vars['defaults'][key]
+        except KeyError:
+            raise VarFileError(f"value {key} not in gcp defaults")
+
+    def azure_get_default(self, key: str) -> str:
+        try:
+            return self.azure_tf_vars['defaults'][key]
+        except KeyError:
+            raise VarFileError(f"value {key} not in azure defaults")
+
+    def vmware_get_default(self, key: str) -> str:
+        try:
+            return self.vmware_tf_vars['defaults'][key]
+        except KeyError:
+            raise VarFileError(f"value {key} not in vmware defaults")
+
+    def aws_get_os_var(self, os_type: str, os_name: str, os_ver: str, key: str) -> str:
+        try:
+            for i in range(len(self.aws_packer_vars[os_type][os_name])):
+                if self.aws_packer_vars[os_type][os_name][i]['version'] == os_ver:
+                    return self.aws_packer_vars[os_type][os_name][i][key]
+        except KeyError:
+            raise VarFileError(f"value {key} not in aws packer variables for {os_name} {os_type}")
+
+    def gcp_get_os_var(self, os_type: str, os_name: str, os_ver: str, key: str) -> str:
+        try:
+            for i in range(len(self.gcp_packer_vars[os_type][os_name])):
+                if self.gcp_packer_vars[os_type][os_name][i]['version'] == os_ver:
+                    return self.gcp_packer_vars[os_type][os_name][i][key]
+        except KeyError:
+            raise VarFileError(f"value {key} not in gcp packer variables for {os_name} {os_type}")
+
+    def azure_get_os_var(self, os_type: str, os_name: str, os_ver: str, key: str) -> str:
+        try:
+            for i in range(len(self.azure_packer_vars[os_type][os_name])):
+                if self.azure_packer_vars[os_type][os_name][i]['version'] == os_ver:
+                    return self.azure_packer_vars[os_type][os_name][i][key]
+        except KeyError:
+            raise VarFileError(f"value {key} not in azure packer variables for {os_name} {os_type}")
+
+    def vmware_get_os_var(self, os_type: str, os_name: str, os_ver: str, key: str) -> str:
+        try:
+            for i in range(len(self.vmware_packer_vars[os_type][os_name])):
+                if self.vmware_packer_vars[os_type][os_name][i]['version'] == os_ver:
+                    return self.vmware_packer_vars[os_type][os_name][i][key]
+        except KeyError:
+            raise VarFileError(f"value {key} not in vmware packer variables for {os_name} {os_type}")
+
     @property
     def global_vars(self) -> dict:
         return self._global_vars
