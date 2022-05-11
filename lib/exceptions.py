@@ -37,3 +37,8 @@ class VarFileError(fatalError):
 
 class PackerRunError(fatalError):
     pass
+
+
+class ImageMgmtError(fatalError):
+    pass
+

@@ -4,6 +4,7 @@
 import logging
 import boto3
 import os
+from typing import Union
 from lib.ask import ask
 from lib.varfile import varfile
 
@@ -183,7 +184,7 @@ class aws(object):
         selection = inquire.ask_machine_type('AWS Instance Type', size_list, default=default)
         return size_list[selection]['name']
 
-    def aws_get_ami_id(self, aws_region: str, default=None) -> dict:
+    def aws_get_ami_id(self, aws_region: str, select=True, default=None) -> Union[dict, list[dict]]:
         """Get the Couchbase AMI to use"""
         inquire = ask()
         image_list = []
@@ -194,6 +195,8 @@ class aws(object):
             image_block = {}
             image_block['name'] = images['Images'][i]['ImageId']
             image_block['description'] = images['Images'][i]['Name']
+            image_block['date'] = images['Images'][i]['CreationDate']
+            image_block['arch'] = images['Images'][i]['Architecture']
             if 'Tags' in images['Images'][i]:
                 item_release_tag = self.aws_get_tag('Release', images['Images'][i]['Tags'])
                 item_type_tag = self.aws_get_tag('Type', images['Images'][i]['Tags'])
@@ -206,8 +209,11 @@ class aws(object):
                     image_block['version'] = item_version_tag
                     image_block['description'] = image_block['description'] + ' => Version: ' + item_version_tag
             image_list.append(image_block)
-        selection = inquire.ask_list('Select AMI', image_list, default=default)
-        return image_list[selection]
+        if select:
+            selection = inquire.ask_list('Select AMI', image_list, default=default)
+            return image_list[selection]
+        else:
+            return image_list
 
     def aws_get_region(self, default=None) -> str:
         """Get the AWS Region"""
