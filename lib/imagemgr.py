@@ -4,6 +4,7 @@
 from datetime import datetime
 from lib.exceptions import *
 from lib.aws import aws
+from lib.gcp import gcp
 
 
 class image_manager(object):
@@ -43,7 +44,20 @@ class image_manager(object):
             print(f" {n+1:02d}) {image['arch'].ljust(6)} {image['name']} {image['description'].ljust(60)} {image['datetime'].strftime('%D %r')}")
 
     def gcp_list(self):
-        pass
+        driver = gcp()
+
+        account_file = driver.gcp_get_account_file()
+        gcp_project = driver.gcp_get_project_id(account_file)
+        image_list = driver.gcp_get_cb_image_name(account_file, gcp_project, select=False)
+
+        for n, image in enumerate(image_list):
+            image_time = datetime.strptime(image['date'], '%Y-%m-%dT%H:%M:%S.%f%z')
+            image_list[n]['datetime'] = image_time
+
+        sorted_list = sorted(image_list, key=lambda item: item['datetime'])
+
+        for n, image in enumerate(sorted_list):
+            print(f" {n+1:02d}) {image['name'].ljust(64)} {image['datetime'].strftime('%D %r')}")
 
     def azure_list(self):
         pass
