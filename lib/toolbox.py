@@ -128,9 +128,10 @@ class toolbox(object):
         selection = inquire.ask_bool('Use Public IP', recommendation='false', default=default)
         return selection
 
-    def get_dns_servers(self, default=None):
+    def get_dns_servers(self, domain_name: str):
         """Get list of DNS servers"""
         server_list = []
-        dns_lookup = dynamicDNS(self.domain_name)
+        dns_lookup = dynamicDNS(domain_name)
         server_list = dns_lookup.dns_get_servers()
-        self.dns_server_list = ','.join(f'"{s}"' for s in server_list)
+        dns_server_list = ','.join(f'"{s}"' for s in server_list)
+        return dns_server_list
