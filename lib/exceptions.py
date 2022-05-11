@@ -50,3 +50,7 @@ class SSHError(fatalError):
 class ImageNameFormatError(fatalError):
     pass
 
+
+class GCPDriverError(fatalError):
+    pass
+

@@ -1,6 +1,16 @@
 ##
 ##
 
+import logging
+import googleapiclient.discovery
+from google.oauth2 import service_account
+import json
+from typing import Union
+from lib.varfile import varfile
+from lib.toolbox import toolbox
+from lib.ask import ask
+from lib.exceptions import *
+
 
 class gcp(object):
 
@@ -8,35 +18,32 @@ class gcp(object):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.vf = varfile()
 
-    def get_gcp_zones(self, default=None):
+    def get_gcp_zones(self, gcp_account_file: str, gcp_region: str, gcp_project: str) -> list[str]:
         """Collect GCP availability zones"""
-        if not self.gcp_region:
-            self.get_gcp_region()
-        if len(self.gcp_zone_list) > 0:
-            return
-        credentials = service_account.Credentials.from_service_account_file(self.gcp_account_file)
+        gcp_zone_list = []
+
+        credentials = service_account.Credentials.from_service_account_file(gcp_account_file)
         gcp_client = googleapiclient.discovery.build('compute', 'v1', credentials=credentials)
-        request = gcp_client.zones().list(project=self.gcp_project)
+        request = gcp_client.zones().list(project=gcp_project)
         while request is not None:
             response = request.execute()
             for zone in response['items']:
-                if not zone['name'].startswith(self.gcp_region):
+                if not zone['name'].startswith(gcp_region):
                     continue
-                self.gcp_zone_list.append(zone['name'])
+                gcp_zone_list.append(zone['name'])
             request = gcp_client.zones().list_next(previous_request=request, previous_response=response)
-        self.gcp_zone_list = sorted(self.gcp_zone_list)
-        self.gcp_zone = self.gcp_zone_list[0]
-        for gcp_zone_name in self.gcp_zone_list:
+        gcp_zone_list = sorted(gcp_zone_list)
+        for gcp_zone_name in gcp_zone_list:
             self.logger.info("Added GCP zone %s" % gcp_zone_name)
+        return gcp_zone_list
 
-    def get_gcp_project(self, default=None):
+    def get_gcp_project(self, gcp_account_file: str, default=None) -> str:
         """Get GCP Project"""
         inquire = ask()
         project_ids = []
         project_names = []
-        if not self.gcp_account_file:
-            self.gcp_get_account_file()
-        credentials = service_account.Credentials.from_service_account_file(self.gcp_account_file)
+
+        credentials = service_account.Credentials.from_service_account_file(gcp_account_file)
         gcp_client = googleapiclient.discovery.build('cloudresourcemanager', 'v1', credentials=credentials)
         request = gcp_client.projects().list()
         while request is not None:
@@ -47,69 +54,23 @@ class gcp(object):
             request = gcp_client.projects().list_next(previous_request=request, previous_response=response)
         if len(project_ids) == 0:
             self.logger.info("Insufficient permissions to list projects, attempting to get project ID from auth JSON")
-            if self.gcp_auth_json_project_id:
-                self.logger.info("Setting project ID to %s" % self.gcp_auth_json_project_id)
-                self.gcp_project = self.gcp_auth_json_project_id
-                return True
-            else:
-                self.logger.info("Can not get project ID from auth JSON")
-                self.gcp_project = inquire.ask_text('GCP Project ID')
-                return True
+            gcp_auth_json_project_id = self.gcp_get_project_id(gcp_account_file)
+            self.logger.info("Setting project ID to %s" % gcp_auth_json_project_id)
+            return gcp_auth_json_project_id
+
         selection = inquire.ask_list('GCP Project', project_ids, project_names, default=default)
-        self.gcp_project = project_ids[selection]
+        return project_ids[selection]
 
-    def get_gcp_image_user(self, default=None):
-        """Get GCP base image user for SSH access"""
-        if not self.linux_type:
-            try:
-                self.get_linux_type()
-            except Exception:
-                raise
-        if not self.linux_release:
-            try:
-                self.get_linux_release()
-            except Exception:
-                raise
-        for i in range(len(self.local_var_json['linux'][self.linux_type])):
-            if self.local_var_json['linux'][self.linux_type][i]['version'] == self.linux_release:
-                self.gcp_image_user = self.local_var_json['linux'][self.linux_type][i]['user']
-                return True
-        raise Exception("Can not locate suitable user for %s %s linux." % (self.linux_type, self.linux_release))
-
-    def get_gcp_image_family(self, default=None):
-        """Get GCP base image family"""
-        if not self.gcp_image_family:
-            try:
-                self.get_gcp_image_name()
-            except Exception:
-                raise
-
-    def get_gcp_image_name(self, default=None):
-        """Get GCP base image name"""
-        if not self.linux_type:
-            try:
-                self.get_linux_type()
-            except Exception:
-                raise
-        if not self.linux_release:
-            try:
-                self.get_linux_release()
-            except Exception:
-                raise
-        for i in range(len(self.local_var_json['linux'][self.linux_type])):
-            if self.local_var_json['linux'][self.linux_type][i]['version'] == self.linux_release:
-                self.gcp_image_name = self.local_var_json['linux'][self.linux_type][i]['image']
-                self.gcp_image_family = self.local_var_json['linux'][self.linux_type][i]['family']
-                self.gcp_image_user = self.local_var_json['linux'][self.linux_type][i]['user']
-                return True
-        raise Exception("Can not locate suitable image for %s %s linux." % (self.linux_type, self.linux_release))
-
-    def gcp_get_account_file(self, default=None):
+    def gcp_get_account_file(self, default=None) -> str:
         """Get GCP auth JSON file path"""
+        candidate_file = None
         inquire = ask()
         dir_list = []
         auth_file_list = []
         auth_directory = os.environ['HOME'] + '/.config/gcloud'
+
+        if 'GCP_ACCOUNT_FILE' in os.environ:
+            candidate_file = os.environ['GCP_ACCOUNT_FILE']
 
         for file_name in os.listdir(auth_directory):
             if file_name.lower().endswith('.json'):
@@ -125,37 +86,57 @@ class gcp(object):
                 file_handle.close()
             except (ValueError, KeyError):
                 continue
-            except OSError:
-                print("Can not access GCP config file %s" % dir_list[i])
-                raise
+            except OSError as err:
+                raise GCPDriverError(f"Can not access GCP config file {dir_list[i]}: {err}")
+
+            if candidate_file:
+                entry_file_name = os.path.basename(dir_list[i])
+                if candidate_file == entry_file_name:
+                    return dir_list[i]
 
             if file_type == 'service_account':
                 auth_file_list.append(dir_list[i])
 
         selection = inquire.ask_list('Select GCP auth JSON', auth_file_list, default=default)
-        self.gcp_account_file = auth_file_list[selection]
+        return auth_file_list[selection]
 
-        file_handle = open(self.gcp_account_file, 'r')
+    def gcp_get_project_id(self, gcp_account_file: str, default=None) -> str:
+        inquire = ask()
+
+        if 'GCP_PROJECT_ID' in os.environ:
+            return os.environ['GCP_PROJECT_ID']
+
+        file_handle = open(gcp_account_file, 'r')
         auth_data = json.load(file_handle)
         file_handle.close()
         if 'project_id' in auth_data:
-            self.gcp_auth_json_project_id = auth_data['project_id']
-        if 'client_email' in auth_data:
-            self.gcp_service_account_email = auth_data['client_email']
+            gcp_auth_json_project_id = auth_data['project_id']
+            return gcp_auth_json_project_id
+        else:
+            selection = inquire.ask_text('GCP Project', default=default)
+            return selection
 
-    def gcp_get_machine_type(self, default=None):
+    def gcp_get_account_email(self, gcp_account_file: str, default=None) -> str:
+        inquire = ask()
+
+        file_handle = open(gcp_account_file, 'r')
+        auth_data = json.load(file_handle)
+        file_handle.close()
+        if 'client_email' in auth_data:
+            gcp_service_account_email = auth_data['client_email']
+            return gcp_service_account_email
+        else:
+            selection = inquire.ask_text('GCP Client Email', default=default)
+            return selection
+
+    def gcp_get_machine_type(self, gcp_account_file: str, gcp_project: str, gcp_zone: str, default=None) -> str:
         """Get GCP machine type"""
         inquire = ask()
         machine_type_list = []
-        if not self.gcp_account_file:
-            self.gcp_get_account_file()
-        if not self.gcp_zone:
-            self.get_gcp_zones()
-        if not self.gcp_project:
-            self.get_gcp_project()
-        credentials = service_account.Credentials.from_service_account_file(self.gcp_account_file)
+
+        credentials = service_account.Credentials.from_service_account_file(gcp_account_file)
         gcp_client = googleapiclient.discovery.build('compute', 'v1', credentials=credentials)
-        request = gcp_client.machineTypes().list(project=self.gcp_project, zone=self.gcp_zone)
+        request = gcp_client.machineTypes().list(project=gcp_project, zone=gcp_zone)
         while request is not None:
             response = request.execute()
             for machine_type in response['items']:
@@ -167,25 +148,23 @@ class gcp(object):
                 machine_type_list.append(config_block)
             request = gcp_client.machineTypes().list_next(previous_request=request, previous_response=response)
         selection = inquire.ask_machine_type('GCP Machine Type', machine_type_list, default=default)
-        self.gcp_machine_type = machine_type_list[selection]['name']
+        return machine_type_list[selection]['name']
 
-    def gcp_get_cb_image_name(self, default=None):
+    def gcp_get_cb_image_name(self, gcp_account_file: str, gcp_project: str, select=True, default=None) -> Union[dict, list[dict]]:
         """Select Couchbase GCP image"""
         inquire = ask()
         image_list = []
-        if not self.gcp_account_file:
-            self.gcp_get_account_file()
-        if not self.gcp_project:
-            self.get_gcp_project()
-        credentials = service_account.Credentials.from_service_account_file(self.gcp_account_file)
+
+        credentials = service_account.Credentials.from_service_account_file(gcp_account_file)
         gcp_client = googleapiclient.discovery.build('compute', 'v1', credentials=credentials)
-        request = gcp_client.images().list(project=self.gcp_project)
+        request = gcp_client.images().list(project=gcp_project)
         while request is not None:
             response = request.execute()
             if "items" in response:
                 for image in response['items']:
                     image_block = {}
                     image_block['name'] = image['name']
+                    image_block['date'] = image['creationTimestamp']
                     if 'labels' in image:
                         if 'type' in image['labels']:
                             image_block['type'] = image['labels']['type']
@@ -196,94 +175,71 @@ class gcp(object):
                     image_list.append(image_block)
                 request = gcp_client.images().list_next(previous_request=request, previous_response=response)
             else:
-                raise Exception("No images exist in this project")
-        selection = inquire.ask_list('GCP Couchbase Image', image_list, default=default)
-        self.gcp_cb_image = image_list[selection]['name']
-        if 'type' in image_list[selection]:
-            self.linux_type = image_list[selection]['type']
-            self.logger.info("Selecting linux type %s from image metadata" % self.linux_type)
-        if 'release' in image_list[selection]:
-            self.linux_release = image_list[selection]['release']
-            self.logger.info("Selecting linux release %s from image metadata" % self.linux_release)
-        if 'version' in image_list[selection]:
-            self.cb_version = image_list[selection]['version']
-            self.logger.info("Selecting couchbase version %s from image metadata" % self.cb_version)
+                raise GCPDriverError("No images exist in this project")
+        if select:
+            selection = inquire.ask_list('GCP Couchbase Image', image_list, default=default)
+            return image_list[selection]
+        else:
+            return image_list
 
-    def gcp_get_availability_zone_list(self, default=None):
+    def gcp_get_availability_zone_list(self, gcp_zone_list: list, gcp_subnet: str) -> list[dict]:
         """Build GCP availability zone data structure"""
         availability_zone_list = []
-        if not self.gcp_region:
-            try:
-                self.get_gcp_region()
-            except Exception:
-                raise
-        if not self.gcp_subnet:
-            try:
-                self.gcp_get_subnet()
-            except Exception:
-                raise
-        for zone in self.gcp_zone_list:
+
+        for zone in gcp_zone_list:
             config_block = {}
             config_block['name'] = zone
-            config_block['subnet'] = self.gcp_subnet
+            config_block['subnet'] = gcp_subnet
             availability_zone_list.append(config_block)
         return availability_zone_list
 
-    def gcp_get_subnet(self, default=None):
+    def gcp_get_subnet(self, gcp_account_file: str, gcp_project: str, gcp_region: str, default=None) -> str:
         """Get GCP subnet"""
         inquire = ask()
         subnet_list = []
-        if not self.gcp_account_file:
-            self.gcp_get_account_file()
-        if not self.gcp_region:
-            self.get_gcp_region()
-        if not self.gcp_project:
-            self.get_gcp_project()
-        credentials = service_account.Credentials.from_service_account_file(self.gcp_account_file)
+
+        credentials = service_account.Credentials.from_service_account_file(gcp_account_file)
         gcp_client = googleapiclient.discovery.build('compute', 'v1', credentials=credentials)
-        request = gcp_client.subnetworks().list(project=self.gcp_project, region=self.gcp_region)
+        request = gcp_client.subnetworks().list(project=gcp_project, region=gcp_region)
         while request is not None:
             response = request.execute()
             for subnet in response['items']:
                 subnet_list.append(subnet['name'])
             request = gcp_client.subnetworks().list_next(previous_request=request, previous_response=response)
         selection = inquire.ask_list('GCP Subnet', subnet_list, default=default)
-        self.gcp_subnet = subnet_list[selection]
+        return subnet_list[selection]
 
-    def gcp_get_root_type(self, default=None):
+    def gcp_get_root_type(self, default=None) -> str:
         """Get GCP root disk type"""
         inquire = ask()
-        default_selection = ''
-        if 'defaults' in self.local_var_json:
-            if 'root_type' in self.local_var_json['defaults']:
-                default_selection = self.local_var_json['defaults']['root_type']
+
+        default_selection = self.vf.gcp_get_default('root_type')
         self.logger.info("Default root type is %s" % default_selection)
         selection = inquire.ask_text('Root volume type', recommendation=default_selection, default=default)
-        self.gcp_root_type = selection
+        return selection
 
-    def gcp_get_root_size(self, default=None):
+    def gcp_get_root_size(self, default=None) -> str:
         """Get GCP root disk size"""
         inquire = ask()
-        default_selection = ''
-        if 'defaults' in self.local_var_json:
-            if 'root_size' in self.local_var_json['defaults']:
-                default_selection = self.local_var_json['defaults']['root_size']
+
+        default_selection = self.vf.gcp_get_default('root_size')
         self.logger.info("Default root size is %s" % default_selection)
         selection = inquire.ask_text('Root volume size', recommendation=default_selection, default=default)
-        self.gcp_root_size = selection
+        return selection
 
-    def get_gcp_region(self, default=None):
+    def get_gcp_region(self, gcp_account_file: str, gcp_project: str, default=None) -> str:
         """Get GCP region"""
         inquire = ask()
+        tb = toolbox()
+
+        if 'GCP_DEFAULT_REGION' in os.environ:
+            return os.environ['GCP_DEFAULT_REGION']
+
         region_list = []
-        current_location = self.get_country()
-        if not self.gcp_account_file:
-            self.gcp_get_account_file()
-        if not self.gcp_project:
-            self.get_gcp_project()
-        credentials = service_account.Credentials.from_service_account_file(self.gcp_account_file)
+        current_location = tb.get_country()
+        credentials = service_account.Credentials.from_service_account_file(gcp_account_file)
         gcp_client = googleapiclient.discovery.build('compute', 'v1', credentials=credentials)
-        request = gcp_client.regions().list(project=self.gcp_project)
+        request = gcp_client.regions().list(project=gcp_project)
         while request is not None:
             response = request.execute()
             for region in response['items']:
@@ -297,6 +253,4 @@ class gcp(object):
                 region_list.append(region['name'])
             request = gcp_client.regions().list_next(previous_request=request, previous_response=response)
         selection = inquire.ask_list('GCP Region', region_list, default=default)
-        self.gcp_region = region_list[selection]
-        self.get_gcp_zones()
-
+        return region_list[selection]
