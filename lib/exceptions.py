@@ -42,3 +42,11 @@ class PackerRunError(fatalError):
 class ImageMgmtError(fatalError):
     pass
 
+
+class SSHError(fatalError):
+    pass
+
+
+class ImageNameFormatError(fatalError):
+    pass
+

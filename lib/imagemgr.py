@@ -1,6 +1,7 @@
 ##
 ##
 
+from datetime import datetime
 from lib.exceptions import *
 from lib.aws import aws
 
@@ -33,7 +34,13 @@ class image_manager(object):
         image_list = driver.aws_get_ami_id(region, select=False)
 
         for n, image in enumerate(image_list):
-            print(f" {n+1}) {image['name']}")
+            image_time = datetime.strptime(image['date'], '%Y-%m-%dT%H:%M:%S.000Z')
+            image_list[n]['datetime'] = image_time
+
+        sorted_list = sorted(image_list, key=lambda item: item['datetime'])
+
+        for n, image in enumerate(sorted_list):
+            print(f" {n+1:02d}) {image['arch'].ljust(6)} {image['name']} {image['description'].ljust(60)} {image['datetime'].strftime('%D %r')}")
 
     def gcp_list(self):
         pass

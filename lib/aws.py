@@ -207,7 +207,7 @@ class aws(object):
                     image_block['release'] = item_release_tag
                 if item_version_tag:
                     image_block['version'] = item_version_tag
-                    image_block['description'] = image_block['description'] + ' => Version: ' + item_version_tag
+                    image_block['description'] = image_block['description'] + f" ({item_version_tag})"
             image_list.append(image_block)
         if select:
             selection = inquire.ask_list('Select AMI', image_list, default=default)
