@@ -38,13 +38,14 @@ class ask(object):
         else:
             return options[index]
 
-    def ask_list(self, question, options=[], descriptions=[], default=None):
+    def ask_list(self, question, options=[], descriptions=[], list_only=False, default=None):
         """Get selection from list"""
-        list_incr = 15
+        list_incr = 20
         answer = None
         input_list = []
         option_width = 0
         description_width = 0
+        date_width = 0
         option_type, list_lenghth = self.get_option_struct_type(options)
         print("%s:" % question)
         if default:
@@ -66,7 +67,9 @@ class ask(object):
                 if 'description' in item:
                     if len(item['description']) > description_width:
                         description_width = len(item['description'])
-                input_list.append((i, item['name'], item['description'] if 'description' in item else None))
+                if 'datetime' in item:
+                    date_width = 20
+                input_list.append((i, item['name'], item['description'] if 'description' in item else None, item['datetime'] if 'datetime' in item else None))
             else:
                 if len(item) > option_width:
                     option_width = len(item)
@@ -79,22 +82,37 @@ class ask(object):
             last_group = False
             for count, sub_list in enumerate(divided_list):
                 suffix = " {:-^{n}}".format('', n=description_width) if description_width > 0 else ""
-                print("---- " + "{:-^{n}}".format('', n=option_width) + suffix)
+                date_txt = " {:-^{n}}".format('', n=date_width) if date_width > 0 else ""
+                print("---- " + "{:-^{n}}".format('', n=option_width) + suffix + date_txt)
+
                 for item_set in sub_list:
-                    suffix = " {}".format(item_set[2]) if item_set[2] else ""
-                    print("{:d}) ".format(item_set[0] + 1).rjust(5) + "{}".format(item_set[1]).ljust(option_width) + suffix)
+                    suffix = " {}".format(item_set[2]).ljust(description_width + 1) if item_set[2] else ""
+                    date_txt = f" {item_set[3].strftime('%D %r')}" if item_set[3] else ""
+                    print("{:d}) ".format(item_set[0] + 1).rjust(5) + "{}".format(item_set[1]).ljust(option_width) + suffix + date_txt)
+
                 if count == len(divided_list) - 1:
+                    if list_only:
+                        return
                     answer = input("Selection [q=quit]: ")
                     last_group = True
                 else:
                     answer = input("Selection [n=next, q=quit]: ")
+
                 answer = answer.rstrip("\n")
-                if answer == 'n' and not last_group:
+
+                if (answer == 'n' or answer == '') and not last_group:
                     continue
                 elif answer == 'q':
-                    sys.exit(0)
+                    if list_only:
+                        return
+                    else:
+                        sys.exit(0)
                 else:
                     break
+
+            if list_only:
+                return
+
             try:
                 value = int(answer)
                 if value > 0 and value <= len(options):

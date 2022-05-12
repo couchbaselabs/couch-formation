@@ -3,6 +3,7 @@
 
 from datetime import datetime
 from lib.exceptions import *
+from lib.ask import ask
 from lib.aws import aws
 from lib.gcp import gcp
 from lib.azure import azure
@@ -30,7 +31,7 @@ class image_manager(object):
     def build(self):
         pass
 
-    def aws_list(self):
+    def _aws_list(self):
         driver = aws()
 
         region = driver.aws_get_region()
@@ -42,8 +43,13 @@ class image_manager(object):
 
         sorted_list = sorted(image_list, key=lambda item: item['datetime'])
 
-        for n, image in enumerate(sorted_list):
-            print(f" {n+1:02d}) {image['arch'].ljust(6)} {image['name']} {image['description'].ljust(60)} {image['datetime'].strftime('%D %r')}")
+        return sorted_list
+
+    def aws_list(self):
+        inquire = ask()
+
+        image_list = self._aws_list()
+        inquire.ask_list('AMI List', image_list, list_only=True)
 
     def gcp_list(self):
         driver = gcp()
@@ -74,12 +80,12 @@ class image_manager(object):
             print(f" {n+1:02d}) {image['name']}")
 
     def vmware_list(self):
+        inquire = ask()
         driver = vmware()
 
         driver.vmware_init()
         image_list = driver.vmware_get_template(select=False)
 
-        sorted_list = sorted(image_list, key=lambda item: item['name'])
+        sorted_list = sorted(image_list, key=lambda item: item['datetime'])
 
-        for n, image in enumerate(sorted_list):
-            print(f" {n + 1:02d}) {image['name']}")
+        inquire.ask_list('Templates', sorted_list, list_only=True)

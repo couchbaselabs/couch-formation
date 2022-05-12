@@ -100,6 +100,7 @@ class vmware(object):
                 if managed_object_ref.config.template:
                     image_block = {}
                     image_block['name'] = managed_object_ref.name
+                    image_block['datetime'] = managed_object_ref.config.createDate
                     templates.append(image_block)
             container.Destroy()
             if select:
