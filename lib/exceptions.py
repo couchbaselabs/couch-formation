@@ -54,3 +54,15 @@ class ImageNameFormatError(fatalError):
 class GCPDriverError(fatalError):
     pass
 
+
+class AzureDriverError(fatalError):
+    pass
+
+
+class VMwareDriverError(fatalError):
+    pass
+
+
+class ToolboxError(fatalError):
+    pass
+

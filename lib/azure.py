@@ -8,8 +8,10 @@ from azure.mgmt.network import NetworkManagementClient
 from azure.mgmt.resource.resources import ResourceManagementClient
 from azure.mgmt.resource.subscriptions import SubscriptionClient
 from typing import Union
+import os
 from lib.varfile import varfile
 from lib.ask import ask
+from lib.exceptions import AzureDriverError
 
 
 class azure(object):
@@ -175,6 +177,9 @@ class azure(object):
         inquire = ask()
         group_list = []
 
+        if 'AZURE_RESOURCE_GROUP' in os.environ:
+            return os.environ['AZURE_RESOURCE_GROUP']
+
         credential = AzureCliCredential()
         resource_client = ResourceManagementClient(credential, azure_subscription_id)
         groups = resource_client.resource_groups.list()
@@ -189,9 +194,13 @@ class azure(object):
         subscription_list = []
         subscription_name = []
 
-        credential = AzureCliCredential()
-        subscription_client = SubscriptionClient(credential)
-        subscriptions = subscription_client.subscriptions.list()
+        try:
+            credential = AzureCliCredential()
+            subscription_client = SubscriptionClient(credential)
+            subscriptions = subscription_client.subscriptions.list()
+        except Exception as err:
+            raise AzureDriverError(f"Azure: unauthorized (use az login): {err}")
+
         for group in list(subscriptions):
             subscription_list.append(group.subscription_id)
             subscription_name.append(group.display_name)

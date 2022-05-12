@@ -135,3 +135,13 @@ class toolbox(object):
         server_list = dns_lookup.dns_get_servers()
         dns_server_list = ','.join(f'"{s}"' for s in server_list)
         return dns_server_list
+
+    def create_dir(self, name) -> None:
+        if not os.path.exists(name):
+            path_dir = os.path.dirname(name)
+            if not os.path.exists(path_dir):
+                self.create_dir(path_dir)
+            try:
+                os.mkdir(name)
+            except OSError as err:
+                raise ToolboxError(f"Could not create directory {name}: {err}")

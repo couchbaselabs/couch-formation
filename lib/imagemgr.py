@@ -5,6 +5,8 @@ from datetime import datetime
 from lib.exceptions import *
 from lib.aws import aws
 from lib.gcp import gcp
+from lib.azure import azure
+from lib.vmware import vmware
 
 
 class image_manager(object):
@@ -60,7 +62,24 @@ class image_manager(object):
             print(f" {n+1:02d}) {image['name'].ljust(64)} {image['datetime'].strftime('%D %r')}")
 
     def azure_list(self):
-        pass
+        driver = azure()
+
+        subscription_id = driver.azure_get_subscription_id()
+        resource_group = driver.azure_get_resource_group(subscription_id)
+        image_list = driver.azure_get_image_name(subscription_id, resource_group, select=False)
+
+        sorted_list = sorted(image_list, key=lambda item: item['name'])
+
+        for n, image in enumerate(sorted_list):
+            print(f" {n+1:02d}) {image['name']}")
 
     def vmware_list(self):
-        pass
+        driver = vmware()
+
+        driver.vmware_init()
+        image_list = driver.vmware_get_template(select=False)
+
+        sorted_list = sorted(image_list, key=lambda item: item['name'])
+
+        for n, image in enumerate(sorted_list):
+            print(f" {n + 1:02d}) {image['name']}")

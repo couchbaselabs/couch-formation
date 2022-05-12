@@ -248,19 +248,25 @@ class ask(object):
                     print("Response can not be empty.")
                     continue
 
-    def ask_pass(self, question, default=None):
+    def ask_pass(self, question, verify=True, default=None):
         if default:
             if self.ask_yn("Use previously stored password", default=True):
                 return default
+
         while True:
             passanswer = getpass.getpass(prompt=question + ': ')
             passanswer = passanswer.rstrip("\n")
-            checkanswer = getpass.getpass(prompt="Re-enter password: ")
-            checkanswer = checkanswer.rstrip("\n")
-            if passanswer == checkanswer:
-                return passanswer
+            if verify:
+                checkanswer = getpass.getpass(prompt="Re-enter password: ")
+                checkanswer = checkanswer.rstrip("\n")
+                if passanswer == checkanswer:
+                    break
+                else:
+                    print(" [!] Passwords do not match, please try again ...")
             else:
-                print(" [!] Passwords do not match, please try again ...")
+                break
+
+        return passanswer
 
     def ask_yn(self, question, default=False):
         if default:
