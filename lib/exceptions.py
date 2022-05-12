@@ -51,6 +51,10 @@ class ImageNameFormatError(fatalError):
     pass
 
 
+class AWSDriverError(fatalError):
+    pass
+
+
 class GCPDriverError(fatalError):
     pass
 

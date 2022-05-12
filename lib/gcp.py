@@ -182,6 +182,17 @@ class gcp(object):
         else:
             return image_list
 
+    def gcp_delete_cb_image(self, gcp_account_file: str, gcp_project: str, name: str):
+        inquire = ask()
+
+        if inquire.ask_yn(f"Delete image {name}", default=True):
+            credentials = service_account.Credentials.from_service_account_file(gcp_account_file)
+            gcp_client = googleapiclient.discovery.build('compute', 'v1', credentials=credentials)
+            request = gcp_client.images().delete(project=gcp_project, image=name)
+            response = request.execute()
+            if 'error' in response:
+                raise GCPDriverError(f"can not delete {name}: {response['error']['errors'][0]['message']}")
+
     def gcp_get_availability_zone_list(self, gcp_zone_list: list, gcp_subnet: str) -> list[dict]:
         """Build GCP availability zone data structure"""
         availability_zone_list = []

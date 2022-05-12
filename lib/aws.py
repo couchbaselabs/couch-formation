@@ -4,6 +4,7 @@
 import logging
 import boto3
 import os
+from lib.exceptions import AWSDriverError
 from typing import Union
 from lib.ask import ask
 from lib.varfile import varfile
@@ -214,6 +215,16 @@ class aws(object):
             return image_list[selection]
         else:
             return image_list
+
+    def aws_remove_ami(self, aws_region: str, ami: str):
+        inquire = ask()
+
+        if inquire.ask_yn(f"Delete AMI {ami}", default=True):
+            ec2_client = boto3.client('ec2', region_name=aws_region)
+            try:
+                ec2_client.deregister_image(ImageId=ami)
+            except Exception as err:
+                raise AWSDriverError(f"can not remove AMI {ami}: {err}")
 
     def aws_get_region(self, default=None) -> str:
         """Get the AWS Region"""

@@ -86,7 +86,7 @@ class ask(object):
                 print("---- " + "{:-^{n}}".format('', n=option_width) + suffix + date_txt)
 
                 for item_set in sub_list:
-                    suffix = " {}".format(item_set[2]).ljust(description_width + 1) if item_set[2] else ""
+                    suffix = " {}".format(item_set[2]).ljust(description_width + 1) if item_set[2] else "{: ^{n}}".format('', n=description_width+1)
                     date_txt = f" {item_set[3].strftime('%D %r')}" if item_set[3] else ""
                     print("{:d}) ".format(item_set[0] + 1).rjust(5) + "{}".format(item_set[1]).ljust(option_width) + suffix + date_txt)
 

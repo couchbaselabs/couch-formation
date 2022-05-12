@@ -36,7 +36,9 @@ class cloud_manager(object):
         if self.verb == 'image':
             task = image_manager(self.args)
             if self.args.list:
-                task.list()
+                task.list_images()
+            elif self.args.delete:
+                task.delete_images()
             sys.exit(0)
         elif self.verb == 'create':
             sys.exit(0)

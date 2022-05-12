@@ -111,6 +111,24 @@ class vmware(object):
         except Exception as err:
             raise VMwareDriverError(f"can not get template: {err}")
 
+    def vmware_delete_template(self, name: str):
+        inquire = ask()
+
+        if inquire.ask_yn(f"Delete template {name}", default=True):
+            try:
+                si = SmartConnectNoSSL(host=self.vmware_hostname,
+                                       user=self.vmware_username,
+                                       pwd=self.vmware_password,
+                                       port=443)
+                content = si.RetrieveContent()
+                container = content.viewManager.CreateContainerView(content.rootFolder, [vim.VirtualMachine], True)
+                for managed_object_ref in container.view:
+                    if managed_object_ref.config.template:
+                        if managed_object_ref.name == name:
+                            task = managed_object_ref.Destroy_Task()
+            except Exception as err:
+                raise VMwareDriverError(f"can not delete template: {err}")
+
     def vmware_get_build_password(self, vmware_build_user: str, default=None) -> tuple[str, str]:
         inquire = ask()
 

@@ -9,6 +9,7 @@ from azure.mgmt.resource.resources import ResourceManagementClient
 from azure.mgmt.resource.subscriptions import SubscriptionClient
 from typing import Union
 import os
+import time
 from lib.varfile import varfile
 from lib.ask import ask
 from lib.exceptions import AzureDriverError
@@ -69,6 +70,15 @@ class azure(object):
             return image_list[selection]
         else:
             return image_list
+
+    def azure_delete_image(self, azure_subscription_id: str, azure_resource_group: str, name: str):
+        inquire = ask()
+
+        if inquire.ask_yn(f"Delete image {name}", default=True):
+            credential = AzureCliCredential()
+            compute_client = ComputeManagementClient(credential, azure_subscription_id)
+            request = compute_client.images.begin_delete(azure_resource_group, name)
+            result = request.result()
 
     def azure_get_nsg(self, azure_subscription_id: str, azure_resource_group: str, default=None):
         """Get Azure Network Security Group"""
