@@ -17,14 +17,23 @@ class gcp(object):
     def __init__(self):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.vf = varfile()
+        self.gcp_account_file = None
+        self.gcp_project = None
 
-    def get_gcp_zones(self, gcp_account_file: str, gcp_region: str, gcp_project: str) -> list[str]:
+    def gcp_init(self):
+        try:
+            self.gcp_get_account_file()
+            self.gcp_get_project_id()
+        except Exception as err:
+            raise GCPDriverError(f"can not access GCP API: {err}")
+
+    def get_gcp_zones(self, gcp_region: str) -> list[str]:
         """Collect GCP availability zones"""
         gcp_zone_list = []
 
-        credentials = service_account.Credentials.from_service_account_file(gcp_account_file)
+        credentials = service_account.Credentials.from_service_account_file(self.gcp_account_file)
         gcp_client = googleapiclient.discovery.build('compute', 'v1', credentials=credentials)
-        request = gcp_client.zones().list(project=gcp_project)
+        request = gcp_client.zones().list(project=self.gcp_project)
         while request is not None:
             response = request.execute()
             for zone in response['items']:
@@ -37,13 +46,13 @@ class gcp(object):
             self.logger.info("Added GCP zone %s" % gcp_zone_name)
         return gcp_zone_list
 
-    def get_gcp_project(self, gcp_account_file: str, default=None) -> str:
+    def get_gcp_project(self, default=None) -> str:
         """Get GCP Project"""
         inquire = ask()
         project_ids = []
         project_names = []
 
-        credentials = service_account.Credentials.from_service_account_file(gcp_account_file)
+        credentials = service_account.Credentials.from_service_account_file(self.gcp_account_file)
         gcp_client = googleapiclient.discovery.build('cloudresourcemanager', 'v1', credentials=credentials)
         request = gcp_client.projects().list()
         while request is not None:
@@ -54,12 +63,13 @@ class gcp(object):
             request = gcp_client.projects().list_next(previous_request=request, previous_response=response)
         if len(project_ids) == 0:
             self.logger.info("Insufficient permissions to list projects, attempting to get project ID from auth JSON")
-            gcp_auth_json_project_id = self.gcp_get_project_id(gcp_account_file)
+            gcp_auth_json_project_id = self.gcp_get_project_id()
             self.logger.info("Setting project ID to %s" % gcp_auth_json_project_id)
-            return gcp_auth_json_project_id
+            return self.gcp_project
 
         selection = inquire.ask_list('GCP Project', project_ids, project_names, default=default)
-        return project_ids[selection]
+        self.gcp_project = project_ids[selection]
+        return self.gcp_project
 
     def gcp_get_account_file(self, default=None) -> str:
         """Get GCP auth JSON file path"""
@@ -92,34 +102,39 @@ class gcp(object):
             if candidate_file:
                 entry_file_name = os.path.basename(dir_list[i])
                 if candidate_file == entry_file_name:
-                    return dir_list[i]
+                    self.gcp_account_file = dir_list[i]
+                    return self.gcp_account_file
 
             if file_type == 'service_account':
                 auth_file_list.append(dir_list[i])
 
         selection = inquire.ask_list('Select GCP auth JSON', auth_file_list, default=default)
-        return auth_file_list[selection]
+        self.gcp_account_file = auth_file_list[selection]
+        return self.gcp_account_file
 
-    def gcp_get_project_id(self, gcp_account_file: str, default=None) -> str:
+    def gcp_get_project_id(self, default=None) -> str:
         inquire = ask()
 
         if 'GCP_PROJECT_ID' in os.environ:
-            return os.environ['GCP_PROJECT_ID']
+            self.gcp_project = os.environ['GCP_PROJECT_ID']
+            return self.gcp_project
 
-        file_handle = open(gcp_account_file, 'r')
+        file_handle = open(self.gcp_account_file, 'r')
         auth_data = json.load(file_handle)
         file_handle.close()
         if 'project_id' in auth_data:
             gcp_auth_json_project_id = auth_data['project_id']
-            return gcp_auth_json_project_id
+            self.gcp_project = gcp_auth_json_project_id
         else:
             selection = inquire.ask_text('GCP Project', default=default)
-            return selection
+            self.gcp_project = selection
 
-    def gcp_get_account_email(self, gcp_account_file: str, default=None) -> str:
+        return self.gcp_project
+
+    def gcp_get_account_email(self, default=None) -> str:
         inquire = ask()
 
-        file_handle = open(gcp_account_file, 'r')
+        file_handle = open(self.gcp_account_file, 'r')
         auth_data = json.load(file_handle)
         file_handle.close()
         if 'client_email' in auth_data:
@@ -129,14 +144,14 @@ class gcp(object):
             selection = inquire.ask_text('GCP Client Email', default=default)
             return selection
 
-    def gcp_get_machine_type(self, gcp_account_file: str, gcp_project: str, gcp_zone: str, default=None) -> str:
+    def gcp_get_machine_type(self, gcp_zone: str, default=None) -> str:
         """Get GCP machine type"""
         inquire = ask()
         machine_type_list = []
 
-        credentials = service_account.Credentials.from_service_account_file(gcp_account_file)
+        credentials = service_account.Credentials.from_service_account_file(self.gcp_account_file)
         gcp_client = googleapiclient.discovery.build('compute', 'v1', credentials=credentials)
-        request = gcp_client.machineTypes().list(project=gcp_project, zone=gcp_zone)
+        request = gcp_client.machineTypes().list(project=self.gcp_project, zone=gcp_zone)
         while request is not None:
             response = request.execute()
             for machine_type in response['items']:
@@ -150,14 +165,14 @@ class gcp(object):
         selection = inquire.ask_machine_type('GCP Machine Type', machine_type_list, default=default)
         return machine_type_list[selection]['name']
 
-    def gcp_get_cb_image_name(self, gcp_account_file: str, gcp_project: str, select=True, default=None) -> Union[dict, list[dict]]:
+    def gcp_get_cb_image_name(self, select=True, default=None) -> Union[dict, list[dict]]:
         """Select Couchbase GCP image"""
         inquire = ask()
         image_list = []
 
-        credentials = service_account.Credentials.from_service_account_file(gcp_account_file)
+        credentials = service_account.Credentials.from_service_account_file(self.gcp_account_file)
         gcp_client = googleapiclient.discovery.build('compute', 'v1', credentials=credentials)
-        request = gcp_client.images().list(project=gcp_project)
+        request = gcp_client.images().list(project=self.gcp_project)
         while request is not None:
             response = request.execute()
             if "items" in response:
@@ -182,13 +197,13 @@ class gcp(object):
         else:
             return image_list
 
-    def gcp_delete_cb_image(self, gcp_account_file: str, gcp_project: str, name: str):
+    def gcp_delete_cb_image(self, name: str):
         inquire = ask()
 
         if inquire.ask_yn(f"Delete image {name}", default=True):
-            credentials = service_account.Credentials.from_service_account_file(gcp_account_file)
+            credentials = service_account.Credentials.from_service_account_file(self.gcp_account_file)
             gcp_client = googleapiclient.discovery.build('compute', 'v1', credentials=credentials)
-            request = gcp_client.images().delete(project=gcp_project, image=name)
+            request = gcp_client.images().delete(project=self.gcp_project, image=name)
             response = request.execute()
             if 'error' in response:
                 raise GCPDriverError(f"can not delete {name}: {response['error']['errors'][0]['message']}")
@@ -204,14 +219,14 @@ class gcp(object):
             availability_zone_list.append(config_block)
         return availability_zone_list
 
-    def gcp_get_subnet(self, gcp_account_file: str, gcp_project: str, gcp_region: str, default=None) -> str:
+    def gcp_get_subnet(self, gcp_region: str, default=None) -> str:
         """Get GCP subnet"""
         inquire = ask()
         subnet_list = []
 
-        credentials = service_account.Credentials.from_service_account_file(gcp_account_file)
+        credentials = service_account.Credentials.from_service_account_file(self.gcp_account_file)
         gcp_client = googleapiclient.discovery.build('compute', 'v1', credentials=credentials)
-        request = gcp_client.subnetworks().list(project=gcp_project, region=gcp_region)
+        request = gcp_client.subnetworks().list(project=self.gcp_project, region=gcp_region)
         while request is not None:
             response = request.execute()
             for subnet in response['items']:
@@ -238,7 +253,7 @@ class gcp(object):
         selection = inquire.ask_text('Root volume size', recommendation=default_selection, default=default)
         return selection
 
-    def get_gcp_region(self, gcp_account_file: str, gcp_project: str, default=None) -> str:
+    def get_gcp_region(self, default=None) -> str:
         """Get GCP region"""
         inquire = ask()
         tb = toolbox()
@@ -248,9 +263,9 @@ class gcp(object):
 
         region_list = []
         current_location = tb.get_country()
-        credentials = service_account.Credentials.from_service_account_file(gcp_account_file)
+        credentials = service_account.Credentials.from_service_account_file(self.gcp_account_file)
         gcp_client = googleapiclient.discovery.build('compute', 'v1', credentials=credentials)
-        request = gcp_client.regions().list(project=gcp_project)
+        request = gcp_client.regions().list(project=self.gcp_project)
         while request is not None:
             response = request.execute()
             for region in response['items']:

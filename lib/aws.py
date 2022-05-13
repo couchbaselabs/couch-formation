@@ -15,6 +15,22 @@ class aws(object):
     def __init__(self):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.vf = varfile()
+        self.aws_region = None
+        self.aws_availability_zones = []
+        self.use_public_ip = True
+
+    def aws_init(self):
+        self.aws_get_region()
+        try:
+            self.aws_get_region_zones()
+        except Exception as err:
+            raise AWSDriverError(f"can not access AWS API: {err}")
+
+    def aws_use_public_ip(self, default=None):
+        """Ask if the public IP should be assigned and used for SSH"""
+        inquire = ask()
+        selection = inquire.ask_bool('Use Public IP', recommendation='false', default=default)
+        self.use_public_ip = selection
 
     def aws_get_root_type(self, default=None) -> str:
         """Get root volume type"""
@@ -43,7 +59,7 @@ class aws(object):
         selection = inquire.ask_text('Root volume IOPS', default_selection, default=default)
         return selection
 
-    def aws_get_sg_id(self, aws_region: str, aws_vpc_id: str, default=None) -> str:
+    def aws_get_sg_id(self, aws_vpc_id: str, default=None) -> str:
         """Get AWS security group ID"""
         inquire = ask()
 
@@ -51,7 +67,7 @@ class aws(object):
         sg_name_list = []
         if type(default) == list:
             default = default[0]
-        ec2_client = boto3.client('ec2', region_name=aws_region)
+        ec2_client = boto3.client('ec2', region_name=self.aws_region)
         vpc_filter = {
             'Name': 'vpc-id',
             'Values': [
@@ -66,13 +82,13 @@ class aws(object):
         selection = inquire.ask_list('Select security group', sg_list, sg_name_list, default=default)
         return sgs['SecurityGroups'][selection]['GroupId']
 
-    def aws_get_vpc_id(self, aws_region: str, default=None) -> str:
+    def aws_get_vpc_id(self, default=None) -> str:
         """Get AWS VPC ID"""
         inquire = ask()
         vpc_list = []
         vpc_name_list = []
 
-        ec2_client = boto3.client('ec2', region_name=aws_region)
+        ec2_client = boto3.client('ec2', region_name=self.aws_region)
         vpcs = ec2_client.describe_vpcs()
         for i in range(len(vpcs['Vpcs'])):
             vpc_list.append(vpcs['Vpcs'][i]['VpcId'])
@@ -86,19 +102,19 @@ class aws(object):
         selection = inquire.ask_list('Select VPC', vpc_list, vpc_name_list, default=default)
         return vpcs['Vpcs'][selection]['VpcId']
 
-    def aws_get_availability_zone_list(self, aws_region: str, aws_vpc_id: str, use_public_ip: bool, aws_availability_zones: list) -> list:
+    def aws_get_availability_zone_list(self, aws_vpc_id: str) -> list:
         """Build subnet list by availability zones"""
         availability_zone_list = []
 
-        for zone in aws_availability_zones:
+        for zone in self.aws_availability_zones:
             config_block = {}
             config_block['name'] = zone
-            aws_subnet_id = self.aws_get_subnet_id(aws_region, aws_vpc_id, use_public_ip=use_public_ip, availability_zone=zone)
+            aws_subnet_id = self.aws_get_subnet_id(aws_vpc_id, availability_zone=zone)
             config_block['subnet'] = aws_subnet_id
             availability_zone_list.append(config_block)
         return availability_zone_list
 
-    def aws_get_subnet_id(self, aws_region: str, aws_vpc_id: str, use_public_ip=True, availability_zone=None, default=None) -> str:
+    def aws_get_subnet_id(self, aws_vpc_id: str, availability_zone=None, default=None) -> str:
         """Get AWS subnet ID"""
         inquire = ask()
 
@@ -106,7 +122,7 @@ class aws(object):
         subnet_name_list = []
         filter_list = []
         question = "AWS Select Subnet"
-        ec2_client = boto3.client('ec2', region_name=aws_region)
+        ec2_client = boto3.client('ec2', region_name=self.aws_region)
         vpc_filter = {
             'Name': 'vpc-id',
             'Values': [
@@ -124,12 +140,12 @@ class aws(object):
                 ]
             }
             filter_list.append(zone_filter)
-        self.logger.info("AWS: Subnet: Use public IP is %s" % use_public_ip)
+        self.logger.info("AWS: Subnet: Use public IP is %s" % self.use_public_ip)
         subnets = ec2_client.describe_subnets(Filters=filter_list)
         for i in range(len(subnets['Subnets'])):
-            if use_public_ip and not subnets['Subnets'][i]['MapPublicIpOnLaunch']:
+            if self.use_public_ip and not subnets['Subnets'][i]['MapPublicIpOnLaunch']:
                 continue
-            elif not use_public_ip and subnets['Subnets'][i]['MapPublicIpOnLaunch']:
+            elif not self.use_public_ip and subnets['Subnets'][i]['MapPublicIpOnLaunch']:
                 continue
             self.logger.info("AWS: Subnet: Found subnet %s" % subnets['Subnets'][i]['SubnetId'])
             subnet_list.append(subnets['Subnets'][i]['SubnetId'])
@@ -143,13 +159,13 @@ class aws(object):
         selection = inquire.ask_list(question, subnet_list, subnet_name_list, default=default)
         return subnet_list[selection]
 
-    def aws_get_ssh_key(self, aws_region: str, default=None) -> tuple[str, str]:
+    def aws_get_ssh_key(self, default=None) -> tuple[str, str]:
         """Get the AWS SSH key pair to use for node access"""
         inquire = ask()
         key_list = []
         key_id_list = []
 
-        ec2_client = boto3.client('ec2', region_name=aws_region)
+        ec2_client = boto3.client('ec2', region_name=self.aws_region)
         key_pairs = ec2_client.describe_key_pairs()
         for i in range(len(key_pairs['KeyPairs'])):
             key_list.append(key_pairs['KeyPairs'][i]['KeyName'])
@@ -160,12 +176,12 @@ class aws(object):
         ssh_key_fingerprint = key_pairs['KeyPairs'][selection]['KeyFingerprint']
         return aws_ssh_key, ssh_key_fingerprint
 
-    def aws_get_instance_type(self, aws_region: str, default=None) -> str:
+    def aws_get_instance_type(self, default=None) -> str:
         """Get the AWS instance type"""
         inquire = ask()
         size_list = []
 
-        ec2_client = boto3.client('ec2', region_name=aws_region)
+        ec2_client = boto3.client('ec2', region_name=self.aws_region)
         describe_args = {}
         while True:
             instance_types = ec2_client.describe_instance_types(**describe_args)
@@ -185,12 +201,12 @@ class aws(object):
         selection = inquire.ask_machine_type('AWS Instance Type', size_list, default=default)
         return size_list[selection]['name']
 
-    def aws_get_ami_id(self, aws_region: str, select=True, default=None) -> Union[dict, list[dict]]:
+    def aws_get_ami_id(self, select=True, default=None) -> Union[dict, list[dict]]:
         """Get the Couchbase AMI to use"""
         inquire = ask()
         image_list = []
 
-        ec2_client = boto3.client('ec2', region_name=aws_region)
+        ec2_client = boto3.client('ec2', region_name=self.aws_region)
         images = ec2_client.describe_images(Owners=['self'])
         for i in range(len(images['Images'])):
             image_block = {}
@@ -216,11 +232,11 @@ class aws(object):
         else:
             return image_list
 
-    def aws_remove_ami(self, aws_region: str, ami: str):
+    def aws_remove_ami(self, ami: str):
         inquire = ask()
 
         if inquire.ask_yn(f"Delete AMI {ami}", default=True):
-            ec2_client = boto3.client('ec2', region_name=aws_region)
+            ec2_client = boto3.client('ec2', region_name=self.aws_region)
             try:
                 ec2_client.deregister_image(ImageId=ami)
             except Exception as err:
@@ -231,26 +247,25 @@ class aws(object):
         inquire = ask()
 
         if 'AWS_REGION' in os.environ:
-            return os.environ['AWS_REGION']
+            self.aws_region = os.environ['AWS_REGION']
         elif 'AWS_DEFAULT_REGION' in os.environ:
-            return os.environ['AWS_DEFAULT_REGION']
+            self.aws_region = os.environ['AWS_DEFAULT_REGION']
         elif boto3.DEFAULT_SESSION:
-            return boto3.DEFAULT_SESSION.region_name
+            self.aws_region = boto3.DEFAULT_SESSION.region_name
         elif boto3.Session().region_name:
-            return boto3.Session().region_name
+            self.aws_region = boto3.Session().region_name
+        else:
+            self.aws_region = inquire.ask_text('AWS Region', default=default)
 
-        selection = inquire.ask_text('AWS Region', default=default)
-        return selection
+        return self.aws_region
 
-    def aws_get_region_zones(self, aws_region: str) -> list:
-        aws_availability_zones = []
-
-        ec2_client = boto3.client('ec2', region_name=aws_region)
+    def aws_get_region_zones(self) -> list:
+        ec2_client = boto3.client('ec2', region_name=self.aws_region)
         zone_list = ec2_client.describe_availability_zones()
         for availability_zone in zone_list['AvailabilityZones']:
             self.logger.info("Found availability zone %s" % availability_zone['ZoneName'])
-            aws_availability_zones.append(availability_zone['ZoneName'])
-        return aws_availability_zones
+            self.aws_availability_zones.append(availability_zone['ZoneName'])
+        return self.aws_availability_zones
 
     def aws_tag_exists(self, key, tags):
         for i in range(len(tags)):

@@ -9,7 +9,6 @@ from azure.mgmt.resource.resources import ResourceManagementClient
 from azure.mgmt.resource.subscriptions import SubscriptionClient
 from typing import Union
 import os
-import time
 from lib.varfile import varfile
 from lib.ask import ask
 from lib.exceptions import AzureDriverError
@@ -20,6 +19,15 @@ class azure(object):
     def __init__(self):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.vf = varfile()
+        self.azure_subscription_id = None
+        self.azure_resource_group = None
+
+    def azure_init(self):
+        try:
+            self.azure_get_subscription_id()
+            self.azure_get_resource_group()
+        except Exception as err:
+            raise AzureDriverError(f"can not connect to Azure API: {err}")
 
     def azure_get_root_size(self, default=None) -> str:
         """Get Azure root disk size"""
@@ -30,13 +38,13 @@ class azure(object):
         selection = inquire.ask_text('Root volume size', recommendation=default_selection, default=default)
         return selection
 
-    def azure_get_machine_type(self, azure_subscription_id: str, azure_location: str, default=None) -> str:
+    def azure_get_machine_type(self, azure_location: str, default=None) -> str:
         """Get Azure Machine Type"""
         inquire = ask()
         size_list = []
 
         credential = AzureCliCredential()
-        compute_client = ComputeManagementClient(credential, azure_subscription_id)
+        compute_client = ComputeManagementClient(credential, self.azure_subscription_id)
         sizes = compute_client.virtual_machine_sizes.list(azure_location)
         for group in list(sizes):
             config_block = {}
@@ -47,14 +55,14 @@ class azure(object):
         selection = inquire.ask_machine_type('Azure Machine Type', size_list, default=default)
         return size_list[selection]['name']
 
-    def azure_get_image_name(self, azure_subscription_id: str, azure_resource_group: str, select=True, default=None) -> Union[dict, list[dict]]:
+    def azure_get_image_name(self, select=True, default=None) -> Union[dict, list[dict]]:
         """Get Azure Couchbase Image Name"""
         inquire = ask()
         image_list = []
 
         credential = AzureCliCredential()
-        compute_client = ComputeManagementClient(credential, azure_subscription_id)
-        images = compute_client.images.list_by_resource_group(azure_resource_group)
+        compute_client = ComputeManagementClient(credential, self.azure_subscription_id)
+        images = compute_client.images.list_by_resource_group(self.azure_resource_group)
         for group in list(images):
             image_block = {}
             image_block['name'] = group.name
@@ -71,23 +79,23 @@ class azure(object):
         else:
             return image_list
 
-    def azure_delete_image(self, azure_subscription_id: str, azure_resource_group: str, name: str):
+    def azure_delete_image(self, name: str):
         inquire = ask()
 
         if inquire.ask_yn(f"Delete image {name}", default=True):
             credential = AzureCliCredential()
-            compute_client = ComputeManagementClient(credential, azure_subscription_id)
-            request = compute_client.images.begin_delete(azure_resource_group, name)
+            compute_client = ComputeManagementClient(credential, self.azure_subscription_id)
+            request = compute_client.images.begin_delete(self.azure_resource_group, name)
             result = request.result()
 
-    def azure_get_nsg(self, azure_subscription_id: str, azure_resource_group: str, default=None):
+    def azure_get_nsg(self, default=None):
         """Get Azure Network Security Group"""
         inquire = ask()
         nsg_list = []
 
         credential = AzureCliCredential()
-        network_client = NetworkManagementClient(credential, azure_subscription_id)
-        nsgs = network_client.network_security_groups.list(azure_resource_group)
+        network_client = NetworkManagementClient(credential, self.azure_subscription_id)
+        nsgs = network_client.network_security_groups.list(self.azure_resource_group)
         for group in list(nsgs):
             nsg_list.append(group.name)
         selection = inquire.ask_list('Azure Network Security Group', nsg_list, default=default)
@@ -104,14 +112,14 @@ class azure(object):
             availability_zone_list.append(config_block)
         return availability_zone_list
 
-    def azure_get_subnet(self, azure_subscription_id: str, azure_resource_group: str, azure_vnet: str, default=None) -> str:
+    def azure_get_subnet(self, azure_vnet: str, default=None) -> str:
         """Get Azure Subnet"""
         inquire = ask()
         subnet_list = []
 
         credential = AzureCliCredential()
-        network_client = NetworkManagementClient(credential, azure_subscription_id)
-        subnets = network_client.subnets.list(azure_resource_group, azure_vnet)
+        network_client = NetworkManagementClient(credential, self.azure_subscription_id)
+        subnets = network_client.subnets.list(self.azure_resource_group, azure_vnet)
         for group in list(subnets):
             subnet_block = {}
             subnet_block['name'] = group.name
@@ -119,20 +127,20 @@ class azure(object):
         selection = inquire.ask_list('Azure Subnet', subnet_list, default=default)
         return subnet_list[selection]['name']
 
-    def azure_get_vnet(self, azure_subscription_id: str, azure_resource_group: str, default=None) -> str:
+    def azure_get_vnet(self, default=None) -> str:
         """Get Azure Virtual Network"""
         inquire = ask()
         vnet_list = []
 
         credential = AzureCliCredential()
-        network_client = NetworkManagementClient(credential, azure_subscription_id)
-        vnetworks = network_client.virtual_networks.list(azure_resource_group)
+        network_client = NetworkManagementClient(credential, self.azure_subscription_id)
+        vnetworks = network_client.virtual_networks.list(self.azure_resource_group)
         for group in list(vnetworks):
             vnet_list.append(group.name)
         selection = inquire.ask_list('Azure Virtual Network', vnet_list, default=default)
         return vnet_list[selection]
 
-    def azure_get_all_locations(self, azure_subscription_id: str, default=None) -> str:
+    def azure_get_all_locations(self, default=None) -> str:
         """Get Azure Location from all Locations"""
         inquire = ask()
         location_list = []
@@ -140,35 +148,35 @@ class azure(object):
 
         credential = AzureCliCredential()
         subscription_client = SubscriptionClient(credential)
-        locations = subscription_client.subscriptions.list_locations(azure_subscription_id)
+        locations = subscription_client.subscriptions.list_locations(self.azure_subscription_id)
         for group in list(locations):
             location_list.append(group.name)
             location_name.append(group.display_name)
         selection = inquire.ask_list('Azure Location', location_list, location_name, default=default)
         return location_list[selection]
 
-    def azure_get_location(self, azure_subscription_id: str, azure_resource_group: str, default=None) -> str:
+    def azure_get_location(self, default=None) -> str:
         """Get Azure Locations by Subscription ID"""
         inquire = ask()
         location_list = []
         location_name = []
 
         credential = AzureCliCredential()
-        resource_client = ResourceManagementClient(credential, azure_subscription_id)
+        resource_client = ResourceManagementClient(credential, self.azure_subscription_id)
         resource_group = resource_client.resource_groups.list()
         for group in list(resource_group):
-            if group.name == azure_resource_group:
+            if group.name == self.azure_resource_group:
                 location_list.append(group.location)
         selection = inquire.ask_list('Azure Location', location_list, location_name, default=default)
         return location_list[selection]
 
-    def azure_get_zones(self, azure_subscription_id: str, azure_machine_type: str, azure_location: str) -> list[str]:
+    def azure_get_zones(self, azure_machine_type: str, azure_location: str) -> list[str]:
         """Get Azure Availability Zone List"""
         azure_availability_zones = []
 
         print("Fetching Azure zone information, this may take a few minutes...")
         credential = AzureCliCredential()
-        compute_client = ComputeManagementClient(credential, azure_subscription_id)
+        compute_client = ComputeManagementClient(credential, self.azure_subscription_id)
         zone_list = compute_client.resource_skus.list()
         for group in list(zone_list):
             if group.resource_type == 'virtualMachines' \
@@ -182,21 +190,23 @@ class azure(object):
                     self.logger.info("Added Azure availability zone %s" % zone_number)
         return azure_availability_zones
 
-    def azure_get_resource_group(self, azure_subscription_id: str, default=None) -> str:
+    def azure_get_resource_group(self, default=None) -> str:
         """Get Azure Resource Group"""
         inquire = ask()
         group_list = []
 
         if 'AZURE_RESOURCE_GROUP' in os.environ:
-            return os.environ['AZURE_RESOURCE_GROUP']
+            self.azure_resource_group = os.environ['AZURE_RESOURCE_GROUP']
+            return self.azure_resource_group
 
         credential = AzureCliCredential()
-        resource_client = ResourceManagementClient(credential, azure_subscription_id)
+        resource_client = ResourceManagementClient(credential, self.azure_subscription_id)
         groups = resource_client.resource_groups.list()
         for group in list(groups):
             group_list.append(group.name)
         selection = inquire.ask_list('Azure Resource Group', group_list, default=default)
-        return group_list[selection]
+        self.azure_resource_group = group_list[selection]
+        return self.azure_resource_group
 
     def azure_get_subscription_id(self, default=None):
         """Get Azure subscription ID"""
@@ -215,6 +225,6 @@ class azure(object):
             subscription_list.append(group.subscription_id)
             subscription_name.append(group.display_name)
         selection = inquire.ask_list('Azure Subscription ID', subscription_list, subscription_name, default=default)
-        azure_subscription_id = subscription_list[selection]
-        self.logger.info("Azure Subscription ID = %s" % azure_subscription_id)
-        return azure_subscription_id
+        self.azure_subscription_id = subscription_list[selection]
+        self.logger.info("Azure Subscription ID = %s" % self.azure_subscription_id)
+        return self.azure_subscription_id

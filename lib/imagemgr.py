@@ -44,11 +44,14 @@ class image_manager(object):
     def build(self):
         pass
 
-    def _aws_list(self, _region=None) -> list[dict]:
-        driver = aws()
+    def _aws_list(self, _driver=None) -> list[dict]:
+        if not _driver:
+            driver = aws()
+            driver.aws_init()
+        else:
+            driver = _driver
 
-        region = driver.aws_get_region() if not _region else _region
-        image_list = driver.aws_get_ami_id(region, select=False)
+        image_list = driver.aws_get_ami_id(select=False)
 
         for n, image in enumerate(image_list):
             image_time = datetime.strptime(image['date'], '%Y-%m-%dT%H:%M:%S.000Z')
@@ -67,22 +70,23 @@ class image_manager(object):
     def aws_delete(self, image=None):
         inquire = ask()
         driver = aws()
-
-        region = driver.aws_get_region()
+        driver.aws_init()
 
         if not image:
-            image_list = self._aws_list(_region=region)
+            image_list = self._aws_list(_driver=driver)
             selection = inquire.ask_list('AMI', image_list)
-            driver.aws_remove_ami(region, image_list[selection]['name'])
+            driver.aws_remove_ami(image_list[selection]['name'])
         else:
-            driver.aws_remove_ami(region, image)
+            driver.aws_remove_ami(image)
 
-    def _gcp_list(self, _account_file=None, _gcp_project=None) -> list[dict]:
-        driver = gcp()
+    def _gcp_list(self, _driver=None) -> list[dict]:
+        if not _driver:
+            driver = gcp()
+            driver.gcp_init()
+        else:
+            driver = _driver
 
-        account_file = driver.gcp_get_account_file() if not _account_file else _account_file
-        gcp_project = driver.gcp_get_project_id(account_file) if not _gcp_project else _gcp_project
-        image_list = driver.gcp_get_cb_image_name(account_file, gcp_project, select=False)
+        image_list = driver.gcp_get_cb_image_name(select=False)
 
         for n, image in enumerate(image_list):
             image_time = datetime.strptime(image['date'], '%Y-%m-%dT%H:%M:%S.%f%z')
@@ -101,23 +105,23 @@ class image_manager(object):
     def gcp_delete(self, image=None):
         inquire = ask()
         driver = gcp()
-
-        account_file = driver.gcp_get_account_file()
-        gcp_project = driver.gcp_get_project_id(account_file)
+        driver.gcp_init()
 
         if not image:
-            image_list = self._gcp_list(_account_file=account_file, _gcp_project=gcp_project)
+            image_list = self._gcp_list(_driver=driver)
             selection = inquire.ask_list('GCP Image', image_list)
-            driver.gcp_delete_cb_image(account_file, gcp_project, image_list[selection]['name'])
+            driver.gcp_delete_cb_image(image_list[selection]['name'])
         else:
-            driver.gcp_delete_cb_image(account_file, gcp_project, image)
+            driver.gcp_delete_cb_image(image)
 
-    def _azure_list(self, _subscription_id=None, _resource_group=None) -> list[dict]:
-        driver = azure()
+    def _azure_list(self, _driver=None) -> list[dict]:
+        if not _driver:
+            driver = azure()
+            driver.azure_init()
+        else:
+            driver = _driver
 
-        subscription_id = driver.azure_get_subscription_id() if not _subscription_id else _subscription_id
-        resource_group = driver.azure_get_resource_group(subscription_id) if not _resource_group else _resource_group
-        image_list = driver.azure_get_image_name(subscription_id, resource_group, select=False)
+        image_list = driver.azure_get_image_name(select=False)
 
         sorted_list = sorted(image_list, key=lambda item: item['name'])
 
@@ -132,16 +136,14 @@ class image_manager(object):
     def azure_delete(self, image=None):
         inquire = ask()
         driver = azure()
-
-        subscription_id = driver.azure_get_subscription_id()
-        resource_group = driver.azure_get_resource_group(subscription_id)
+        driver.azure_init()
 
         if not image:
-            image_list = self._azure_list(_subscription_id=subscription_id, _resource_group=resource_group)
+            image_list = self._azure_list(_driver=driver)
             selection = inquire.ask_list('Azure Image', image_list)
-            driver.azure_delete_image(subscription_id, resource_group, image_list[selection]['name'])
+            driver.azure_delete_image(image_list[selection]['name'])
         else:
-            driver.azure_delete_image(subscription_id, resource_group, image)
+            driver.azure_delete_image(image)
 
     def _vmware_list(self, _driver=None) -> list[dict]:
         if not _driver:
@@ -149,6 +151,7 @@ class image_manager(object):
             driver.vmware_init()
         else:
             driver = _driver
+
         image_list = driver.vmware_get_template(select=False)
 
         sorted_list = sorted(image_list, key=lambda item: item['datetime'])
@@ -164,7 +167,6 @@ class image_manager(object):
     def vmware_delete(self, image=None):
         inquire = ask()
         driver = vmware()
-
         driver.vmware_init()
 
         if not image:
