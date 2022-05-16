@@ -70,3 +70,7 @@ class VMwareDriverError(fatalError):
 class ToolboxError(fatalError):
     pass
 
+
+class TemplateError(fatalError):
+    pass
+

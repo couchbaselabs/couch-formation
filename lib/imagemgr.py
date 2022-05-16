@@ -8,14 +8,17 @@ from lib.aws import aws
 from lib.gcp import gcp
 from lib.azure import azure
 from lib.vmware import vmware
+from lib.location import location
+from lib.template import template
 
 
 class image_manager(object):
 
     def __init__(self, parameters):
-        self.template_file = 'linux.pkrvars.template'
         self.cloud = parameters.cloud
         self.args = parameters
+        self.lc = location()
+        self.packer_template_file = 'linux.pkrvars.template'
 
     def list_images(self):
         if self.cloud == 'aws':
@@ -41,8 +44,17 @@ class image_manager(object):
         else:
             raise ImageMgmtError(f"unknown cloud {self.cloud}")
 
-    def build(self):
-        pass
+    def build_images(self):
+        if self.cloud == 'aws':
+            self.aws_build(self.args)
+        elif self.cloud == 'gcp':
+            self.gcp_build(self.args)
+        elif self.cloud == 'azure':
+            self.azure_build(self.args)
+        elif self.cloud == 'vmware':
+            self.vmware_build(self.args)
+        else:
+            raise ImageMgmtError(f"unknown cloud {self.cloud}")
 
     def _aws_list(self, _driver=None) -> list[dict]:
         if not _driver:
@@ -79,6 +91,25 @@ class image_manager(object):
         else:
             driver.aws_remove_ami(image)
 
+    def aws_build(self, args):
+        driver = aws()
+        t = template()
+        requested_vars = set()
+
+        driver.aws_init()
+        driver.aws_set_os()
+        driver.aws_set_os_version()
+
+        var_file = self.lc.aws_packer + '/' + driver.get_aws_packer_var_file()
+        hcl_file = self.lc.aws_packer + '/' + driver.get_aws_packer_hcl_file()
+        template_file = self.lc.aws_packer + '/' + self.packer_template_file
+
+        try:
+            t.read_file(template_file)
+            requested_vars = t.get_file_parameters()
+        except Exception as err:
+            ImageMgmtError(f"can not read packer template {template_file}: {err}")
+
     def _gcp_list(self, _driver=None) -> list[dict]:
         if not _driver:
             driver = gcp()
@@ -114,6 +145,9 @@ class image_manager(object):
         else:
             driver.gcp_delete_cb_image(image)
 
+    def gcp_build(self, args):
+        pass
+
     def _azure_list(self, _driver=None) -> list[dict]:
         if not _driver:
             driver = azure()
@@ -145,6 +179,9 @@ class image_manager(object):
         else:
             driver.azure_delete_image(image)
 
+    def azure_build(self, args):
+        pass
+
     def _vmware_list(self, _driver=None) -> list[dict]:
         if not _driver:
             driver = vmware()
@@ -175,3 +212,6 @@ class image_manager(object):
             driver.vmware_delete_template(image_list[selection]['name'])
         else:
             driver.vmware_delete_template(image)
+
+    def vmware_build(self, args):
+        pass

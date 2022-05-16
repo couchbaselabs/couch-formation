@@ -76,7 +76,7 @@ class ask(object):
                 if i < len(descriptions):
                     if len(descriptions[i]) > description_width:
                         description_width = len(descriptions[i])
-                input_list.append((i, item, descriptions[i] if i < len(descriptions) else None))
+                input_list.append((i, item, descriptions[i] if i < len(descriptions) else None, None))
         divided_list = list(self.divide_list(input_list, list_incr))
         while True:
             last_group = False

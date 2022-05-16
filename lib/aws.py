@@ -11,6 +11,21 @@ from lib.varfile import varfile
 
 
 class aws(object):
+    VARIABLES = [
+        ('AWS_AMI_ID', 'ami_id', 'aws_get_ami_id'),
+        ('AWS_AMI_OWNER', 'aws_image_owner', 'get_aws_image_owner'),
+        ('AWS_AMI_USER', 'aws_image_user', 'get_aws_image_user'),
+        ('AWS_IMAGE', 'aws_image_name', 'get_aws_image_name'),
+        ('AWS_INSTANCE_TYPE', 'instance_type', 'aws_get_instance_type'),
+        ('AWS_REGION', 'region_name', 'aws_get_region'),
+        ('AWS_ROOT_IOPS', 'root_volume_iops', 'aws_get_root_iops'),
+        ('AWS_ROOT_SIZE', 'root_volume_size', 'aws_get_root_size'),
+        ('AWS_ROOT_TYPE', 'root_volume_type', 'aws_get_root_type'),
+        ('AWS_SECURITY_GROUP', 'security_group_ids', 'aws_get_sg_id'),
+        ('AWS_SSH_KEY', 'ssh_key', 'aws_get_ssh_key'),
+        ('AWS_SUBNET_ID', 'subnet_id', 'aws_get_subnet_id'),
+        ('AWS_VPC_ID', 'vpc_id', 'aws_get_vpc_id'),
+    ]
 
     def __init__(self):
         self.logger = logging.getLogger(self.__class__.__name__)
@@ -18,6 +33,9 @@ class aws(object):
         self.aws_region = None
         self.aws_availability_zones = []
         self.use_public_ip = True
+        self.aws_vpc_id = None
+        self.os_name = None
+        self.os_ver = None
 
     def aws_init(self):
         self.aws_get_region()
@@ -25,6 +43,37 @@ class aws(object):
             self.aws_get_region_zones()
         except Exception as err:
             raise AWSDriverError(f"can not access AWS API: {err}")
+
+    def aws_set_os(self, default=None):
+        inquire = ask()
+
+        distro_list = self.vf.aws_get_all_os()
+        selection = inquire.ask_list('Select Linux Distribution', distro_list, default=default)
+        self.os_name = distro_list[selection]
+        self.vf.set_os_name(self.os_name)
+
+    def aws_set_os_version(self, default=None):
+        inquire = ask()
+
+        version_list = self.vf.aws_get_os_releases()
+        selection = inquire.ask_list('Select Version', version_list, default=default)
+        self.os_ver = version_list[selection]
+        self.vf.set_os_ver(self.os_ver)
+
+    def get_aws_image_owner(self):
+        return self.vf.aws_get_os_var('owner')
+
+    def get_aws_image_user(self):
+        return self.vf.aws_get_os_var('user')
+
+    def get_aws_image_name(self):
+        return self.vf.aws_get_os_var('image')
+
+    def get_aws_packer_var_file(self):
+        return self.vf.aws_get_os_var('vars')
+
+    def get_aws_packer_hcl_file(self):
+        return self.vf.aws_get_os_var('hcl')
 
     def aws_use_public_ip(self, default=None):
         """Ask if the public IP should be assigned and used for SSH"""
@@ -59,7 +108,7 @@ class aws(object):
         selection = inquire.ask_text('Root volume IOPS', default_selection, default=default)
         return selection
 
-    def aws_get_sg_id(self, aws_vpc_id: str, default=None) -> str:
+    def aws_get_sg_id(self, default=None) -> str:
         """Get AWS security group ID"""
         inquire = ask()
 
@@ -71,7 +120,7 @@ class aws(object):
         vpc_filter = {
             'Name': 'vpc-id',
             'Values': [
-                aws_vpc_id,
+                self.aws_vpc_id,
             ]
         }
         sgs = ec2_client.describe_security_groups(Filters=[vpc_filter, ])
@@ -100,21 +149,22 @@ class aws(object):
             vpc_name_list.append(item_name)
 
         selection = inquire.ask_list('Select VPC', vpc_list, vpc_name_list, default=default)
-        return vpcs['Vpcs'][selection]['VpcId']
+        self.aws_vpc_id = vpcs['Vpcs'][selection]['VpcId']
+        return self.aws_vpc_id
 
-    def aws_get_availability_zone_list(self, aws_vpc_id: str) -> list:
+    def aws_get_availability_zone_list(self) -> list:
         """Build subnet list by availability zones"""
         availability_zone_list = []
 
         for zone in self.aws_availability_zones:
             config_block = {}
             config_block['name'] = zone
-            aws_subnet_id = self.aws_get_subnet_id(aws_vpc_id, availability_zone=zone)
+            aws_subnet_id = self.aws_get_subnet_id(self.aws_vpc_id, availability_zone=zone)
             config_block['subnet'] = aws_subnet_id
             availability_zone_list.append(config_block)
         return availability_zone_list
 
-    def aws_get_subnet_id(self, aws_vpc_id: str, availability_zone=None, default=None) -> str:
+    def aws_get_subnet_id(self, availability_zone=None, default=None) -> str:
         """Get AWS subnet ID"""
         inquire = ask()
 
@@ -126,7 +176,7 @@ class aws(object):
         vpc_filter = {
             'Name': 'vpc-id',
             'Values': [
-                aws_vpc_id,
+                self.aws_vpc_id,
             ]
         }
         filter_list.append(vpc_filter)
