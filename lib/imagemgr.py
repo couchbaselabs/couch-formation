@@ -59,6 +59,7 @@ class image_manager(object):
         elif self.cloud == 'azure':
             driver = azure()
             driver.azure_init()
+            driver.azure_prep()
         elif self.cloud == 'vmware':
             driver = vmware()
             driver.vmware_init()

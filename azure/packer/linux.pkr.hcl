@@ -31,17 +31,17 @@ variable "azure_resource_group" {
   type        = string
 }
 
-variable "azure_image_publisher" {
+variable "os_image_publisher" {
   description = "Azure image publisher"
   type        = string
 }
 
-variable "azure_image_offer" {
+variable "os_image_offer" {
   description = "Azure image offer"
   type        = string
 }
 
-variable "azure_image_sku" {
+variable "os_image_sku" {
   description = "Azure image SKU"
   type        = string
 }
@@ -58,9 +58,9 @@ source "azure-arm" "cb-node" {
   managed_image_name = "${var.os_linux_type}-${var.os_linux_release}-couchbase-${local.timestamp}"
 
   os_type = "Linux"
-  image_publisher = var.azure_image_publisher
-  image_offer = var.azure_image_offer
-  image_sku = var.azure_image_sku
+  image_publisher = var.os_image_publisher
+  image_offer = var.os_image_offer
+  image_sku = var.os_image_sku
 
   location = var.azure_location
   vm_size = "Standard_DS2_v2"

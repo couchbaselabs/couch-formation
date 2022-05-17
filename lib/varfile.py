@@ -15,6 +15,9 @@ class varfile(object):
         ('OS_IMAGE_USER', 'os_image_user', 'get_image_user', None),
         ('OS_IMAGE_NAME', 'os_image_name', 'get_image_name', None),
         ('OS_IMAGE_FAMILY', 'os_image_family', 'get_image_family', None),
+        ('OS_IMAGE_PUBLISHER', 'os_image_publisher', 'get_image_publisher', None),
+        ('OS_IMAGE_SKU', 'os_image_sku', 'get_image_sku', None),
+        ('OS_IMAGE_OFFER', 'os_image_offer', 'get_image_offer', None),
     ]
 
     def __init__(self):
@@ -163,6 +166,15 @@ class varfile(object):
 
     def get_image_family(self):
         return self.get_os_var('family')
+
+    def get_image_publisher(self):
+        return self.get_os_var('publisher')
+
+    def get_image_offer(self):
+        return self.get_os_var('offer')
+
+    def get_image_sku(self):
+        return self.get_os_var('sku')
 
     def get_var_file(self):
         return self.get_os_var('vars')

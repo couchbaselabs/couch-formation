@@ -7,6 +7,7 @@
         "publisher": "OpenLogic",
         "offer": "CentOS",
         "sku": "7_9",
+        "user": "centos",
         "vars": "centos-7.pkrvars.hcl",
         "hcl": "linux.pkr.hcl"
       },
@@ -16,6 +17,7 @@
         "publisher": "OpenLogic",
         "offer": "CentOS",
         "sku": "8_4",
+        "user": "centos",
         "vars": "centos-8.pkrvars.hcl",
         "hcl": "linux.pkr.hcl"
       }
@@ -27,6 +29,7 @@
         "publisher": "Canonical",
         "offer": "UbuntuServer",
         "sku": "18.04-LTS",
+        "user": "ubuntu",
         "vars": "ubuntu-bionic.pkrvars.hcl",
         "hcl": "linux.pkr.hcl"
       },
@@ -36,6 +39,7 @@
         "publisher": "Canonical",
         "offer": "0001-com-ubuntu-server-focal",
         "sku": "20_04-lts",
+        "user": "ubuntu",
         "vars": "ubuntu-focal.pkrvars.hcl",
         "hcl": "linux.pkr.hcl"
       }

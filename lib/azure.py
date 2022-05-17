@@ -15,12 +15,27 @@ from lib.exceptions import AzureDriverError
 
 
 class azure(object):
+    VARIABLES = [
+        ('AZURE_DISK_SIZE', 'azure_disk_size', 'azure_get_root_size', None),
+        ('AZURE_DISK_TYPE', 'azure_disk_type', 'azure_get_root_type', None),
+        ('AZURE_IMAGE_NAME', 'azure_image_name', 'azure_get_image_name', None),
+        ('AZURE_LOCATION', 'azure_location', 'azure_get_location', None),
+        ('AZURE_MACHINE_TYPE', 'azure_machine_type', 'azure_get_machine_type', None),
+        ('AZURE_NSG', 'azure_nsg', 'azure_get_nsg', None),
+        ('AZURE_RG', 'azure_resource_group', 'azure_get_resource_group', None),
+        ('AZURE_SUBNET', 'azure_subnet', 'azure_get_subnet', None),
+        ('AZURE_SUBSCRIPTION_ID', 'azure_subscription_id', 'azure_get_subscription_id', None),
+        ('AZURE_VNET', 'azure_vnet', 'azure_get_vnet', None),
+    ]
 
     def __init__(self):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.vf = varfile()
         self.azure_subscription_id = None
         self.azure_resource_group = None
+        self.azure_location = None
+        self.azure_subnet = None
+        self.azure_vnet = None
 
     def azure_init(self):
         try:
@@ -28,6 +43,12 @@ class azure(object):
             self.azure_get_resource_group()
         except Exception as err:
             raise AzureDriverError(f"can not connect to Azure API: {err}")
+
+    def azure_prep(self):
+        try:
+            self.azure_get_location()
+        except Exception as err:
+            raise AzureDriverError(f"Azure prep error: {err}")
 
     def azure_get_root_size(self, default=None) -> str:
         """Get Azure root disk size"""
@@ -38,14 +59,23 @@ class azure(object):
         selection = inquire.ask_text('Root volume size', recommendation=default_selection, default=default)
         return selection
 
-    def azure_get_machine_type(self, azure_location: str, default=None) -> str:
+    def azure_get_root_type(self, default=None) -> str:
+        """Get Azure root disk size"""
+        inquire = ask()
+
+        default_selection = self.vf.azure_get_default('root_type')
+        self.logger.info("Default root size is %s" % default_selection)
+        selection = inquire.ask_text('Root volume type', recommendation=default_selection, default=default)
+        return selection
+
+    def azure_get_machine_type(self, default=None) -> str:
         """Get Azure Machine Type"""
         inquire = ask()
         size_list = []
 
         credential = AzureCliCredential()
         compute_client = ComputeManagementClient(credential, self.azure_subscription_id)
-        sizes = compute_client.virtual_machine_sizes.list(azure_location)
+        sizes = compute_client.virtual_machine_sizes.list(self.azure_location)
         for group in list(sizes):
             config_block = {}
             config_block['name'] = group.name
@@ -125,7 +155,8 @@ class azure(object):
             subnet_block['name'] = group.name
             subnet_list.append(subnet_block)
         selection = inquire.ask_list('Azure Subnet', subnet_list, default=default)
-        return subnet_list[selection]['name']
+        self.azure_subnet = subnet_list[selection]['name']
+        return self.azure_subnet
 
     def azure_get_vnet(self, default=None) -> str:
         """Get Azure Virtual Network"""
@@ -138,7 +169,8 @@ class azure(object):
         for group in list(vnetworks):
             vnet_list.append(group.name)
         selection = inquire.ask_list('Azure Virtual Network', vnet_list, default=default)
-        return vnet_list[selection]
+        self.azure_vnet = vnet_list[selection]
+        return self.azure_vnet
 
     def azure_get_all_locations(self, default=None) -> str:
         """Get Azure Location from all Locations"""
@@ -153,13 +185,21 @@ class azure(object):
             location_list.append(group.name)
             location_name.append(group.display_name)
         selection = inquire.ask_list('Azure Location', location_list, location_name, default=default)
-        return location_list[selection]
+        self.azure_location = location_list[selection]
+        return self.azure_location
 
     def azure_get_location(self, default=None) -> str:
         """Get Azure Locations by Subscription ID"""
         inquire = ask()
         location_list = []
         location_name = []
+
+        if self.azure_location:
+            return self.azure_location
+
+        if 'AZURE_DEFAULT_REGION' in os.environ:
+            self.azure_location = os.environ['AZURE_DEFAULT_REGION']
+            return os.environ['AZURE_DEFAULT_REGION']
 
         credential = AzureCliCredential()
         resource_client = ResourceManagementClient(credential, self.azure_subscription_id)
@@ -168,9 +208,10 @@ class azure(object):
             if group.name == self.azure_resource_group:
                 location_list.append(group.location)
         selection = inquire.ask_list('Azure Location', location_list, location_name, default=default)
-        return location_list[selection]
+        self.azure_location = location_list[selection]
+        return self.azure_location
 
-    def azure_get_zones(self, azure_machine_type: str, azure_location: str) -> list[str]:
+    def azure_get_zones(self, azure_machine_type: str) -> list[str]:
         """Get Azure Availability Zone List"""
         azure_availability_zones = []
 
@@ -181,7 +222,7 @@ class azure(object):
         for group in list(zone_list):
             if group.resource_type == 'virtualMachines' \
                     and group.name == azure_machine_type \
-                    and group.locations[0].lower() == azure_location.lower():
+                    and group.locations[0].lower() == self.azure_location.lower():
                 for resource_location in group.location_info:
                     for zone_number in resource_location.zones:
                         azure_availability_zones.append(zone_number)
@@ -194,6 +235,9 @@ class azure(object):
         """Get Azure Resource Group"""
         inquire = ask()
         group_list = []
+
+        if self.azure_resource_group:
+            return self.azure_resource_group
 
         if 'AZURE_RESOURCE_GROUP' in os.environ:
             self.azure_resource_group = os.environ['AZURE_RESOURCE_GROUP']
@@ -213,6 +257,9 @@ class azure(object):
         inquire = ask()
         subscription_list = []
         subscription_name = []
+
+        if self.azure_subscription_id:
+            return self.azure_subscription_id
 
         try:
             credential = AzureCliCredential()
