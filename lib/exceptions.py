@@ -74,3 +74,7 @@ class ToolboxError(fatalError):
 class TemplateError(fatalError):
     pass
 
+
+class EnvMgrError(fatalError):
+    pass
+

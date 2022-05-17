@@ -11,6 +11,7 @@ from lib.vmware import vmware
 from lib.location import location
 from lib.template import template
 from lib.varfile import varfile
+from lib.cbrelmgr import cbrelease
 
 
 class image_manager(object):
@@ -96,12 +97,15 @@ class image_manager(object):
         driver = aws()
         t = template()
         v = varfile()
+        c = cbrelease()
         build_variables = []
 
         driver.aws_init()
         v.set_cloud(self.cloud)
-        v.get_linux_type()
-        v.get_linux_release()
+        linux_type = v.get_linux_type()
+        linux_release = v.get_linux_release()
+        c.set_os_name(linux_type)
+        c.set_os_ver(linux_release)
 
         var_file = self.lc.aws_packer + '/' + v.get_var_file()
         hcl_file = self.lc.aws_packer + '/' + v.get_hcl_file()
@@ -110,9 +114,12 @@ class image_manager(object):
         try:
             t.read_file(template_file)
             requested_vars = t.get_file_parameters()
-            base_variables = t.process_vars(v, requested_vars, v.VARIABLES)
-            driver_variables = t.process_vars(driver, requested_vars, driver.VARIABLES)
-            build_variables = base_variables + driver_variables
+            pass_variables = t.process_vars(v, requested_vars, v.VARIABLES)
+            build_variables = build_variables + pass_variables
+            pass_variables = t.process_vars(c, requested_vars, c.VARIABLES)
+            build_variables = build_variables + pass_variables
+            pass_variables = t.process_vars(driver, requested_vars, driver.VARIABLES)
+            build_variables = build_variables + pass_variables
         except Exception as err:
             ImageMgmtError(f"can not read packer template {template_file}: {err}")
 
