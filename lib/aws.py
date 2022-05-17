@@ -12,19 +12,16 @@ from lib.varfile import varfile
 
 class aws(object):
     VARIABLES = [
-        ('AWS_AMI_ID', 'ami_id', 'aws_get_ami_id'),
-        ('AWS_AMI_OWNER', 'aws_image_owner', 'get_aws_image_owner'),
-        ('AWS_AMI_USER', 'aws_image_user', 'get_aws_image_user'),
-        ('AWS_IMAGE', 'aws_image_name', 'get_aws_image_name'),
-        ('AWS_INSTANCE_TYPE', 'instance_type', 'aws_get_instance_type'),
-        ('AWS_REGION', 'region_name', 'aws_get_region'),
-        ('AWS_ROOT_IOPS', 'root_volume_iops', 'aws_get_root_iops'),
-        ('AWS_ROOT_SIZE', 'root_volume_size', 'aws_get_root_size'),
-        ('AWS_ROOT_TYPE', 'root_volume_type', 'aws_get_root_type'),
-        ('AWS_SECURITY_GROUP', 'security_group_ids', 'aws_get_sg_id'),
-        ('AWS_SSH_KEY', 'ssh_key', 'aws_get_ssh_key'),
-        ('AWS_SUBNET_ID', 'subnet_id', 'aws_get_subnet_id'),
-        ('AWS_VPC_ID', 'vpc_id', 'aws_get_vpc_id'),
+        ('AWS_AMI_ID', 'ami_id', 'aws_get_ami_id', None),
+        ('AWS_INSTANCE_TYPE', 'instance_type', 'aws_get_instance_type', None),
+        ('AWS_REGION', 'region_name', 'aws_get_region', None),
+        ('AWS_ROOT_IOPS', 'root_volume_iops', 'aws_get_root_iops', None),
+        ('AWS_ROOT_SIZE', 'root_volume_size', 'aws_get_root_size', None),
+        ('AWS_ROOT_TYPE', 'root_volume_type', 'aws_get_root_type', None),
+        ('AWS_SECURITY_GROUP', 'security_group_ids', 'aws_get_sg_id', None),
+        ('AWS_SSH_KEY', 'ssh_key', 'aws_get_ssh_key', None),
+        ('AWS_SUBNET_ID', 'subnet_id', 'aws_get_subnet_id', None),
+        ('AWS_VPC_ID', 'vpc_id', 'aws_get_vpc_id', None),
     ]
 
     def __init__(self):

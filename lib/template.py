@@ -42,8 +42,14 @@ class template(object):
 
         return self.formatted_template
 
-    def process_vars(self, driver_class, variables: set[str], cloud_vars: list[tuple]):
+    def process_vars(self, driver_class, variables: set[str], cloud_vars: list[tuple]) -> list[tuple]:
+        processed_set = []
         for variable in variables:
-            func = next((t[2] for f in variables for t in cloud_vars if t[0] == f), None)
+            param, tfv, func, value = next(((a, b, c, d) for (a, b, c, d) in cloud_vars if a == variable), (None, None, None, None))
+            if not func:
+                continue
+            print(f"Processing template parameter {variable}")
             value = getattr(driver_class, func)()
-            print(f"value = {value}")
+            processed_set.append((param, tfv, func, value))
+
+        return processed_set

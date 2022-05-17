@@ -26,17 +26,17 @@ variable "os_linux_release" {
   type        = string
 }
 
-variable "aws_image_name" {
+variable "os_image_name" {
   description = "AWS image"
   type        = string
 }
 
-variable "aws_image_owner" {
+variable "os_image_owner" {
   description = "AMI owner"
   type        = string
 }
 
-variable "aws_image_user" {
+variable "os_image_user" {
   description = "AMI SSH user"
   type        = string
 }

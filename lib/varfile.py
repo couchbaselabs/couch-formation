@@ -3,10 +3,18 @@
 
 import json
 from lib.location import location
+from lib.ask import ask
 from lib.exceptions import *
 
 
 class varfile(object):
+    VARIABLES = [
+        ('LINUX_RELEASE', 'os_linux_release', 'get_linux_release', None),
+        ('LINUX_TYPE', 'os_linux_type', 'get_linux_type', None),
+        ('OS_IMAGE_OWNER', 'os_image_owner', 'get_image_owner', None),
+        ('OS_IMAGE_USER', 'os_image_user', 'get_image_user', None),
+        ('OS_IMAGE_NAME', 'os_image_name', 'get_image_name', None),
+    ]
 
     def __init__(self):
         self._global_vars: dict
@@ -18,9 +26,12 @@ class varfile(object):
         self._azure_tf_vars: dict
         self._vmware_packer_vars: dict
         self._vmware_tf_vars: dict
+        self.active_packer_vars = None
+        self.active_tf_vars = None
         self.os_type = 'linux'
         self.os_name = None
         self.os_ver = None
+        self.cloud = None
 
         self.lc = location()
 
@@ -54,6 +65,24 @@ class varfile(object):
     def set_os_ver(self, release: str):
         self.os_ver = release
 
+    def set_cloud(self, cloud: str):
+        self.cloud = cloud
+
+        if self.cloud == 'aws':
+            self.active_packer_vars = self.aws_packer_vars
+            self.active_tf_vars = self.aws_tf_vars
+        elif self.cloud == 'gcp':
+            self.active_packer_vars = self.gcp_packer_vars
+            self.active_tf_vars = self.gcp_tf_vars
+        elif self.cloud == 'azure':
+            self.active_packer_vars = self.azure_packer_vars
+            self.active_tf_vars = self.azure_tf_vars
+        elif self.cloud == 'vmware':
+            self.active_packer_vars = self.vmware_packer_vars
+            self.active_tf_vars = self.vmware_tf_vars
+        else:
+            raise VarFileError(f"unknown cloud {self.cloud}")
+
     def aws_get_default(self, key: str) -> str:
         try:
             return self.aws_tf_vars['defaults'][key]
@@ -78,68 +107,72 @@ class varfile(object):
         except KeyError:
             raise VarFileError(f"value {key} not in vmware defaults")
 
-    def aws_get_all_os(self):
+    def get_all_os(self):
         os_list = []
         try:
-            for key in self.aws_packer_vars[self.os_type]:
+            for key in self.active_packer_vars[self.os_type]:
                 os_list.append(key)
             return os_list
         except KeyError:
-            raise VarFileError(f"can not get aws OS list of type {self.os_type}")
+            raise VarFileError(f"can not get {self.cloud} OS list of type {self.os_type}")
 
-    def gcp_get_all_os(self):
-        try:
-            return self.gcp_packer_vars[self.os_type].keys()
-        except KeyError:
-            raise VarFileError(f"can not get gcp OS list of type {self.os_type}")
-
-    def azure_get_all_os(self):
-        try:
-            return self.azure_packer_vars[self.os_type].keys()
-        except KeyError:
-            raise VarFileError(f"can not get azure OS list of type {self.os_type}")
-
-    def vmware_get_all_os(self):
-        try:
-            return self.vmware_packer_vars[self.os_type].keys()
-        except KeyError:
-            raise VarFileError(f"can not get vmware OS list of type {self.os_type}")
-
-    def aws_get_os_releases(self) -> list[str]:
+    def get_all_version(self) -> list[str]:
         release_list = []
         try:
-            for i in range(len(self.aws_packer_vars[self.os_type][self.os_name])):
-                release_list.append(self.aws_packer_vars[self.os_type][self.os_name][i]['version'])
+            for i in range(len(self.active_packer_vars[self.os_type][self.os_name])):
+                release_list.append(self.active_packer_vars[self.os_type][self.os_name][i]['version'])
             return release_list
         except KeyError:
-            raise VarFileError(f"can not get aws OS releases for {self.os_name}")
+            raise VarFileError(f"can not get {self.cloud} OS releases for {self.os_name}")
 
-    def gcp_get_os_releases(self) -> list[str]:
-        release_list = []
-        try:
-            for i in range(len(self.gcp_packer_vars[self.os_type][self.os_name])):
-                release_list.append(self.gcp_packer_vars[self.os_type][self.os_name][i]['version'])
-            return release_list
-        except KeyError:
-            raise VarFileError(f"can not get aws OS releases for {self.os_name}")
+    def get_linux_release(self, default=None):
+        inquire = ask()
 
-    def azure_get_os_releases(self) -> list[str]:
-        release_list = []
-        try:
-            for i in range(len(self.azure_packer_vars[self.os_type][self.os_name])):
-                release_list.append(self.azure_packer_vars[self.os_type][self.os_name][i]['version'])
-            return release_list
-        except KeyError:
-            raise VarFileError(f"can not get aws OS releases for {self.os_name}")
+        if self.os_ver:
+            return self.os_ver
 
-    def vmware_get_os_releases(self) -> list[str]:
-        release_list = []
+        version_list = self.get_all_version()
+        selection = inquire.ask_list('Select Version', version_list, default=default)
+        self.os_ver = version_list[selection]
+        self.set_os_ver(self.os_ver)
+
+        return self.os_ver
+
+    def get_linux_type(self, default=None):
+        inquire = ask()
+
+        if self.os_name:
+            return self.os_name
+
+        distro_list = self.get_all_os()
+        selection = inquire.ask_list('Select Linux Distribution', distro_list, default=default)
+        self.os_name = distro_list[selection]
+        self.set_os_name(self.os_name)
+
+        return self.os_name
+
+    def get_image_owner(self):
+        return self.get_os_var('owner')
+
+    def get_image_user(self):
+        return self.get_os_var('user')
+
+    def get_image_name(self):
+        return self.get_os_var('image')
+
+    def get_var_file(self):
+        return self.get_os_var('vars')
+
+    def get_hcl_file(self):
+        return self.get_os_var('hcl')
+
+    def get_os_var(self, key: str) -> str:
         try:
-            for i in range(len(self.vmware_packer_vars[self.os_type][self.os_name])):
-                release_list.append(self.vmware_packer_vars[self.os_type][self.os_name][i]['version'])
-            return release_list
+            for i in range(len(self.active_packer_vars[self.os_type][self.os_name])):
+                if self.active_packer_vars[self.os_type][self.os_name][i]['version'] == self.os_ver:
+                    return self.active_packer_vars[self.os_type][self.os_name][i][key]
         except KeyError:
-            raise VarFileError(f"can not get aws OS releases for {self.os_name}")
+            raise VarFileError(f"value {key} not in {self.cloud} packer variables for {self.os_name} {self.os_type}")
 
     def aws_get_os_var(self, key: str) -> str:
         try:

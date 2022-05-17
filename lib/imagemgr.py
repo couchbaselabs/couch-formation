@@ -10,6 +10,7 @@ from lib.azure import azure
 from lib.vmware import vmware
 from lib.location import location
 from lib.template import template
+from lib.varfile import varfile
 
 
 class image_manager(object):
@@ -94,21 +95,29 @@ class image_manager(object):
     def aws_build(self, args):
         driver = aws()
         t = template()
-        requested_vars = set()
+        v = varfile()
+        build_variables = []
 
         driver.aws_init()
-        driver.aws_set_os()
-        driver.aws_set_os_version()
+        v.set_cloud(self.cloud)
+        v.get_linux_type()
+        v.get_linux_release()
 
-        var_file = self.lc.aws_packer + '/' + driver.get_aws_packer_var_file()
-        hcl_file = self.lc.aws_packer + '/' + driver.get_aws_packer_hcl_file()
+        var_file = self.lc.aws_packer + '/' + v.get_var_file()
+        hcl_file = self.lc.aws_packer + '/' + v.get_hcl_file()
         template_file = self.lc.aws_packer + '/' + self.packer_template_file
 
         try:
             t.read_file(template_file)
             requested_vars = t.get_file_parameters()
+            base_variables = t.process_vars(v, requested_vars, v.VARIABLES)
+            driver_variables = t.process_vars(driver, requested_vars, driver.VARIABLES)
+            build_variables = base_variables + driver_variables
         except Exception as err:
             ImageMgmtError(f"can not read packer template {template_file}: {err}")
+
+        for a, b, c, d in build_variables:
+            print(f"{a}, {b}, {c}, {d}")
 
     def _gcp_list(self, _driver=None) -> list[dict]:
         if not _driver:
