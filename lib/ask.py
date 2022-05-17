@@ -38,9 +38,9 @@ class ask(object):
         else:
             return options[index]
 
-    def ask_list(self, question, options=[], descriptions=[], list_only=False, default=None):
+    def ask_list(self, question, options=[], descriptions=[], list_only=False, page_len=20, default=None):
         """Get selection from list"""
-        list_incr = 20
+        list_incr = page_len
         answer = None
         input_list = []
         option_width = 0

@@ -58,7 +58,7 @@ class cbrelease(object):
 
         versions_list = self.get_versions()
         release_list = sorted(versions_list, reverse=True)
-        selection = inquire.ask_list('Select Couchbase Version', release_list, default=default)
+        selection = inquire.ask_list('Select Couchbase Version', release_list, page_len=5, default=default)
         self.cb_version = release_list[selection]
 
         return self.cb_version

@@ -8,6 +8,27 @@ class location(object):
     def __init__(self):
         current_dir = os.path.dirname(os.path.realpath(__file__))
         self._package_dir = os.path.dirname(current_dir)
+        self.cloud = None
+        self._packer_dir = None
+        self._tf_dir = None
+
+    def set_cloud(self, cloud: str):
+        self.cloud = cloud
+
+        if self.cloud == 'aws':
+            self._packer_dir = self.aws_packer
+            self._tf_dir = self.aws_tf
+        elif self.cloud == 'gcp':
+            self._packer_dir = self.gcp_packer
+            self._tf_dir = self.gcp_tf
+        elif self.cloud == 'azure':
+            self._packer_dir = self.azure_packer
+            self._tf_dir = self.azure_tf
+        elif self.cloud == 'vmware':
+            self._packer_dir = self.vmware_packer
+            self._tf_dir = self.vmware_tf
+        else:
+            raise VarFileError(f"unknown cloud {self.cloud}")
 
     def get_home(self, _location: str) -> str:
         home_dir = self._package_dir + '/' + _location
@@ -26,6 +47,14 @@ class location(object):
         if not os.path.exists(tf_dir):
             raise DirectoryStructureError(f"Expecting {_location} terraform dir at {tf_dir}")
         return tf_dir
+
+    @property
+    def packer_dir(self):
+        return self._packer_dir
+
+    @property
+    def tf_dir(self):
+        return self._tf_dir
 
     @property
     def package_dir(self):

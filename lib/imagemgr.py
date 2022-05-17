@@ -12,6 +12,7 @@ from lib.location import location
 from lib.template import template
 from lib.varfile import varfile
 from lib.cbrelmgr import cbrelease
+from lib import invoke
 
 
 class image_manager(object):
@@ -21,6 +22,7 @@ class image_manager(object):
         self.args = parameters
         self.lc = location()
         self.packer_template_file = 'linux.pkrvars.template'
+        self.lc.set_cloud(self.cloud)
 
     def list_images(self):
         if self.cloud == 'aws':
@@ -48,15 +50,62 @@ class image_manager(object):
 
     def build_images(self):
         if self.cloud == 'aws':
-            self.aws_build(self.args)
+            driver = aws()
+            driver.aws_init()
         elif self.cloud == 'gcp':
-            self.gcp_build(self.args)
+            driver = gcp()
+            driver.gcp_init()
         elif self.cloud == 'azure':
-            self.azure_build(self.args)
+            driver = azure()
+            driver.azure_init()
         elif self.cloud == 'vmware':
-            self.vmware_build(self.args)
+            driver = vmware()
+            driver.vmware_init()
         else:
             raise ImageMgmtError(f"unknown cloud {self.cloud}")
+
+        t = template()
+        v = varfile()
+        c = cbrelease()
+        build_variables = []
+
+        v.set_cloud(self.cloud)
+        linux_type = v.get_linux_type()
+        linux_release = v.get_linux_release()
+        c.set_os_name(linux_type)
+        c.set_os_ver(linux_release)
+
+        var_file = self.lc.packer_dir + '/' + v.get_var_file()
+        hcl_file = self.lc.packer_dir + '/' + v.get_hcl_file()
+        template_file = self.lc.packer_dir + '/' + self.packer_template_file
+
+        try:
+            t.read_file(template_file)
+            requested_vars = t.get_file_parameters()
+            pass_variables = t.process_vars(v, requested_vars, v.VARIABLES)
+            build_variables = build_variables + pass_variables
+            pass_variables = t.process_vars(c, requested_vars, c.VARIABLES)
+            build_variables = build_variables + pass_variables
+            pass_variables = t.process_vars(driver, requested_vars, driver.VARIABLES)
+            build_variables = build_variables + pass_variables
+        except Exception as err:
+            ImageMgmtError(f"can not process packer template {template_file}: {err}")
+
+        print("Writing packer variables")
+
+        try:
+            t.process_template(build_variables)
+            t.write_file(var_file)
+        except Exception as err:
+            ImageMgmtError(f"can not write packer variables {var_file}: {err}")
+
+        print("Building image")
+
+        try:
+            pr = invoke.packer_run()
+            pr.build(self.lc.packer_dir, var_file, hcl_file)
+        except Exception as err:
+            ImageMgmtError(f"can not build image: {err}")
 
     def _aws_list(self, _driver=None) -> list[dict]:
         if not _driver:
@@ -92,39 +141,6 @@ class image_manager(object):
             driver.aws_remove_ami(image_list[selection]['name'])
         else:
             driver.aws_remove_ami(image)
-
-    def aws_build(self, args):
-        driver = aws()
-        t = template()
-        v = varfile()
-        c = cbrelease()
-        build_variables = []
-
-        driver.aws_init()
-        v.set_cloud(self.cloud)
-        linux_type = v.get_linux_type()
-        linux_release = v.get_linux_release()
-        c.set_os_name(linux_type)
-        c.set_os_ver(linux_release)
-
-        var_file = self.lc.aws_packer + '/' + v.get_var_file()
-        hcl_file = self.lc.aws_packer + '/' + v.get_hcl_file()
-        template_file = self.lc.aws_packer + '/' + self.packer_template_file
-
-        try:
-            t.read_file(template_file)
-            requested_vars = t.get_file_parameters()
-            pass_variables = t.process_vars(v, requested_vars, v.VARIABLES)
-            build_variables = build_variables + pass_variables
-            pass_variables = t.process_vars(c, requested_vars, c.VARIABLES)
-            build_variables = build_variables + pass_variables
-            pass_variables = t.process_vars(driver, requested_vars, driver.VARIABLES)
-            build_variables = build_variables + pass_variables
-        except Exception as err:
-            ImageMgmtError(f"can not read packer template {template_file}: {err}")
-
-        for a, b, c, d in build_variables:
-            print(f"{a}, {b}, {c}, {d}")
 
     def _gcp_list(self, _driver=None) -> list[dict]:
         if not _driver:

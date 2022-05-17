@@ -27,6 +27,17 @@ class template(object):
 
         return True
 
+    def write_file(self, file: str) -> bool:
+        try:
+            with open(file, 'w') as write_file:
+                write_file.write(self.formatted_template)
+                write_file.write("\n")
+                write_file.close()
+        except OSError as err:
+            raise TemplateError(f"can not write template file: {err}")
+
+        return True
+
     def get_file_parameters(self) -> set[str]:
         env = jinja2.Environment(undefined=jinja2.DebugUndefined)
         template = env.from_string(self.raw_input)
@@ -36,7 +47,8 @@ class template(object):
 
         return self.requested_vars
 
-    def process_template(self, parameters: dict) -> str:
+    def process_template(self, cloud_vars: list[tuple]) -> str:
+        parameters = dict((a, d) for a, b, c, d in cloud_vars)
         raw_template = jinja2.Template(self.raw_input)
         self.formatted_template = raw_template.render(parameters)
 

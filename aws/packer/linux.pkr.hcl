@@ -41,7 +41,7 @@ variable "os_image_user" {
   type        = string
 }
 
-variable "aws_region" {
+variable "region_name" {
   description = "AWS region"
   type        = string
 }
@@ -49,17 +49,17 @@ variable "aws_region" {
 source "amazon-ebs" "cb-node" {
   ami_name      = "${var.os_linux_type}-${var.os_linux_release}-couchbase-${local.timestamp}"
   instance_type = "c5.large"
-  region        = "${var.aws_region}"
+  region        = "${var.region_name}"
   source_ami_filter {
     filters = {
-      name                = "${var.aws_image_name}"
+      name                = "${var.os_image_name}"
       root-device-type    = "ebs"
       virtualization-type = "hvm"
     }
     most_recent = true
-    owners      = ["${var.aws_image_owner}"]
+    owners      = ["${var.os_image_owner}"]
   }
-  ssh_username = "${var.aws_image_user}"
+  ssh_username = "${var.os_image_user}"
   tags = {
     Name    = "${var.os_linux_type}-${var.os_linux_release}-${var.cb_version}"
     Type    = "${var.os_linux_type}"

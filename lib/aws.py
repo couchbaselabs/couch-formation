@@ -41,37 +41,6 @@ class aws(object):
         except Exception as err:
             raise AWSDriverError(f"can not access AWS API: {err}")
 
-    def aws_set_os(self, default=None):
-        inquire = ask()
-
-        distro_list = self.vf.aws_get_all_os()
-        selection = inquire.ask_list('Select Linux Distribution', distro_list, default=default)
-        self.os_name = distro_list[selection]
-        self.vf.set_os_name(self.os_name)
-
-    def aws_set_os_version(self, default=None):
-        inquire = ask()
-
-        version_list = self.vf.aws_get_os_releases()
-        selection = inquire.ask_list('Select Version', version_list, default=default)
-        self.os_ver = version_list[selection]
-        self.vf.set_os_ver(self.os_ver)
-
-    def get_aws_image_owner(self):
-        return self.vf.aws_get_os_var('owner')
-
-    def get_aws_image_user(self):
-        return self.vf.aws_get_os_var('user')
-
-    def get_aws_image_name(self):
-        return self.vf.aws_get_os_var('image')
-
-    def get_aws_packer_var_file(self):
-        return self.vf.aws_get_os_var('vars')
-
-    def get_aws_packer_hcl_file(self):
-        return self.vf.aws_get_os_var('hcl')
-
     def aws_use_public_ip(self, default=None):
         """Ask if the public IP should be assigned and used for SSH"""
         inquire = ask()
