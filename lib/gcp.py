@@ -13,12 +13,27 @@ from lib.exceptions import *
 
 
 class gcp(object):
+    VARIABLES = [
+        ('GCP_ACCOUNT_FILE', 'gcp_account_file', 'gcp_get_account_file', None),
+        ('GCP_CB_IMAGE', 'gcp_cb_image', 'gcp_get_cb_image_name', None),
+        ('GCP_MACHINE_TYPE', 'gcp_machine_type', 'gcp_get_machine_type', None),
+        ('GCP_PROJECT', 'gcp_project', 'gcp_get_project_id', None),
+        ('GCP_REGION', 'gcp_region', 'get_gcp_region', None),
+        ('GCP_ROOT_SIZE', 'gcp_disk_size', 'gcp_get_root_size', None),
+        ('GCP_ROOT_TYPE', 'gcp_disk_type', 'gcp_get_root_type', None),
+        ('GCP_SA_EMAIL', 'gcp_service_account_email', 'gcp_get_account_email', None),
+        ('GCP_SUBNET', 'gcp_subnet', 'gcp_get_subnet', None),
+        ('GCP_ZONE', 'gcp_zone', 'get_gcp_zones', None),
+    ]
 
     def __init__(self):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.vf = varfile()
         self.gcp_account_file = None
         self.gcp_project = None
+        self.gcp_zone_list = []
+        self.gcp_region = None
+        self.gcp_zone = None
 
     def gcp_init(self):
         try:
@@ -27,9 +42,19 @@ class gcp(object):
         except Exception as err:
             raise GCPDriverError(f"can not access GCP API: {err}")
 
-    def get_gcp_zones(self, gcp_region: str) -> list[str]:
+    def gcp_prep(self, select=True):
+        try:
+            self.get_gcp_region()
+            self.get_gcp_zones(select=select)
+        except Exception as err:
+            raise GCPDriverError(f"GCP prep error: {err}")
+
+    def get_gcp_zones(self, select=True, default=None) -> list[str]:
         """Collect GCP availability zones"""
-        gcp_zone_list = []
+        inquire = ask()
+
+        if self.gcp_zone:
+            return self.gcp_zone
 
         credentials = service_account.Credentials.from_service_account_file(self.gcp_account_file)
         gcp_client = googleapiclient.discovery.build('compute', 'v1', credentials=credentials)
@@ -37,14 +62,21 @@ class gcp(object):
         while request is not None:
             response = request.execute()
             for zone in response['items']:
-                if not zone['name'].startswith(gcp_region):
+                if not zone['name'].startswith(self.gcp_region):
                     continue
-                gcp_zone_list.append(zone['name'])
+                self.gcp_zone_list.append(zone['name'])
             request = gcp_client.zones().list_next(previous_request=request, previous_response=response)
-        gcp_zone_list = sorted(gcp_zone_list)
-        for gcp_zone_name in gcp_zone_list:
+        self.gcp_zone_list = sorted(self.gcp_zone_list)
+        for gcp_zone_name in self.gcp_zone_list:
             self.logger.info("Added GCP zone %s" % gcp_zone_name)
-        return gcp_zone_list
+
+        if select:
+            selection = inquire.ask_list('GCP Zone', self.gcp_zone_list, default=default)
+            self.gcp_zone = self.gcp_zone_list[selection]
+        else:
+            self.gcp_zone = self.gcp_zone_list[0]
+
+        return self.gcp_zone
 
     def get_gcp_project(self, default=None) -> str:
         """Get GCP Project"""
@@ -78,6 +110,9 @@ class gcp(object):
         dir_list = []
         auth_file_list = []
         auth_directory = os.environ['HOME'] + '/.config/gcloud'
+
+        if self.gcp_account_file:
+            return self.gcp_account_file
 
         if 'GCP_ACCOUNT_FILE' in os.environ:
             candidate_file = os.environ['GCP_ACCOUNT_FILE']
@@ -115,6 +150,9 @@ class gcp(object):
     def gcp_get_project_id(self, default=None) -> str:
         inquire = ask()
 
+        if self.gcp_project:
+            return self.gcp_project
+
         if 'GCP_PROJECT_ID' in os.environ:
             self.gcp_project = os.environ['GCP_PROJECT_ID']
             return self.gcp_project
@@ -144,14 +182,14 @@ class gcp(object):
             selection = inquire.ask_text('GCP Client Email', default=default)
             return selection
 
-    def gcp_get_machine_type(self, gcp_zone: str, default=None) -> str:
+    def gcp_get_machine_type(self, default=None) -> str:
         """Get GCP machine type"""
         inquire = ask()
         machine_type_list = []
 
         credentials = service_account.Credentials.from_service_account_file(self.gcp_account_file)
         gcp_client = googleapiclient.discovery.build('compute', 'v1', credentials=credentials)
-        request = gcp_client.machineTypes().list(project=self.gcp_project, zone=gcp_zone)
+        request = gcp_client.machineTypes().list(project=self.gcp_project, zone=self.gcp_zone)
         while request is not None:
             response = request.execute()
             for machine_type in response['items']:
@@ -208,25 +246,25 @@ class gcp(object):
             if 'error' in response:
                 raise GCPDriverError(f"can not delete {name}: {response['error']['errors'][0]['message']}")
 
-    def gcp_get_availability_zone_list(self, gcp_zone_list: list, gcp_subnet: str) -> list[dict]:
+    def gcp_get_availability_zone_list(self, gcp_subnet: str) -> list[dict]:
         """Build GCP availability zone data structure"""
         availability_zone_list = []
 
-        for zone in gcp_zone_list:
+        for zone in self.gcp_zone_list:
             config_block = {}
             config_block['name'] = zone
             config_block['subnet'] = gcp_subnet
             availability_zone_list.append(config_block)
         return availability_zone_list
 
-    def gcp_get_subnet(self, gcp_region: str, default=None) -> str:
+    def gcp_get_subnet(self, default=None) -> str:
         """Get GCP subnet"""
         inquire = ask()
         subnet_list = []
 
         credentials = service_account.Credentials.from_service_account_file(self.gcp_account_file)
         gcp_client = googleapiclient.discovery.build('compute', 'v1', credentials=credentials)
-        request = gcp_client.subnetworks().list(project=self.gcp_project, region=gcp_region)
+        request = gcp_client.subnetworks().list(project=self.gcp_project, region=self.gcp_region)
         while request is not None:
             response = request.execute()
             for subnet in response['items']:
@@ -258,7 +296,11 @@ class gcp(object):
         inquire = ask()
         tb = toolbox()
 
+        if self.gcp_region:
+            return self.gcp_region
+
         if 'GCP_DEFAULT_REGION' in os.environ:
+            self.gcp_region = os.environ['GCP_DEFAULT_REGION']
             return os.environ['GCP_DEFAULT_REGION']
 
         region_list = []
@@ -279,4 +321,5 @@ class gcp(object):
                 region_list.append(region['name'])
             request = gcp_client.regions().list_next(previous_request=request, previous_response=response)
         selection = inquire.ask_list('GCP Region', region_list, default=default)
-        return region_list[selection]
+        self.gcp_region = region_list[selection]
+        return self.gcp_region

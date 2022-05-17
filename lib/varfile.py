@@ -14,6 +14,7 @@ class varfile(object):
         ('OS_IMAGE_OWNER', 'os_image_owner', 'get_image_owner', None),
         ('OS_IMAGE_USER', 'os_image_user', 'get_image_user', None),
         ('OS_IMAGE_NAME', 'os_image_name', 'get_image_name', None),
+        ('OS_IMAGE_FAMILY', 'os_image_family', 'get_image_family', None),
     ]
 
     def __init__(self):
@@ -159,6 +160,9 @@ class varfile(object):
 
     def get_image_name(self):
         return self.get_os_var('image')
+
+    def get_image_family(self):
+        return self.get_os_var('family')
 
     def get_var_file(self):
         return self.get_os_var('vars')

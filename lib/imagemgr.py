@@ -55,6 +55,7 @@ class image_manager(object):
         elif self.cloud == 'gcp':
             driver = gcp()
             driver.gcp_init()
+            driver.gcp_prep(select=False)
         elif self.cloud == 'azure':
             driver = azure()
             driver.azure_init()

@@ -31,12 +31,12 @@ variable "gcp_account_file" {
   type        = string
 }
 
-variable "gcp_image_name" {
+variable "os_image_name" {
   description = "GCP image"
   type        = string
 }
 
-variable "gcp_image_family" {
+variable "os_image_family" {
   description = "GCP image family"
   type        = string
 }
@@ -46,7 +46,7 @@ variable "gcp_project" {
   type        = string
 }
 
-variable "gcp_image_user" {
+variable "os_image_user" {
   description = "Image SSH user"
   type        = string
 }
@@ -60,13 +60,13 @@ source "googlecompute" "cb-node" {
   image_name          = "${var.os_linux_type}-${var.os_linux_release}-couchbase-${local.timestamp}"
   account_file        = var.gcp_account_file
   project_id          = var.gcp_project
-  source_image        = var.gcp_image_name
-  source_image_family = var.gcp_image_family
+  source_image        = var.os_image_name
+  source_image_family = var.os_image_family
   zone                = var.gcp_zone
   disk_size           = 50
   machine_type        = "n1-standard-2"
   communicator        = "ssh"
-  ssh_username        = var.gcp_image_user
+  ssh_username        = var.os_image_user
   ssh_timeout         = "1h"
   image_labels        = {
     name    = format("%s-%s-%s", var.os_linux_type, var.os_linux_release, replace(var.cb_version, ".", "_"))
