@@ -33,6 +33,7 @@ class aws(object):
         self.aws_vpc_id = None
         self.os_name = None
         self.os_ver = None
+        self.ssh_key_fingerprint = None
 
     def aws_init(self):
         self.aws_get_region()
@@ -125,7 +126,7 @@ class aws(object):
         for zone in self.aws_availability_zones:
             config_block = {}
             config_block['name'] = zone
-            aws_subnet_id = self.aws_get_subnet_id(self.aws_vpc_id, availability_zone=zone)
+            aws_subnet_id = self.aws_get_subnet_id(availability_zone=zone)
             config_block['subnet'] = aws_subnet_id
             availability_zone_list.append(config_block)
         return availability_zone_list
@@ -175,7 +176,7 @@ class aws(object):
         selection = inquire.ask_list(question, subnet_list, subnet_name_list, default=default)
         return subnet_list[selection]
 
-    def aws_get_ssh_key(self, default=None) -> tuple[str, str]:
+    def aws_get_ssh_key(self, default=None) -> str:
         """Get the AWS SSH key pair to use for node access"""
         inquire = ask()
         key_list = []
@@ -189,8 +190,8 @@ class aws(object):
 
         selection = inquire.ask_list('Select SSH key', key_list, key_id_list, default=default)
         aws_ssh_key = key_pairs['KeyPairs'][selection]['KeyName']
-        ssh_key_fingerprint = key_pairs['KeyPairs'][selection]['KeyFingerprint']
-        return aws_ssh_key, ssh_key_fingerprint
+        self.ssh_key_fingerprint = key_pairs['KeyPairs'][selection]['KeyFingerprint']
+        return aws_ssh_key
 
     def aws_get_instance_type(self, default=None) -> str:
         """Get the AWS instance type"""

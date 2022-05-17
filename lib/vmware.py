@@ -14,9 +14,32 @@ from lib.varfile import varfile
 from lib.exceptions import VMwareDriverError
 from lib.ask import ask
 from lib.toolbox import toolbox
+from lib.prereq import prereq
 
 
 class vmware(object):
+    VARIABLES = [
+        ('VMWARE_BUILD_PASSWORD', 'build_password', 'vmware_get_build_password', None),
+        ('VMWARE_BUILD_PWD_ENCRYPTED', 'build_password_encrypted', 'vmware_get_build_pwd_encrypted', None),
+        ('VMWARE_CLUSTER', 'vsphere_cluster', 'vmware_get_cluster', None),
+        ('VMWARE_CPU_CORES', 'vm_cpu_cores', 'vmware_get_cpucores', None),
+        ('VMWARE_DATACENTER', 'vsphere_datacenter', 'vmware_get_datacenter', None),
+        ('VMWARE_DATASTORE', 'vsphere_datastore', 'vmware_get_datastore', None),
+        ('VMWARE_DISK_SIZE', 'vm_disk_size', 'vmware_get_disksize', None),
+        ('VMWARE_DVS', 'vsphere_dvs_switch', 'vmware_get_dvs_switch', None),
+        ('VMWARE_FOLDER', 'vsphere_folder', 'vmware_get_folder', None),
+        ('VMWARE_HOSTNAME', 'vsphere_server', 'vmware_get_hostname', None),
+        ('VMWARE_MEM_SIZE', 'vm_mem_size', 'vmware_get_memsize', None),
+        ('VMWARE_NETWORK', 'vsphere_network', 'vmware_get_dvs_network', None),
+        ('VMWARE_PASSWORD', 'vsphere_password', 'vmware_get_password', None),
+        ('VMWARE_TEMPLATE', 'vsphere_template', 'vmware_get_template', None),
+        ('VMWARE_USERNAME', 'vsphere_user', 'vmware_get_username', None),
+    ]
+    PREREQUISITES = {
+        'vmware_get_build_pwd_encrypted': [
+            'vmware_get_build_password'
+        ]
+    }
 
     def __init__(self):
         self.logger = logging.getLogger(self.__class__.__name__)
@@ -28,12 +51,19 @@ class vmware(object):
         self.vmware_dc_folder = None
         self.vmware_network_folder = None
         self.vmware_host_folder = None
+        self.vmware_build_password = None
+        self.vmware_build_pwd_encrypted = None
+        self.vmware_create_folder = False
+        self.cb_cluster_name = None
 
-    def vmware_init(self):
+    def vmware_init(self, create_folder=False):
         tb = toolbox()
         config_directory = os.environ['HOME'] + '/.config'
         auth_directory = config_directory + '/imagemgr'
         config_file = auth_directory + '/vmware_auth.json'
+
+        if create_folder:
+            self.vmware_create_folder = True
 
         tb.create_dir(auth_directory)
 
@@ -85,6 +115,9 @@ class vmware(object):
 
             return True
 
+    def vmware_set_cluster_name(self, name: str):
+        self.cb_cluster_name = name
+
     def vmware_get_template(self, select=True, default=None) -> Union[dict, list[dict]]:
         inquire = ask()
 
@@ -129,13 +162,19 @@ class vmware(object):
             except Exception as err:
                 raise VMwareDriverError(f"can not delete template: {err}")
 
-    def vmware_get_build_password(self, vmware_build_user: str, default=None) -> tuple[str, str]:
+    def vmware_get_build_password(self, default=None) -> str:
         inquire = ask()
 
-        selection = inquire.ask_pass("Build user %s password" % vmware_build_user, default=default)
-        vmware_build_password = selection
-        vmware_build_pwd_encrypted = sha512_crypt.using(salt=''.join([random.choice(string.ascii_letters + string.digits) for _ in range(16)]), rounds=5000).hash(vmware_build_password)
-        return vmware_build_password, vmware_build_pwd_encrypted
+        selection = inquire.ask_pass("Build password", default=default)
+        self.vmware_build_password = selection
+
+        return self.vmware_build_password
+
+    @prereq(PREREQUISITES)
+    def vmware_get_build_pwd_encrypted(self) -> str:
+        self.vmware_build_pwd_encrypted = sha512_crypt.using(salt=''.join([random.choice(string.ascii_letters + string.digits) for _ in range(16)]), rounds=5000).hash(
+            self.vmware_build_password)
+        return self.vmware_build_pwd_encrypted
 
     def vmware_get_dvs_network(self, default=None) -> str:
         inquire = ask()
@@ -202,15 +241,11 @@ class vmware(object):
         selection = inquire.ask_text('CPU cores', recommendation=default_selection, default=default)
         return selection
 
-    def vmware_get_folder(self, dev_num=None, test_num=None, prod_num=None, create=False, default=None) -> str:
+    def vmware_get_folder(self, default=None) -> str:
         inquire = ask()
 
-        if dev_num:
-            default_selection = "couchbase-dev{:02d}".format(dev_num)
-        elif test_num:
-            default_selection = "couchbase-tst{:02d}".format(test_num)
-        elif prod_num:
-            default_selection = "couchbase-prd{:02d}".format(prod_num)
+        if self.cb_cluster_name:
+            default_selection = self.cb_cluster_name
         else:
             default_selection = self.vf.gcp_get_default('folder')
 
@@ -220,7 +255,7 @@ class vmware(object):
 
         vmware_folder = selection
 
-        if create:
+        if self.vmware_create_folder:
             for folder in self.vmware_dc_folder.vmFolder.childEntity:
                 if folder.name == vmware_folder:
                     self.logger.info("Folder %s already exists." % vmware_folder)

@@ -18,6 +18,11 @@ class varfile(object):
         ('OS_IMAGE_PUBLISHER', 'os_image_publisher', 'get_image_publisher', None),
         ('OS_IMAGE_SKU', 'os_image_sku', 'get_image_sku', None),
         ('OS_IMAGE_OFFER', 'os_image_offer', 'get_image_offer', None),
+
+        ('VMWARE_ISO_CHECKSUM', 'iso_checksum', '', None),
+        ('VMWARE_ISO_URL', 'iso_url', '', None),
+        ('VMWARE_OS_TYPE', 'vm_guest_os_type', '', None),
+        ('VMWARE_SW_URL', 'sw_url', '', None),
     ]
 
     def __init__(self):

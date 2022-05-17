@@ -16,6 +16,9 @@ from lib.exceptions import *
 
 
 class toolbox(object):
+    VARIABLES = [
+        ('OS_TIMEZONE', 'os_timezone', 'get_timezone', None),
+    ]
 
     def __init__(self):
         self.logger = logging.getLogger(self.__class__.__name__)

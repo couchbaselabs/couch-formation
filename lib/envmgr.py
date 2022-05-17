@@ -18,8 +18,8 @@ class envmgr(object):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.lc = location()
         self.cloud = None
-        self.packer_vars = None
-        self.tf_vars = None
+        self.packer_dir = None
+        self.tf_dir = None
         self.dev_num = None
         self.test_num = None
         self.prod_num = None
@@ -32,17 +32,17 @@ class envmgr(object):
         self.cloud = cloud
 
         if self.cloud == 'aws':
-            self.packer_vars = self.lc.aws_packer
-            self.tf_vars = self.lc.aws_tf
+            self.packer_dir = self.lc.aws_packer
+            self.tf_dir = self.lc.aws_tf
         elif self.cloud == 'gcp':
-            self.packer_vars = self.lc.gcp_packer
-            self.tf_vars = self.lc.gcp_tf
+            self.packer_dir = self.lc.gcp_packer
+            self.tf_dir = self.lc.gcp_tf
         elif self.cloud == 'azure':
-            self.packer_vars = self.lc.azure_packer
-            self.tf_vars = self.lc.azure_tf
+            self.packer_dir = self.lc.azure_packer
+            self.tf_dir = self.lc.azure_tf
         elif self.cloud == 'vmware':
-            self.packer_vars = self.lc.vmware_packer
-            self.tf_vars = self.lc.vmware_tf
+            self.packer_dir = self.lc.vmware_packer
+            self.tf_dir = self.lc.vmware_tf
         else:
             raise EnvMgrError(f"unknown cloud {self.cloud}")
 
@@ -79,13 +79,13 @@ class envmgr(object):
     def create_env(self, overwrite=False, create=True):
         if self.dev_num:
             dev_directory = "dev-{:02d}".format(self.dev_num)
-            self.working_dir = self.tf_vars + '/' + dev_directory
+            self.working_dir = self.tf_dir + '/' + dev_directory
         elif self.test_num:
             test_directory = "test-{:02d}".format(self.test_num)
-            self.working_dir = self.tf_vars + '/' + test_directory
+            self.working_dir = self.tf_dir + '/' + test_directory
         elif self.prod_num:
             prod_directory = "prod-{:02d}".format(self.prod_num)
-            self.working_dir = self.tf_vars + '/' + prod_directory
+            self.working_dir = self.tf_dir + '/' + prod_directory
         else:
             raise EnvMgrError("Environment not specified.")
 
@@ -125,7 +125,7 @@ class envmgr(object):
                     raise EnvMgrError(f"can not create {self.working_app_dir}: {err}")
 
         for file_name in copy_files:
-            source = self.tf_vars + '/' + file_name
+            source = self.tf_dir + '/' + file_name
             destination = self.working_dir + '/' + file_name
             if not os.path.exists(destination) or overwrite:
                 try:
@@ -136,7 +136,7 @@ class envmgr(object):
 
         if self.working_app_dir:
             for file_name in app_files:
-                source = self.tf_vars + '/' + file_name
+                source = self.tf_dir + '/' + file_name
                 destination = self.working_app_dir + '/' + file_name
                 if not os.path.exists(destination) or overwrite:
                     try:

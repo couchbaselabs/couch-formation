@@ -9,16 +9,33 @@ import hashlib
 from lib.varfile import varfile
 from lib.ask import ask
 from lib.exceptions import *
+from lib.prereq import prereq
 
 
 class ssh(object):
+    VARIABLES = [
+        ('SSH_PUBLIC_KEY', 'ssh_public_key', 'get_public_key', None),
+    ]
+    PREREQUISITES = {
+        'get_public_key': [
+            'get_private_key'
+        ]
+    }
 
     def __init__(self):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.vf = varfile()
+        self.ssh_public_key = None
+        self.ssh_key_fingerprint = None
+        self.ssh_private_key = None
+        self.ssh_public_key_file = None
 
-    def get_public_key(self, private_key: str) -> str:
-        fh = open(private_key, 'r')
+    def set_key_fingerprint(self, fingerprint: str):
+        self.ssh_key_fingerprint = fingerprint
+
+    @prereq(PREREQUISITES)
+    def get_public_key(self) -> str:
+        fh = open(self.ssh_private_key, 'r')
         key_pem = fh.read()
         fh.close()
         rsa_key = RSA.importKey(key_pem)
@@ -29,9 +46,10 @@ class ssh(object):
         primeQ = rsa_key.q
         private_key = RSA.construct((modulus, pubExpE, priExpD, primeP, primeQ))
         public_key = private_key.public_key().exportKey('OpenSSH')
-        return public_key.decode('utf-8')
+        self.ssh_public_key = public_key.decode('utf-8')
+        return self.ssh_public_key
 
-    def get_private_key(self, ssh_key_fingerprint: str, default=None) -> str:
+    def get_private_key(self, default=None) -> str:
         """Get path to SSH private key PEM file"""
         inquire = ask()
         dir_list = []
@@ -64,16 +82,18 @@ class ssh(object):
             der_digest = hashlib.sha1(pri_der)
             hex_digest = der_digest.hexdigest()
             key_fingerprint = ':'.join(hex_digest[i:i + 2] for i in range(0, len(hex_digest), 2))
-            if key_fingerprint == ssh_key_fingerprint:
+            if key_fingerprint == self.ssh_key_fingerprint:
                 print("Auto selecting SSH private key %s" % dir_list[i])
-                return dir_list[i]
+                self.ssh_private_key = dir_list[i]
+                return self.ssh_private_key
 
         selection = inquire.ask_list('Select SSH private key', key_file_list, default=default)
-        return key_file_list[selection]
+        self.ssh_private_key = key_file_list[selection]
+        return self.ssh_private_key
 
-    def generate_public_key_file(self, private_key: str, public_file: str) -> bool:
+    def generate_public_key_file(self, public_file: str) -> bool:
         """Write public key file"""
-        public_key = self.get_public_key(private_key)
+        public_key = self.get_public_key()
         try:
             file_handle = open(public_file, 'w')
             file_handle.write(public_key)
@@ -90,18 +110,20 @@ class ssh(object):
         key_file_list = []
         key_directory = os.environ['HOME'] + '/.ssh'
 
-        if ssh_private_key:
-            private_key_dir = os.path.dirname(ssh_private_key)
-            private_key_file = os.path.basename(ssh_private_key)
+        if self.ssh_private_key:
+            private_key_dir = os.path.dirname(self.ssh_private_key)
+            private_key_file = os.path.basename(self.ssh_private_key)
             private_key_name = os.path.splitext(private_key_file)[0]
             check_file_name = private_key_dir + '/' + private_key_name + '.pub'
             if os.path.exists(check_file_name):
                 print("Auto selecting public key file %s" % check_file_name)
-                return check_file_name
+                self.ssh_public_key_file = check_file_name
+                return self.ssh_public_key_file
             else:
                 if inquire.ask_yn("Generate public key from private key %s" % ssh_private_key):
-                    if self.generate_public_key_file(ssh_private_key, check_file_name):
-                        return check_file_name
+                    if self.generate_public_key_file(check_file_name):
+                        self.ssh_public_key_file = check_file_name
+                        return self.ssh_public_key_file
 
         for file_name in os.listdir(key_directory):
             full_path = key_directory + '/' + file_name
@@ -126,4 +148,5 @@ class ssh(object):
             key_file_list.append(dir_list[i])
 
         selection = inquire.ask_list('Select SSH public key', key_file_list, default=default)
-        return key_file_list[selection]
+        self.ssh_public_key_file = key_file_list[selection]
+        return self.ssh_public_key_file
