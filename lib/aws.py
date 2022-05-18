@@ -8,6 +8,7 @@ from lib.exceptions import AWSDriverError
 from typing import Union
 from lib.ask import ask
 from lib.varfile import varfile
+from lib.prereq import prereq
 
 
 class aws(object):
@@ -23,6 +24,11 @@ class aws(object):
         ('AWS_SUBNET_ID', 'subnet_id', 'aws_get_subnet_id', None),
         ('AWS_VPC_ID', 'vpc_id', 'aws_get_vpc_id', None),
     ]
+    PREREQUISITES = {
+        'aws_get_sg_id': [
+            'aws_get_vpc_id'
+        ]
+    }
 
     def __init__(self):
         self.logger = logging.getLogger(self.__class__.__name__)
@@ -34,6 +40,14 @@ class aws(object):
         self.os_name = None
         self.os_ver = None
         self.ssh_key_fingerprint = None
+        self.aws_root_iops = None
+        self.aws_root_size = None
+        self.aws_root_type = None
+        self.aws_sg_id = None
+        self.aws_subnet_id = None
+        self.aws_ssh_key = None
+        self.aws_instance_type = None
+        self.aws_ami_id = None
 
     def aws_init(self):
         self.aws_get_region()
@@ -42,42 +56,52 @@ class aws(object):
         except Exception as err:
             raise AWSDriverError(f"can not access AWS API: {err}")
 
-    def aws_use_public_ip(self, default=None):
-        """Ask if the public IP should be assigned and used for SSH"""
-        inquire = ask()
-        selection = inquire.ask_bool('Use Public IP', recommendation='false', default=default)
-        self.use_public_ip = selection
-
     def aws_get_root_type(self, default=None) -> str:
         """Get root volume type"""
         inquire = ask()
 
+        if self.aws_root_type:
+            return self.aws_root_type
+
         default_selection = self.vf.aws_get_default('root_type')
         self.logger.info("Default root type is %s" % default_selection)
         selection = inquire.ask_text('Root volume type', default_selection, default=default)
-        return selection
+        self.aws_root_type = selection
+        return self.aws_root_type
 
     def aws_get_root_size(self, default=None) -> str:
         """Get root volume size"""
         inquire = ask()
 
+        if self.aws_root_size:
+            return self.aws_root_size
+
         default_selection = self.vf.aws_get_default('root_size')
         self.logger.info("Default root size is %s" % default_selection)
         selection = inquire.ask_text('Root volume size', default_selection, default=default)
-        return selection
+        self.aws_root_size = selection
+        return self.aws_root_size
 
     def aws_get_root_iops(self, default=None) -> str:
         """Get IOPS for root volume"""
         inquire = ask()
 
+        if self.aws_root_iops:
+            return self.aws_root_iops
+
         default_selection = self.vf.aws_get_default('root_iops')
         self.logger.info("Default root IOPS is %s" % default_selection)
         selection = inquire.ask_text('Root volume IOPS', default_selection, default=default)
-        return selection
+        self.aws_root_iops = selection
+        return self.aws_root_iops
 
+    @prereq(PREREQUISITES)
     def aws_get_sg_id(self, default=None) -> str:
         """Get AWS security group ID"""
         inquire = ask()
+
+        if self.aws_sg_id:
+            return self.aws_sg_id
 
         sg_list = []
         sg_name_list = []
@@ -96,13 +120,17 @@ class aws(object):
             sg_name_list.append(sgs['SecurityGroups'][i]['GroupName'])
 
         selection = inquire.ask_list('Select security group', sg_list, sg_name_list, default=default)
-        return sgs['SecurityGroups'][selection]['GroupId']
+        self.aws_sg_id = sgs['SecurityGroups'][selection]['GroupId']
+        return self.aws_sg_id
 
     def aws_get_vpc_id(self, default=None) -> str:
         """Get AWS VPC ID"""
         inquire = ask()
         vpc_list = []
         vpc_name_list = []
+
+        if self.aws_vpc_id:
+            return self.aws_vpc_id
 
         ec2_client = boto3.client('ec2', region_name=self.aws_region)
         vpcs = ec2_client.describe_vpcs()
@@ -134,6 +162,9 @@ class aws(object):
     def aws_get_subnet_id(self, availability_zone=None, default=None) -> str:
         """Get AWS subnet ID"""
         inquire = ask()
+
+        if self.aws_subnet_id:
+            return self.aws_subnet_id
 
         subnet_list = []
         subnet_name_list = []
@@ -174,13 +205,17 @@ class aws(object):
             subnet_name_list.append(item_name)
 
         selection = inquire.ask_list(question, subnet_list, subnet_name_list, default=default)
-        return subnet_list[selection]
+        self.aws_subnet_id = subnet_list[selection]
+        return self.aws_subnet_id
 
     def aws_get_ssh_key(self, default=None) -> str:
         """Get the AWS SSH key pair to use for node access"""
         inquire = ask()
         key_list = []
         key_id_list = []
+
+        if self.aws_ssh_key:
+            return self.aws_ssh_key
 
         ec2_client = boto3.client('ec2', region_name=self.aws_region)
         key_pairs = ec2_client.describe_key_pairs()
@@ -189,14 +224,17 @@ class aws(object):
             key_id_list.append(key_pairs['KeyPairs'][i]['KeyPairId'])
 
         selection = inquire.ask_list('Select SSH key', key_list, key_id_list, default=default)
-        aws_ssh_key = key_pairs['KeyPairs'][selection]['KeyName']
+        self.aws_ssh_key = key_pairs['KeyPairs'][selection]['KeyName']
         self.ssh_key_fingerprint = key_pairs['KeyPairs'][selection]['KeyFingerprint']
-        return aws_ssh_key
+        return self.aws_ssh_key
 
     def aws_get_instance_type(self, default=None) -> str:
         """Get the AWS instance type"""
         inquire = ask()
         size_list = []
+
+        if self.aws_instance_type:
+            return self.aws_instance_type
 
         ec2_client = boto3.client('ec2', region_name=self.aws_region)
         describe_args = {}
@@ -216,12 +254,16 @@ class aws(object):
                 break
             describe_args['NextToken'] = instance_types['NextToken']
         selection = inquire.ask_machine_type('AWS Instance Type', size_list, default=default)
-        return size_list[selection]['name']
+        self.aws_instance_type = size_list[selection]['name']
+        return self.aws_instance_type
 
     def aws_get_ami_id(self, select=True, default=None) -> Union[dict, list[dict]]:
         """Get the Couchbase AMI to use"""
         inquire = ask()
         image_list = []
+
+        if self.aws_ami_id:
+            return self.aws_ami_id
 
         ec2_client = boto3.client('ec2', region_name=self.aws_region)
         images = ec2_client.describe_images(Owners=['self'])
@@ -245,9 +287,11 @@ class aws(object):
             image_list.append(image_block)
         if select:
             selection = inquire.ask_list('Select AMI', image_list, default=default)
-            return image_list[selection]
+            self.aws_ami_id = image_list[selection]
         else:
-            return image_list
+            self.aws_ami_id = image_list
+
+        return self.aws_ami_id
 
     def aws_remove_ami(self, ami: str):
         inquire = ask()

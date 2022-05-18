@@ -15,6 +15,7 @@ from lib.prereq import prereq
 class ssh(object):
     VARIABLES = [
         ('SSH_PUBLIC_KEY', 'ssh_public_key', 'get_public_key', None),
+        ('SSH_PRIVATE_KEY', 'ssh_private_key', 'get_private_key', None),
     ]
     PREREQUISITES = {
         'get_public_key': [

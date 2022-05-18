@@ -39,7 +39,15 @@ class PackerRunError(fatalError):
     pass
 
 
+class TerraformRunError(fatalError):
+    pass
+
+
 class ImageMgmtError(fatalError):
+    pass
+
+
+class RunMgmtError(fatalError):
     pass
 
 

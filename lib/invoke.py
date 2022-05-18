@@ -85,3 +85,49 @@ class packer_run(object):
         end_time = time.perf_counter()
         run_time = time.strftime("%H hours %M minutes %S seconds.", time.gmtime(end_time - start_time))
         print(f"Image creation complete in {run_time}.")
+
+
+class tf_run(object):
+
+    def __init__(self):
+        self.check_binary()
+
+    def check_binary(self) -> bool:
+        if not distutils.spawn.find_executable("terraform"):
+            raise PackerRunError("can not find terraform executable")
+
+        return True
+
+    def _terraform(self, *args: str, working_dir=None):
+        tf_cmd = [
+            'terraform',
+            *args
+        ]
+
+        p = subprocess.Popen(tf_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, cwd=working_dir, bufsize=1)
+
+        sp = spinner()
+        sp.start()
+        while True:
+            line = p.stdout.readline()
+            if not line:
+                break
+            print(line)
+
+        sp.stop()
+        p.communicate()
+        if p.returncode != 0:
+            raise TerraformRunError(f"environment create error")
+
+    def init(self, working_dir: str):
+        cmd = []
+
+        cmd.append('init')
+        cmd.append('-input=false')
+
+        print("Initializing environment")
+        start_time = time.perf_counter()
+        self._terraform(*cmd, working_dir=working_dir)
+        end_time = time.perf_counter()
+        run_time = time.strftime("%H hours %M minutes %S seconds.", time.gmtime(end_time - start_time))
+        print(f"Initialization complete in {run_time}.")

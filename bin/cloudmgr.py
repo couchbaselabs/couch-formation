@@ -15,6 +15,7 @@ sys.path.append(parent)
 from lib.exceptions import *
 from lib.args import params
 from lib.imagemgr import image_manager
+from lib.runmgr import run_manager
 
 VERSION = '2.0-alpha-1'
 
@@ -43,6 +44,8 @@ class cloud_manager(object):
                 task.build_images()
             sys.exit(0)
         elif self.verb == 'create':
+            task = run_manager(self.args)
+            task.build_env()
             sys.exit(0)
         elif self.verb == 'destroy':
             sys.exit(0)

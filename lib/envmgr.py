@@ -20,6 +20,8 @@ class envmgr(object):
         self.cloud = None
         self.packer_dir = None
         self.tf_dir = None
+        self.env_type = None
+        self.env_num = None
         self.dev_num = None
         self.test_num = None
         self.prod_num = None
@@ -48,44 +50,43 @@ class envmgr(object):
 
     def set_env(self, dev_num=None, test_num=None, prod_num=None, app_num=None):
         if dev_num:
-            self.dev_num = dev_num
+            self.env_type = 'dev'
+            self.env_num = dev_num
         elif test_num:
-            self.test_num = test_num
+            self.env_type = 'test'
+            self.env_num = test_num
         elif prod_num:
-            self.prod_num = prod_num
+            self.env_type = 'prod'
+            self.env_num = prod_num
+        else:
+            raise EnvMgrError("no environment specified")
 
         if app_num:
             self.app_num = app_num
 
+    @property
     def get_env(self):
-        return self.dev_num, self.test_num, self.prod_num, self.app_num
+        env_string = f"{self.env_type}:{self.env_num:02d}"
+        return env_string
 
-    def get_cb_cluster_name(self, default=None):
+    def get_cb_cluster_name(self, select=True, default=None):
         inquire = ask()
 
-        if self.dev_num:
-            cluster_name = "dev{:02d}db".format(self.dev_num)
-        elif self.test_num:
-            cluster_name = "test{:02d}db".format(self.test_num)
-        elif self.prod_num:
-            cluster_name = "prod{:02d}db".format(self.prod_num)
+        if self.env_type:
+            cluster_name = f"{self.env_type}{self.env_num:02d}db"
         else:
             cluster_name = 'cbdb'
-        selection = inquire.ask_text('Couchbase Cluster Name', cluster_name, default=default)
-        self.cb_cluster_name = selection
+
+        if select:
+            selection = inquire.ask_text('Couchbase Cluster Name', cluster_name, default=default)
+            self.cb_cluster_name = selection
 
         return self.cb_cluster_name
 
     def create_env(self, overwrite=False, create=True):
-        if self.dev_num:
-            dev_directory = "dev-{:02d}".format(self.dev_num)
+        if self.env_type:
+            dev_directory = "dev-{:02d}".format(self.env_num)
             self.working_dir = self.tf_dir + '/' + dev_directory
-        elif self.test_num:
-            test_directory = "test-{:02d}".format(self.test_num)
-            self.working_dir = self.tf_dir + '/' + test_directory
-        elif self.prod_num:
-            prod_directory = "prod-{:02d}".format(self.prod_num)
-            self.working_dir = self.tf_dir + '/' + prod_directory
         else:
             raise EnvMgrError("Environment not specified.")
 
@@ -98,6 +99,14 @@ class envmgr(object):
             except Exception as err:
                 raise EnvMgrError(f"can not create environment structure: {err}")
 
+    @property
+    def env_dir(self):
+        return self.working_dir
+
+    @property
+    def app_env_dir(self):
+        return self.working_app_dir
+
     def create_env_dir(self, overwrite=False):
         copy_files = [
             'locals.json',
@@ -109,6 +118,9 @@ class envmgr(object):
             'app_main.tf',
             'app_outputs.tf',
         ]
+
+        print(f"Creating directory structure for {self.get_env}")
+
         if not os.path.exists(self.working_dir):
             try:
                 self.logger.info("Creating %s" % self.working_dir)

@@ -18,6 +18,7 @@ from lib.exceptions import *
 class toolbox(object):
     VARIABLES = [
         ('OS_TIMEZONE', 'os_timezone', 'get_timezone', None),
+        ('USE_PUBLIC_IP', 'use_public_ip', 'ask_to_use_public_ip', None),
     ]
 
     def __init__(self):
@@ -111,24 +112,10 @@ class toolbox(object):
         except IndexError:
             raise ImageNameFormatError(f"can not get os name from image {name}")
 
-    def get_cb_cluster_name(self, dev_num=None, test_num=None, prod_num=None, default=None):
-        """Get the Couchbase Cluster Name"""
-        inquire = ask()
-        if dev_num:
-            cluster_name = "dev{:02d}db".format(dev_num)
-        elif test_num:
-            cluster_name = "test{:02d}db".format(test_num)
-        elif prod_num:
-            cluster_name = "prod{:02d}db".format(prod_num)
-        else:
-            cluster_name = 'cbdb'
-        selection = inquire.ask_text('Couchbase Cluster Name', cluster_name, default=default)
-        return selection
-
     def ask_to_use_public_ip(self, default=None):
         """Ask if the public IP should be assigned and used for SSH"""
         inquire = ask()
-        selection = inquire.ask_bool('Use Public IP', recommendation='false', default=default)
+        selection = inquire.ask_bool('Use Public IP', recommendation='true', default=default)
         return selection
 
     def get_dns_servers(self, domain_name: str):

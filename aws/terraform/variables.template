@@ -31,7 +31,7 @@ variable "index_memory" {
 variable "ssh_user" {
   description = "The default username for the AMI"
   type        = string
-  default     = "{{ AWS_AMI_USER }}"
+  default     = "{{ OS_IMAGE_USER }}"
 }
 
 variable "ssh_key" {

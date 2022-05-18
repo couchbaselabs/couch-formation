@@ -61,7 +61,14 @@ class template(object):
             if not func:
                 continue
             print(f"Processing template parameter {variable}")
-            value = getattr(driver_class, func)()
+            r_value = getattr(driver_class, func)()
+            if type(r_value) == dict:
+                try:
+                    value = r_value['name']
+                except Exception as err:
+                    TemplateError(f"template function return dict without a name key: {err}")
+            else:
+                value = r_value
             processed_set.append((param, tfv, func, value))
 
         return processed_set
