@@ -31,7 +31,7 @@ variable "index_memory" {
 variable "gcp_image_user" {
   description = "The default username for the image"
   type        = string
-  default     = "{{ GCP_IMAGE_USER }}"
+  default     = "{{ OS_IMAGE_USER }}"
 }
 
 variable "ssh_public_key_file" {

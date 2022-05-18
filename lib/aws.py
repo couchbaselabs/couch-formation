@@ -56,9 +56,13 @@ class aws(object):
         except Exception as err:
             raise AWSDriverError(f"can not access AWS API: {err}")
 
-    def aws_get_root_type(self, default=None) -> str:
+    def aws_get_root_type(self, default=None, write=None) -> str:
         """Get root volume type"""
         inquire = ask()
+
+        if write:
+            self.aws_root_type = write
+            return self.aws_root_type
 
         if self.aws_root_type:
             return self.aws_root_type
@@ -69,9 +73,13 @@ class aws(object):
         self.aws_root_type = selection
         return self.aws_root_type
 
-    def aws_get_root_size(self, default=None) -> str:
+    def aws_get_root_size(self, default=None, write=None) -> str:
         """Get root volume size"""
         inquire = ask()
+
+        if write:
+            self.aws_root_size = write
+            return self.aws_root_size
 
         if self.aws_root_size:
             return self.aws_root_size
@@ -82,9 +90,13 @@ class aws(object):
         self.aws_root_size = selection
         return self.aws_root_size
 
-    def aws_get_root_iops(self, default=None) -> str:
+    def aws_get_root_iops(self, default=None, write=None) -> str:
         """Get IOPS for root volume"""
         inquire = ask()
+
+        if write:
+            self.aws_root_iops = write
+            return self.aws_root_iops
 
         if self.aws_root_iops:
             return self.aws_root_iops
@@ -96,9 +108,13 @@ class aws(object):
         return self.aws_root_iops
 
     @prereq(PREREQUISITES)
-    def aws_get_sg_id(self, default=None) -> str:
+    def aws_get_sg_id(self, default=None, write=None) -> str:
         """Get AWS security group ID"""
         inquire = ask()
+
+        if write:
+            self.aws_sg_id = write
+            return self.aws_sg_id
 
         if self.aws_sg_id:
             return self.aws_sg_id
@@ -123,11 +139,15 @@ class aws(object):
         self.aws_sg_id = sgs['SecurityGroups'][selection]['GroupId']
         return self.aws_sg_id
 
-    def aws_get_vpc_id(self, default=None) -> str:
+    def aws_get_vpc_id(self, default=None, write=None) -> str:
         """Get AWS VPC ID"""
         inquire = ask()
         vpc_list = []
         vpc_name_list = []
+
+        if write:
+            self.aws_vpc_id = write
+            return self.aws_vpc_id
 
         if self.aws_vpc_id:
             return self.aws_vpc_id
@@ -159,9 +179,13 @@ class aws(object):
             availability_zone_list.append(config_block)
         return availability_zone_list
 
-    def aws_get_subnet_id(self, availability_zone=None, default=None) -> str:
+    def aws_get_subnet_id(self, availability_zone=None, default=None, write=None) -> str:
         """Get AWS subnet ID"""
         inquire = ask()
+
+        if write:
+            self.aws_subnet_id = write
+            return self.aws_subnet_id
 
         if self.aws_subnet_id:
             return self.aws_subnet_id
@@ -208,11 +232,15 @@ class aws(object):
         self.aws_subnet_id = subnet_list[selection]
         return self.aws_subnet_id
 
-    def aws_get_ssh_key(self, default=None) -> str:
+    def aws_get_ssh_key(self, default=None, write=None) -> str:
         """Get the AWS SSH key pair to use for node access"""
         inquire = ask()
         key_list = []
         key_id_list = []
+
+        if write:
+            self.aws_ssh_key = write
+            return self.aws_ssh_key
 
         if self.aws_ssh_key:
             return self.aws_ssh_key
@@ -228,10 +256,14 @@ class aws(object):
         self.ssh_key_fingerprint = key_pairs['KeyPairs'][selection]['KeyFingerprint']
         return self.aws_ssh_key
 
-    def aws_get_instance_type(self, default=None) -> str:
+    def aws_get_instance_type(self, default=None, write=None) -> str:
         """Get the AWS instance type"""
         inquire = ask()
         size_list = []
+
+        if write:
+            self.aws_instance_type = write
+            return self.aws_instance_type
 
         if self.aws_instance_type:
             return self.aws_instance_type
@@ -257,10 +289,14 @@ class aws(object):
         self.aws_instance_type = size_list[selection]['name']
         return self.aws_instance_type
 
-    def aws_get_ami_id(self, select=True, default=None) -> Union[dict, list[dict]]:
+    def aws_get_ami_id(self, select=True, default=None, write=None) -> Union[dict, list[dict]]:
         """Get the Couchbase AMI to use"""
         inquire = ask()
         image_list = []
+
+        if write:
+            self.aws_ami_id = write
+            return self.aws_ami_id
 
         if self.aws_ami_id:
             return self.aws_ami_id
@@ -303,9 +339,13 @@ class aws(object):
             except Exception as err:
                 raise AWSDriverError(f"can not remove AMI {ami}: {err}")
 
-    def aws_get_region(self, default=None) -> str:
+    def aws_get_region(self, default=None, write=None) -> str:
         """Get the AWS Region"""
         inquire = ask()
+
+        if write:
+            self.aws_region = write
+            return self.aws_region
 
         if 'AWS_REGION' in os.environ:
             self.aws_region = os.environ['AWS_REGION']

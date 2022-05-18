@@ -16,6 +16,7 @@ class ssh(object):
     VARIABLES = [
         ('SSH_PUBLIC_KEY', 'ssh_public_key', 'get_public_key', None),
         ('SSH_PRIVATE_KEY', 'ssh_private_key', 'get_private_key', None),
+        ('SSH_PUBLIC_KEY_FILE', 'ssh_public_key_file', 'get_ssh_public_key_file', None),
     ]
     PREREQUISITES = {
         'get_public_key': [
@@ -50,12 +51,19 @@ class ssh(object):
         self.ssh_public_key = public_key.decode('utf-8')
         return self.ssh_public_key
 
-    def get_private_key(self, default=None) -> str:
+    def get_private_key(self, default=None, write=None) -> str:
         """Get path to SSH private key PEM file"""
         inquire = ask()
         dir_list = []
         key_file_list = []
         key_directory = os.environ['HOME'] + '/.ssh'
+
+        if write:
+            self.ssh_private_key = write
+            return self.ssh_private_key
+
+        if self.ssh_private_key:
+            return self.ssh_private_key
 
         for file_name in os.listdir(key_directory):
             full_path = key_directory + '/' + file_name
@@ -104,12 +112,19 @@ class ssh(object):
         except OSError as err:
             raise SSHError(f"generate_public_key_file: can not write public key file: {err}.")
 
-    def get_ssh_public_key_file(self, ssh_private_key=None, default=None) -> str:
+    def get_ssh_public_key_file(self, ssh_private_key=None, default=None, write=None) -> str:
         """Get SSH public key file"""
         inquire = ask()
         dir_list = []
         key_file_list = []
         key_directory = os.environ['HOME'] + '/.ssh'
+
+        if write:
+            self.ssh_public_key_file = write
+            return self.ssh_public_key_file
+
+        if self.ssh_public_key_file:
+            return self.ssh_public_key_file
 
         if self.ssh_private_key:
             private_key_dir = os.path.dirname(self.ssh_private_key)
