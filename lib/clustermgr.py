@@ -1,10 +1,106 @@
 ##
 ##
 
+import logging
+import jinja2
+import dns.resolver
+import ipaddress
+from datetime import datetime
+from itertools import cycle
+from lib.exceptions import *
+from lib.ask import ask
+from lib.dns import dynamicDNS
+from lib.constants import CB_CFG_HEAD, CB_CFG_NODE, CB_CFG_TAIL
+from lib.aws import aws
+from lib.gcp import gcp
+from lib.azure import azure
+from lib.vmware import vmware
+from lib.location import location
+from lib.template import template
+from lib.varfile import varfile
+from lib.cbrelmgr import cbrelease
+from lib.ssh import ssh
+from lib.toolbox import toolbox
+from lib.invoke import tf_run
+from lib.envmgr import envmgr
+
+
 class clustermgr(object):
 
-    def __init__(self):
-        pass
+    def __init__(self, driver, env, parameters):
+        self.logger = logging.getLogger(self.__class__.__name__)
+        self.cloud = parameters.cloud
+        self.args = parameters
+        self.driver = driver
+        self.env = env
+        self.subnet_cidr = None
+        self.subnet_netmask = None
+        self.default_gateway = None
+        self.omit_range = None
+        self.use_single_zone = False
+        self.availability_zone_cycle = None
+        self.static_ip = self.args.static
+        self.update_dns = self.args.dns
+        self.subnet_cidr = self.args.subnet
+        self.subnet_netmask = None
+        self.default_gateway = self.args.gateway
+        self.omit_range = self.args.omit
+        self.domain_name = self.args.domain
+        self.lc = location()
+        self.lc.set_cloud(self.cloud)
+        self.tools = toolbox()
+        self.cluster_file_name = 'cluster.tf'
+
+    def get_subnet_cidr(self):
+        inquire = ask()
+        selection = inquire.ask_net('Subnet CIDR')
+        self.subnet_cidr = selection
+
+    def get_subnet_mask(self):
+        if not self.subnet_cidr:
+            self.get_subnet_cidr()
+        self.subnet_netmask = ipaddress.ip_network(self.subnet_cidr).prefixlen
+
+    def get_subnet_gateway(self):
+        inquire = ask()
+        selection = inquire.ask_ip('Default Gateway')
+        self.default_gateway = selection
+
+    def get_omit_range(self):
+        inquire = ask()
+        selection = inquire.ask_net_range('Omit Network Range')
+        self.omit_range = selection
+
+    def set_availability_zone_cycle(self):
+        inquire = ask()
+        if self.cloud == 'aws':
+            availability_zone_list = self.driver.aws_get_availability_zone_list()
+        elif self.cloud == 'gcp':
+            availability_zone_list = self.driver.gcp_get_availability_zone_list()
+        elif self.cloud == 'azure':
+            availability_zone_list = self.driver.azure_get_availability_zone_list()
+        else:
+            self.availability_zone_cycle = None
+            return
+        if self.use_single_zone:
+            selection = inquire.ask_list('Select availability zone', availability_zone_list)
+            self.logger.info("AWS AZ: %s" % availability_zone_list[selection]['subnet'])
+            self.availability_zone_cycle = cycle([availability_zone_list[selection]])
+        else:
+            self.logger.info("AWS AZ List: %s" % ",".join([e['subnet'] for e in availability_zone_list]))
+            self.availability_zone_cycle = cycle(availability_zone_list)
+
+    @property
+    def get_next_availability_zone(self):
+        return next(self.availability_zone_cycle)
+
+    def check_node_ip_address(self, node_ip):
+        if not self.subnet_cidr:
+            self.get_subnet_cidr()
+        if ipaddress.ip_address(node_ip) in ipaddress.ip_network(self.subnet_cidr):
+            return True
+        else:
+            return False
 
     def create_cluster_config(self):
         inquire = ask()
@@ -16,7 +112,8 @@ class clustermgr(object):
         services = ['data', 'index', 'query', 'fts', 'analytics', 'eventing', ]
         self.set_availability_zone_cycle()
 
-        env_text = self.get_env_string()
+        env_text = self.env.get_env
+        env_text = env_text.replace(':', '')
 
         print("Building cluster configuration")
         while True:
@@ -40,7 +137,7 @@ class clustermgr(object):
             print("Configuring node %d" % node)
             if self.static_ip:
                 if not self.domain_name:
-                    self.get_domain_name()
+                    self.tools.get_domain_name()
                 if not self.subnet_cidr:
                     self.get_subnet_cidr()
                 if not self.subnet_netmask:
@@ -120,14 +217,12 @@ class clustermgr(object):
             node += 1
 
         config_segments.append(CB_CFG_TAIL)
-        output_file = 'cluster.tf'
-        output_file = self.template_dir + '/' + output_file
+        output_file = self.env.env_dir + '/' + self.cluster_file_name
         try:
             with open(output_file, 'w') as write_file:
                 for i in range(len(config_segments)):
                     write_file.write(config_segments[i])
                 write_file.write("\n")
                 write_file.close()
-        except OSError as e:
-            print("Can not write to new cluster file: %s" % str(e))
-            sys.exit(1)
+        except OSError as err:
+            raise ClusterMgrError(f"Can not write to new cluster file: {err}")

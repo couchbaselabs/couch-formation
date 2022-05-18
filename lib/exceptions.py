@@ -86,3 +86,7 @@ class TemplateError(fatalError):
 class EnvMgrError(fatalError):
     pass
 
+
+class ClusterMgrError(fatalError):
+    pass
+

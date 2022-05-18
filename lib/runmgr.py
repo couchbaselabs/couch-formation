@@ -1,9 +1,7 @@
 ##
 ##
 
-from datetime import datetime
 from lib.exceptions import *
-from lib.ask import ask
 from lib.aws import aws
 from lib.gcp import gcp
 from lib.azure import azure
@@ -16,6 +14,7 @@ from lib.ssh import ssh
 from lib.toolbox import toolbox
 from lib.invoke import tf_run
 from lib.envmgr import envmgr
+from lib.clustermgr import clustermgr
 
 
 class run_manager(object):
@@ -49,7 +48,10 @@ class run_manager(object):
         else:
             raise RunMgmtError(f"unknown cloud {self.cloud}")
 
-        print(f"Operating on environment {self.env.get_env}")
+        env_text = self.env.get_env
+        env_text = env_text.replace(':', ' ')
+
+        print(f"Operating on environment {env_text}")
         self.env.create_env()
 
         t = template()
@@ -99,6 +101,11 @@ class run_manager(object):
             t.write_file(var_file)
         except Exception as err:
             ImageMgmtError(f"can not write packer variables {var_file}: {err}")
+
+        print("Creating cluster configuration")
+
+        cm = clustermgr(driver, self.env, self.args)
+        cm.create_cluster_config()
 
         print("Beginning environment deploy process")
 
