@@ -56,17 +56,17 @@ variable "vsphere_password" {
   type        = string
 }
 
-variable "build_username" {
+variable "os_image_user" {
   description = "OS User Name"
   type        = string
 }
 
-variable "vm_guest_os_timezone" {
+variable "os_timezone" {
   description = "OS Timezone"
   type        = string
 }
 
-variable "build_key" {
+variable "ssh_public_key" {
   description = "OS User SSH Authorized Key"
   type        = string
 }
@@ -96,17 +96,17 @@ variable "vm_disk_size" {
   type        = string
 }
 
-variable "iso_url" {
+variable "os_image_name" {
   description = "OS ISO URL"
   type        = string
 }
 
-variable "iso_checksum" {
+variable "os_iso_checksum" {
   description = "OS ISO Checksum"
   type        = string
 }
 
-variable "sw_url" {
+variable "os_sw_url" {
   description = "OS Software Install URL"
   type        = string
 }
@@ -169,12 +169,12 @@ source "vsphere-iso" "cb-node" {
   notes                = "Built by HashiCorp Packer on ${local.timestamp}."
   #iso_paths           = ["[${var.vsphere_iso_datastore}] ${var.vsphere_iso_path}/${var.iso_file}"]
   #iso_checksum        = "${var.vsphere_iso_hash}:${var.iso_checksum}"
-  iso_url              = var.iso_url
-  iso_checksum         = var.iso_checksum
+  iso_url              = var.os_image_name
+  iso_checksum         = var.os_iso_checksum
   http_port_min        = 8000
   http_port_max        = 8099
   http_content = {
-    "/ks.cfg" = templatefile("ks-cfg.pkrtpl.hcl", { build_username = var.build_username, build_password_encrypted = var.build_password_encrypted, vm_guest_os_language = var.vm_guest_os_language, vm_guest_os_keyboard = var.vm_guest_os_keyboard, vm_guest_os_timezone = var.vm_guest_os_timezone, build_key = var.build_key, sw_url = var.sw_url })
+    "/ks.cfg" = templatefile("ks-cfg.pkrtpl.hcl", { build_username = var.os_image_user, build_password_encrypted = var.build_password_encrypted, vm_guest_os_language = var.vm_guest_os_language, vm_guest_os_keyboard = var.vm_guest_os_keyboard, vm_guest_os_timezone = var.os_timezone, build_key = var.ssh_public_key, sw_url = var.os_sw_url })
   }
   boot_order          = "disk,cdrom"
   boot_wait           = "5s"
@@ -183,7 +183,7 @@ source "vsphere-iso" "cb-node" {
   shutdown_command    = "echo '${var.build_password}' | sudo -S -E shutdown -P now"
   shutdown_timeout    = "15m"
   communicator        = "ssh"
-  ssh_username        = var.build_username
+  ssh_username        = var.os_image_user
   ssh_password        = var.build_password
   ssh_port            = 22
   ssh_timeout         = "30m"

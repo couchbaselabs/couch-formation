@@ -18,11 +18,9 @@ class varfile(object):
         ('OS_IMAGE_PUBLISHER', 'os_image_publisher', 'get_image_publisher', None),
         ('OS_IMAGE_SKU', 'os_image_sku', 'get_image_sku', None),
         ('OS_IMAGE_OFFER', 'os_image_offer', 'get_image_offer', None),
-
-        ('VMWARE_ISO_CHECKSUM', 'iso_checksum', '', None),
-        ('VMWARE_ISO_URL', 'iso_url', '', None),
-        ('VMWARE_OS_TYPE', 'vm_guest_os_type', '', None),
-        ('VMWARE_SW_URL', 'sw_url', '', None),
+        ('OS_ISO_CHECKSUM', 'os_iso_checksum', 'get_iso_checksum', None),
+        ('VMWARE_OS_TYPE', 'vm_guest_os_type', 'get_vmware_guest_type', None),
+        ('OS_SW_URL', 'os_sw_url', 'get_sw_url', None),
     ]
 
     def __init__(self):
@@ -180,6 +178,15 @@ class varfile(object):
 
     def get_image_sku(self):
         return self.get_os_var('sku')
+
+    def get_iso_checksum(self):
+        return self.get_os_var('checksum')
+
+    def get_sw_url(self):
+        return self.get_os_var('sw_url')
+
+    def get_vmware_guest_type(self):
+        return self.get_os_var('type')
 
     def get_var_file(self):
         return self.get_os_var('vars')

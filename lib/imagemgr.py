@@ -12,6 +12,8 @@ from lib.location import location
 from lib.template import template
 from lib.varfile import varfile
 from lib.cbrelmgr import cbrelease
+from lib.ssh import ssh
+from lib.toolbox import toolbox
 from lib import invoke
 
 
@@ -69,6 +71,8 @@ class image_manager(object):
         t = template()
         v = varfile()
         c = cbrelease()
+        s = ssh()
+        b = toolbox()
         build_variables = []
 
         v.set_cloud(self.cloud)
@@ -84,10 +88,19 @@ class image_manager(object):
         try:
             t.read_file(template_file)
             requested_vars = t.get_file_parameters()
+
             pass_variables = t.process_vars(v, requested_vars, v.VARIABLES)
             build_variables = build_variables + pass_variables
+
             pass_variables = t.process_vars(c, requested_vars, c.VARIABLES)
             build_variables = build_variables + pass_variables
+
+            pass_variables = t.process_vars(s, requested_vars, s.VARIABLES)
+            build_variables = build_variables + pass_variables
+
+            pass_variables = t.process_vars(b, requested_vars, b.VARIABLES)
+            build_variables = build_variables + pass_variables
+
             pass_variables = t.process_vars(driver, requested_vars, driver.VARIABLES)
             build_variables = build_variables + pass_variables
         except Exception as err:

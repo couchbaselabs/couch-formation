@@ -165,6 +165,9 @@ class vmware(object):
     def vmware_get_build_password(self, default=None) -> str:
         inquire = ask()
 
+        if self.vmware_build_password:
+            return self.vmware_build_password
+
         selection = inquire.ask_pass("Build password", default=default)
         self.vmware_build_password = selection
 
@@ -172,6 +175,9 @@ class vmware(object):
 
     @prereq(PREREQUISITES)
     def vmware_get_build_pwd_encrypted(self) -> str:
+        if self.vmware_build_pwd_encrypted:
+            return self.vmware_build_pwd_encrypted
+
         self.vmware_build_pwd_encrypted = sha512_crypt.using(salt=''.join([random.choice(string.ascii_letters + string.digits) for _ in range(16)]), rounds=5000).hash(
             self.vmware_build_password)
         return self.vmware_build_pwd_encrypted
@@ -220,7 +226,7 @@ class vmware(object):
     def vmware_get_disksize(self, default=None) -> str:
         inquire = ask()
 
-        default_selection = self.vf.gcp_get_default('vm_disk_size')
+        default_selection = self.vf.vmware_get_default('vm_disk_size')
         self.logger.info("Default disk size is %s" % default_selection)
         selection = inquire.ask_text('Disk size', recommendation=default_selection, default=default)
         return selection
@@ -228,7 +234,7 @@ class vmware(object):
     def vmware_get_memsize(self, default=None) -> str:
         inquire = ask()
 
-        default_selection = self.vf.gcp_get_default('vm_mem_size')
+        default_selection = self.vf.vmware_get_default('vm_mem_size')
         self.logger.info("Default memory size is %s" % default_selection)
         selection = inquire.ask_text('Memory size', recommendation=default_selection, default=default)
         return selection
@@ -236,7 +242,7 @@ class vmware(object):
     def vmware_get_cpucores(self, default=None) -> str:
         inquire = ask()
 
-        default_selection = self.vf.gcp_get_default('vm_cpu_cores')
+        default_selection = self.vf.vmware_get_default('vm_cpu_cores')
         self.logger.info("Default CPU cores is %s" % default_selection)
         selection = inquire.ask_text('CPU cores', recommendation=default_selection, default=default)
         return selection
@@ -247,7 +253,7 @@ class vmware(object):
         if self.cb_cluster_name:
             default_selection = self.cb_cluster_name
         else:
-            default_selection = self.vf.gcp_get_default('folder')
+            default_selection = self.vf.vmware_get_default('folder')
 
         self.logger.info("Default folder is %s" % default_selection)
 
@@ -338,17 +344,29 @@ class vmware(object):
         except Exception as err:
             raise VMwareDriverError(f"can not access vSphere: {err}")
 
-    def vmware_get_hostname(self, default=None) -> bool:
+    def vmware_get_hostname(self, default=None) -> str:
         inquire = ask()
-        self.vmware_hostname = inquire.ask_text("vSphere Host Name", default=default)
-        return True
 
-    def vmware_get_username(self, default=None) -> bool:
+        if self.vmware_hostname:
+            return self.vmware_hostname
+
+        self.vmware_hostname = inquire.ask_text("vSphere Host Name", default=default)
+        return self.vmware_hostname
+
+    def vmware_get_username(self, default=None) -> str:
         inquire = ask()
+
+        if self.vmware_username:
+            return self.vmware_username
+
         self.vmware_username = inquire.ask_text("vSphere Admin User", recommendation='administrator@vsphere.local', default=default)
-        return True
+        return self.vmware_username
 
     def vmware_get_password(self, default=None) -> bool:
         inquire = ask()
+
+        if self.vmware_password:
+            return self.vmware_password
+
         self.vmware_password = inquire.ask_pass("vSphere Admin Password", verify=False, default=default)
-        return True
+        return self.vmware_password
