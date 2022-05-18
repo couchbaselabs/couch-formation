@@ -15,6 +15,8 @@ from lib.toolbox import toolbox
 from lib.invoke import tf_run
 from lib.envmgr import envmgr
 from lib.clustermgr import clustermgr
+from lib.ask import ask
+from lib.constants import CB_CFG_HEAD, CB_CFG_NODE, CB_CFG_TAIL, APP_CFG_HEAD, CLUSTER_CONFIG, APP_CONFIG
 
 
 class run_manager(object):
@@ -31,6 +33,8 @@ class run_manager(object):
         self.env.set_env(self.args.dev, self.args.test, self.args.prod, self.args.app)
 
     def build_env(self):
+        inquire = ask()
+
         if self.cloud == 'aws':
             driver = aws()
             driver.aws_init()
@@ -102,11 +106,20 @@ class run_manager(object):
         except Exception as err:
             ImageMgmtError(f"can not write packer variables {var_file}: {err}")
 
-        print("Creating cluster configuration")
-
         cm = clustermgr(driver, self.env, self.args)
-        cm.create_cluster_config()
 
+        print("")
+        if inquire.ask_yn('Create cluster configuration', default=True):
+            print("")
+            cm.create_node_config(CLUSTER_CONFIG, self.env.env_dir)
+
+        print("")
+        if self.env.app_env_dir:
+            if inquire.ask_yn('Create app configuration', default=True):
+                print("")
+                cm.create_node_config(APP_CONFIG, self.env.app_env_dir)
+
+        print("")
         print("Beginning environment deploy process")
 
         # try:

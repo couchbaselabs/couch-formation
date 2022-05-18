@@ -8,6 +8,9 @@ MODE_PACKER = 0x0003
 MODE_KUBE_MAP = 0x0004
 MODE_APP_MAP = 0x0005
 
+CLUSTER_CONFIG = 0x0010
+APP_CONFIG = 0x0011
+
 CB_CFG_HEAD = """####
 variable "cluster_spec" {
   description = "Map of cluster nodes and services."
