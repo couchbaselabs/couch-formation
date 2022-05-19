@@ -45,7 +45,7 @@ resource "aws_instance" "app_nodes" {
     connection {
       host        = var.use_public_ip ? self.public_ip : self.private_ip
       type        = "ssh"
-      user        = var.ssh_user
+      user        = var.os_image_user
       private_key = file(var.ssh_private_key)
     }
   }

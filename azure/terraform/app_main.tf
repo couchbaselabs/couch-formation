@@ -68,7 +68,7 @@ resource "azurerm_linux_virtual_machine" "app_nodes" {
   zone                  = each.value.node_zone
   resource_group_name   = var.azure_resource_group
   source_image_id       = data.azurerm_image.app_image.id
-  admin_username        = var.azure_admin_user
+  admin_username        = var.os_image_user
   network_interface_ids = [
     azurerm_network_interface.node_nic[each.key].id,
   ]
@@ -80,7 +80,7 @@ resource "azurerm_linux_virtual_machine" "app_nodes" {
   }
 
   admin_ssh_key {
-    username   = var.azure_admin_user
+    username   = var.os_image_user
     public_key = file(var.ssh_public_key_file)
   }
 
@@ -92,7 +92,7 @@ resource "azurerm_linux_virtual_machine" "app_nodes" {
     connection {
       host        = var.use_public_ip ? self.public_ip_address : self.private_ip_address
       type        = "ssh"
-      user        = var.azure_admin_user
+      user        = var.os_image_user
       private_key = file(var.ssh_private_key)
     }
   }

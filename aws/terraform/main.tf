@@ -42,7 +42,7 @@ resource "aws_instance" "couchbase_nodes" {
     connection {
       host        = var.use_public_ip ? self.public_ip : self.private_ip
       type        = "ssh"
-      user        = var.ssh_user
+      user        = var.os_image_user
       private_key = file(var.ssh_private_key)
     }
   }
@@ -67,7 +67,7 @@ resource "null_resource" "couchbase-init" {
   connection {
     host        = var.use_public_ip ? each.value.public_ip : each.value.private_ip
     type        = "ssh"
-    user        = var.ssh_user
+    user        = var.os_image_user
     private_key = file(var.ssh_private_key)
   }
   provisioner "remote-exec" {
@@ -85,7 +85,7 @@ resource "null_resource" "couchbase-rebalance" {
   connection {
     host        = var.use_public_ip ? local.rally_node_public : local.rally_node
     type        = "ssh"
-    user        = var.ssh_user
+    user        = var.os_image_user
     private_key = file(var.ssh_private_key)
   }
   provisioner "remote-exec" {

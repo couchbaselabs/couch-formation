@@ -28,7 +28,7 @@ variable "index_memory" {
   type        = string
 }
 
-variable "ssh_user" {
+variable "os_image_user" {
   description = "The default username for the AMI"
   type        = string
   default     = "{{ OS_IMAGE_USER }}"

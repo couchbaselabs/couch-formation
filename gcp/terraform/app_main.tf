@@ -46,7 +46,7 @@ resource "google_compute_instance" "app_nodes" {
   }
 
   metadata = {
-   ssh-keys = "${var.gcp_image_user}:${file(var.ssh_public_key_file)}"
+   ssh-keys = "${var.os_image_user}:${file(var.ssh_public_key_file)}"
  }
 
   service_account {
@@ -62,7 +62,7 @@ resource "google_compute_instance" "app_nodes" {
     connection {
       host        = var.use_public_ip ? self.network_interface.0.access_config.0.nat_ip : self.network_interface.0.network_ip
       type        = "ssh"
-      user        = var.gcp_image_user
+      user        = var.os_image_user
       private_key = file(var.ssh_private_key)
     }
   }
