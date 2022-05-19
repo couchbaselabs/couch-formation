@@ -49,6 +49,8 @@ class run_manager(object):
         elif self.cloud == 'vmware':
             driver = vmware()
             driver.vmware_init()
+            driver.vmware_set_cluster_name(self.env.get_cb_cluster_name(select=False))
+            self.args.static = True
         else:
             raise RunMgmtError(f"unknown cloud {self.cloud}")
 

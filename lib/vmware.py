@@ -55,6 +55,17 @@ class vmware(object):
         self.vmware_build_pwd_encrypted = None
         self.vmware_create_folder = False
         self.cb_cluster_name = None
+        self.vmware_cluster = None
+        self.vmware_datastore = None
+        self.vmware_folder = None
+        self.vmware_cpucores = None
+        self.vmware_memsize = None
+        self.vmware_disksize = None
+        self.vmware_network = None
+        self.vmware_build_password = None
+        self.vmware_build_pwd_encrypted = None
+        self.vmware_template = None
+        self.vmware_dvs = None
 
     def vmware_init(self, create_folder=False):
         tb = toolbox()
@@ -118,8 +129,15 @@ class vmware(object):
     def vmware_set_cluster_name(self, name: str):
         self.cb_cluster_name = name
 
-    def vmware_get_template(self, select=True, default=None) -> Union[dict, list[dict]]:
+    def vmware_get_template(self, select=True, default=None, write=None) -> Union[dict, list[dict]]:
         inquire = ask()
+
+        if write:
+            self.vmware_template = write
+            return self.vmware_template
+
+        if self.vmware_template:
+            return self.vmware_template
 
         templates = []
         try:
@@ -138,9 +156,11 @@ class vmware(object):
             container.Destroy()
             if select:
                 selection = inquire.ask_list('Select template', templates, default=default)
-                return templates[selection]
+                self.vmware_template = templates[selection]
             else:
-                return templates
+                self.vmware_template = templates
+
+            return self.vmware_template
         except Exception as err:
             raise VMwareDriverError(f"can not get template: {err}")
 
@@ -162,8 +182,12 @@ class vmware(object):
             except Exception as err:
                 raise VMwareDriverError(f"can not delete template: {err}")
 
-    def vmware_get_build_password(self, default=None) -> str:
+    def vmware_get_build_password(self, default=None, write=None) -> str:
         inquire = ask()
+
+        if write:
+            self.vmware_build_password = write
+            return self.vmware_build_password
 
         if self.vmware_build_password:
             return self.vmware_build_password
@@ -182,9 +206,16 @@ class vmware(object):
             self.vmware_build_password)
         return self.vmware_build_pwd_encrypted
 
-    def vmware_get_dvs_network(self, default=None) -> str:
+    def vmware_get_dvs_network(self, default=None, write=None) -> str:
         inquire = ask()
         pgList = []
+
+        if write:
+            self.vmware_network = write
+            return self.vmware_network
+
+        if self.vmware_network:
+            return self.vmware_network
 
         try:
             si = SmartConnectNoSSL(host=self.vmware_hostname,
@@ -198,13 +229,21 @@ class vmware(object):
             container.Destroy()
             pgList = sorted(set(pgList))
             selection = inquire.ask_list('Select port group', pgList, default=default)
-            return pgList[selection]
+            self.vmware_network = pgList[selection]
+            return self.vmware_network
         except Exception as err:
             raise VMwareDriverError(f"can not get port group: {err}")
 
-    def vmware_get_dvs_switch(self, default=None) -> str:
+    def vmware_get_dvs_switch(self, default=None, write=None) -> str:
         inquire = ask()
         dvsList = []
+
+        if write:
+            self.vmware_dvs = write
+            return self.vmware_dvs
+
+        if self.vmware_dvs:
+            return self.vmware_dvs
 
         try:
             si = SmartConnectNoSSL(host=self.vmware_hostname,
@@ -219,65 +258,101 @@ class vmware(object):
                 dvsList.append(managed_object_ref.name)
             container.Destroy()
             selection = inquire.ask_list('Select distributed switch', dvsList, default=default)
-            return dvsList[selection]
+            self.vmware_dvs = dvsList[selection]
+            return self.vmware_dvs
         except Exception as err:
             raise VMwareDriverError(f"can not get distributed switch: {err}")
 
-    def vmware_get_disksize(self, default=None) -> str:
+    def vmware_get_disksize(self, default=None, write=None) -> str:
         inquire = ask()
+
+        if write:
+            self.vmware_disksize = write
+            return self.vmware_disksize
+
+        if self.vmware_disksize:
+            return self.vmware_disksize
 
         default_selection = self.vf.vmware_get_default('vm_disk_size')
         self.logger.info("Default disk size is %s" % default_selection)
         selection = inquire.ask_text('Disk size', recommendation=default_selection, default=default)
-        return selection
+        self.vmware_disksize = selection
+        return self.vmware_disksize
 
-    def vmware_get_memsize(self, default=None) -> str:
+    def vmware_get_memsize(self, default=None, write=None) -> str:
         inquire = ask()
+
+        if write:
+            self.vmware_memsize = write
+            return self.vmware_memsize
+
+        if self.vmware_memsize:
+            return self.vmware_memsize
 
         default_selection = self.vf.vmware_get_default('vm_mem_size')
         self.logger.info("Default memory size is %s" % default_selection)
         selection = inquire.ask_text('Memory size', recommendation=default_selection, default=default)
-        return selection
+        self.vmware_memsize = selection
+        return self.vmware_memsize
 
-    def vmware_get_cpucores(self, default=None) -> str:
+    def vmware_get_cpucores(self, default=None, write=None) -> str:
         inquire = ask()
+
+        if write:
+            self.vmware_cpucores = write
+            return self.vmware_cpucores
+
+        if self.vmware_cpucores:
+            return self.vmware_cpucores
 
         default_selection = self.vf.vmware_get_default('vm_cpu_cores')
         self.logger.info("Default CPU cores is %s" % default_selection)
         selection = inquire.ask_text('CPU cores', recommendation=default_selection, default=default)
-        return selection
+        self.vmware_cpucores = selection
+        return self.vmware_cpucores
 
-    def vmware_get_folder(self, default=None) -> str:
+    def vmware_get_folder(self, default=None, write=None) -> str:
         inquire = ask()
+
+        if write:
+            self.vmware_folder = write
+            return self.vmware_folder
 
         if self.cb_cluster_name:
             default_selection = self.cb_cluster_name
         else:
             default_selection = self.vf.vmware_get_default('folder')
 
-        self.logger.info("Default folder is %s" % default_selection)
+        self.logger.debug("Default folder is %s" % default_selection)
 
-        selection = inquire.ask_text('Folder', recommendation=default_selection, default=default)
-
-        vmware_folder = selection
+        if not self.vmware_folder:
+            selection = inquire.ask_text('Folder', recommendation=default_selection, default=default)
+            self.vmware_folder = selection
 
         if self.vmware_create_folder:
             for folder in self.vmware_dc_folder.vmFolder.childEntity:
-                if folder.name == vmware_folder:
-                    self.logger.info("Folder %s already exists." % vmware_folder)
-                    return vmware_folder
+                if folder.name == self.vmware_folder:
+                    self.logger.info("Folder %s already exists." % self.vmware_folder)
+                    return self.vmware_folder
 
-            self.logger.info("Folder %s does not exist." % vmware_folder)
-            print("Creating folder %s" % vmware_folder)
+            self.logger.info("Folder %s does not exist." % self.vmware_folder)
+            print("Creating folder %s" % self.vmware_folder)
             try:
-                self.vmware_dc_folder.vmFolder.CreateFolder(vmware_folder)
+                self.vmware_dc_folder.vmFolder.CreateFolder(self.vmware_folder)
             except Exception as err:
-                raise VMwareDriverError(f"can not create folder {vmware_folder}: {err}")
+                raise VMwareDriverError(f"can not create folder {self.vmware_folder}: {err}")
 
-        return vmware_folder
+        return self.vmware_folder
 
-    def vmware_get_datastore(self, default=None) -> str:
+    def vmware_get_datastore(self, default=None, write=None) -> str:
         inquire = ask()
+
+        if write:
+            self.vmware_datastore = write
+            return self.vmware_datastore
+
+        if self.vmware_datastore:
+            return self.vmware_datastore
 
         try:
             si = SmartConnectNoSSL(host=self.vmware_hostname,
@@ -299,12 +374,20 @@ class vmware(object):
                     datastore_type.append(host_mount_info.volume.type)
             selection = inquire.ask_list('Select datastore', datastore_name, datastore_type, default=default)
             container.Destroy()
-            return datastore_name[selection]
+            self.vmware_datastore = datastore_name[selection]
+            return self.vmware_datastore
         except Exception as err:
             raise VMwareDriverError(f"can not get datastore: {err}")
 
-    def vmware_get_cluster(self, default=None) -> str:
+    def vmware_get_cluster(self, default=None, write=None) -> str:
         inquire = ask()
+
+        if write:
+            self.vmware_cluster = write
+            return self.vmware_cluster
+
+        if self.vmware_cluster:
+            return self.vmware_cluster
 
         try:
             clusters = []
@@ -312,12 +395,17 @@ class vmware(object):
                 if isinstance(c, vim.ClusterComputeResource):
                     clusters.append(c.name)
             selection = inquire.ask_list('Select cluster', clusters, default=default)
-            return clusters[selection]
+            self.vmware_cluster = clusters[selection]
+            return self.vmware_cluster
         except Exception as err:
             raise VMwareDriverError(f"can not get cluster: {err}")
 
-    def vmware_get_datacenter(self, default=None) -> str:
+    def vmware_get_datacenter(self, default=None, write=None) -> str:
         inquire = ask()
+
+        if write:
+            self.vmware_datacenter = write
+            return self.vmware_datacenter
 
         try:
             si = SmartConnectNoSSL(host=self.vmware_hostname,
@@ -344,8 +432,12 @@ class vmware(object):
         except Exception as err:
             raise VMwareDriverError(f"can not access vSphere: {err}")
 
-    def vmware_get_hostname(self, default=None) -> str:
+    def vmware_get_hostname(self, default=None, write=None) -> str:
         inquire = ask()
+
+        if write:
+            self.vmware_hostname = write
+            return self.vmware_hostname
 
         if self.vmware_hostname:
             return self.vmware_hostname
@@ -353,8 +445,12 @@ class vmware(object):
         self.vmware_hostname = inquire.ask_text("vSphere Host Name", default=default)
         return self.vmware_hostname
 
-    def vmware_get_username(self, default=None) -> str:
+    def vmware_get_username(self, default=None, write=None) -> str:
         inquire = ask()
+
+        if write:
+            self.vmware_username = write
+            return self.vmware_username
 
         if self.vmware_username:
             return self.vmware_username
@@ -362,8 +458,12 @@ class vmware(object):
         self.vmware_username = inquire.ask_text("vSphere Admin User", recommendation='administrator@vsphere.local', default=default)
         return self.vmware_username
 
-    def vmware_get_password(self, default=None) -> bool:
+    def vmware_get_password(self, default=None, write=None) -> bool:
         inquire = ask()
+
+        if write:
+            self.vmware_password = write
+            return self.vmware_password
 
         if self.vmware_password:
             return self.vmware_password

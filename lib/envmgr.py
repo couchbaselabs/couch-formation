@@ -73,12 +73,12 @@ class envmgr(object):
         inquire = ask()
 
         if self.env_type:
-            cluster_name = f"{self.env_type}{self.env_num:02d}db"
+            self.cb_cluster_name = f"{self.env_type}{self.env_num:02d}db"
         else:
-            cluster_name = 'cbdb'
+            self.cb_cluster_name = 'cbdb'
 
         if select:
-            selection = inquire.ask_text('Couchbase Cluster Name', cluster_name, default=default)
+            selection = inquire.ask_text('Couchbase Cluster Name', self.cb_cluster_name, default=default)
             self.cb_cluster_name = selection
 
         return self.cb_cluster_name
