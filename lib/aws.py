@@ -107,7 +107,7 @@ class aws(object):
         self.aws_root_iops = selection
         return self.aws_root_iops
 
-    @prereq(PREREQUISITES)
+    @prereq(requirements=('aws_get_vpc_id',))
     def aws_get_sg_id(self, default=None, write=None) -> str:
         """Get AWS security group ID"""
         inquire = ask()

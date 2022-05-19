@@ -173,7 +173,7 @@ class vmware(object):
 
         return self.vmware_build_password
 
-    @prereq(PREREQUISITES)
+    @prereq(requirements=('vmware_get_build_password',))
     def vmware_get_build_pwd_encrypted(self) -> str:
         if self.vmware_build_pwd_encrypted:
             return self.vmware_build_pwd_encrypted

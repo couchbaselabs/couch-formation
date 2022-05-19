@@ -12,6 +12,7 @@ import os
 from lib.varfile import varfile
 from lib.ask import ask
 from lib.exceptions import AzureDriverError
+from lib.prereq import prereq
 
 
 class azure(object):
@@ -36,6 +37,14 @@ class azure(object):
         self.azure_location = None
         self.azure_subnet = None
         self.azure_vnet = None
+        self.azure_availability_zones = []
+        self.azure_vnet = None
+        self.azure_subnet_id = None
+        self.azure_nsg = None
+        self.azure_image_name = None
+        self.azure_machine_type = None
+        self.azure_disk_type = None
+        self.azure_disk_size = None
 
     def azure_init(self):
         try:
@@ -50,28 +59,51 @@ class azure(object):
         except Exception as err:
             raise AzureDriverError(f"Azure prep error: {err}")
 
-    def azure_get_root_size(self, default=None) -> str:
+    def azure_get_root_size(self, default=None, write=None) -> str:
         """Get Azure root disk size"""
         inquire = ask()
+
+        if write:
+            self.azure_disk_size = write
+            return self.azure_disk_size
+
+        if self.azure_disk_size:
+            return self.azure_disk_size
 
         default_selection = self.vf.azure_get_default('root_size')
         self.logger.info("Default root size is %s" % default_selection)
         selection = inquire.ask_text('Root volume size', recommendation=default_selection, default=default)
-        return selection
+        self.azure_disk_size = selection
+        return self.azure_disk_size
 
-    def azure_get_root_type(self, default=None) -> str:
+    def azure_get_root_type(self, default=None, write=None) -> str:
         """Get Azure root disk size"""
         inquire = ask()
+
+        if write:
+            self.azure_disk_type = write
+            return self.azure_disk_type
+
+        if self.azure_disk_type:
+            return self.azure_disk_type
 
         default_selection = self.vf.azure_get_default('root_type')
         self.logger.info("Default root size is %s" % default_selection)
         selection = inquire.ask_text('Root volume type', recommendation=default_selection, default=default)
-        return selection
+        self.azure_disk_type = selection
+        return self.azure_disk_type
 
-    def azure_get_machine_type(self, default=None) -> str:
+    def azure_get_machine_type(self, default=None, write=None) -> str:
         """Get Azure Machine Type"""
         inquire = ask()
         size_list = []
+
+        if write:
+            self.azure_machine_type = write
+            return self.azure_machine_type
+
+        if self.azure_machine_type:
+            return self.azure_machine_type
 
         credential = AzureCliCredential()
         compute_client = ComputeManagementClient(credential, self.azure_subscription_id)
@@ -83,12 +115,20 @@ class azure(object):
             config_block['mem'] = int(group.memory_in_mb)
             size_list.append(config_block)
         selection = inquire.ask_machine_type('Azure Machine Type', size_list, default=default)
-        return size_list[selection]['name']
+        self.azure_machine_type = size_list[selection]['name']
+        return self.azure_machine_type
 
-    def azure_get_image_name(self, select=True, default=None) -> Union[dict, list[dict]]:
+    def azure_get_image_name(self, select=True, default=None, write=None) -> Union[dict, list[dict]]:
         """Get Azure Couchbase Image Name"""
         inquire = ask()
         image_list = []
+
+        if write:
+            self.azure_image_name = write
+            return self.azure_image_name
+
+        if self.azure_image_name:
+            return self.azure_image_name
 
         credential = AzureCliCredential()
         compute_client = ComputeManagementClient(credential, self.azure_subscription_id)
@@ -105,9 +145,11 @@ class azure(object):
             image_list.append(image_block)
         if select:
             selection = inquire.ask_list('Azure Image Name', image_list, default=default)
-            return image_list[selection]
+            self.azure_image_name = image_list[selection]
         else:
-            return image_list
+            self.azure_image_name = image_list
+
+        return self.azure_image_name
 
     def azure_delete_image(self, name: str):
         inquire = ask()
@@ -118,10 +160,17 @@ class azure(object):
             request = compute_client.images.begin_delete(self.azure_resource_group, name)
             result = request.result()
 
-    def azure_get_nsg(self, default=None):
+    def azure_get_nsg(self, default=None, write=None):
         """Get Azure Network Security Group"""
         inquire = ask()
         nsg_list = []
+
+        if write:
+            self.azure_nsg = write
+            return self.azure_nsg
+
+        if self.azure_nsg:
+            return self.azure_nsg
 
         credential = AzureCliCredential()
         network_client = NetworkManagementClient(credential, self.azure_subscription_id)
@@ -129,27 +178,37 @@ class azure(object):
         for group in list(nsgs):
             nsg_list.append(group.name)
         selection = inquire.ask_list('Azure Network Security Group', nsg_list, default=default)
-        return nsg_list[selection]
+        self.azure_nsg = nsg_list[selection]
+        return self.azure_nsg
 
-    def azure_get_availability_zone_list(self, azure_availability_zones: list, azure_subnet: str) -> list[dict]:
+    @prereq(requirements=('azure_get_subnet', 'azure_get_zones'))
+    def azure_get_availability_zone_list(self) -> list[dict]:
         """Build Azure Availability Zone Data structure"""
         availability_zone_list = []
 
-        for zone in azure_availability_zones:
+        for zone in self.azure_availability_zones:
             config_block = {}
             config_block['name'] = zone
-            config_block['subnet'] = azure_subnet
+            config_block['subnet'] = self.azure_subnet
             availability_zone_list.append(config_block)
         return availability_zone_list
 
-    def azure_get_subnet(self, azure_vnet: str, default=None) -> str:
+    @prereq(requirements=('azure_get_vnet',))
+    def azure_get_subnet(self, default=None, write=None) -> str:
         """Get Azure Subnet"""
         inquire = ask()
         subnet_list = []
 
+        if write:
+            self.azure_subnet = write
+            return self.azure_subnet
+
+        if self.azure_subnet:
+            return self.azure_subnet
+
         credential = AzureCliCredential()
         network_client = NetworkManagementClient(credential, self.azure_subscription_id)
-        subnets = network_client.subnets.list(self.azure_resource_group, azure_vnet)
+        subnets = network_client.subnets.list(self.azure_resource_group, self.azure_vnet)
         for group in list(subnets):
             subnet_block = {}
             subnet_block['name'] = group.name
@@ -158,10 +217,17 @@ class azure(object):
         self.azure_subnet = subnet_list[selection]['name']
         return self.azure_subnet
 
-    def azure_get_vnet(self, default=None) -> str:
+    def azure_get_vnet(self, default=None, write=None) -> str:
         """Get Azure Virtual Network"""
         inquire = ask()
         vnet_list = []
+
+        if write:
+            self.azure_vnet = write
+            return self.azure_vnet
+
+        if self.azure_vnet:
+            return self.azure_vnet
 
         credential = AzureCliCredential()
         network_client = NetworkManagementClient(credential, self.azure_subscription_id)
@@ -172,11 +238,18 @@ class azure(object):
         self.azure_vnet = vnet_list[selection]
         return self.azure_vnet
 
-    def azure_get_all_locations(self, default=None) -> str:
+    def azure_get_all_locations(self, default=None, write=None) -> str:
         """Get Azure Location from all Locations"""
         inquire = ask()
         location_list = []
         location_name = []
+
+        if write:
+            self.azure_location = write
+            return self.azure_location
+
+        if self.azure_location:
+            return self.azure_location
 
         credential = AzureCliCredential()
         subscription_client = SubscriptionClient(credential)
@@ -188,11 +261,15 @@ class azure(object):
         self.azure_location = location_list[selection]
         return self.azure_location
 
-    def azure_get_location(self, default=None) -> str:
+    def azure_get_location(self, default=None, write=None) -> str:
         """Get Azure Locations by Subscription ID"""
         inquire = ask()
         location_list = []
         location_name = []
+
+        if write:
+            self.azure_location = write
+            return self.azure_location
 
         if self.azure_location:
             return self.azure_location
@@ -211,9 +288,12 @@ class azure(object):
         self.azure_location = location_list[selection]
         return self.azure_location
 
-    def azure_get_zones(self, azure_machine_type: str) -> list[str]:
+    @prereq(requirements=('azure_get_machine_type',))
+    def azure_get_zones(self) -> list[str]:
         """Get Azure Availability Zone List"""
-        azure_availability_zones = []
+
+        if len(self.azure_availability_zones) > 0:
+            return self.azure_availability_zones
 
         print("Fetching Azure zone information, this may take a few minutes...")
         credential = AzureCliCredential()
@@ -221,20 +301,24 @@ class azure(object):
         zone_list = compute_client.resource_skus.list()
         for group in list(zone_list):
             if group.resource_type == 'virtualMachines' \
-                    and group.name == azure_machine_type \
+                    and group.name == self.azure_machine_type \
                     and group.locations[0].lower() == self.azure_location.lower():
                 for resource_location in group.location_info:
                     for zone_number in resource_location.zones:
-                        azure_availability_zones.append(zone_number)
-                azure_availability_zones = sorted(azure_availability_zones)
-                for zone_number in azure_availability_zones:
+                        self.azure_availability_zones.append(zone_number)
+                self.azure_availability_zones = sorted(self.azure_availability_zones)
+                for zone_number in self.azure_availability_zones:
                     self.logger.info("Added Azure availability zone %s" % zone_number)
-        return azure_availability_zones
+        return self.azure_availability_zones
 
-    def azure_get_resource_group(self, default=None) -> str:
+    def azure_get_resource_group(self, default=None, write=None) -> str:
         """Get Azure Resource Group"""
         inquire = ask()
         group_list = []
+
+        if write:
+            self.azure_resource_group = write
+            return self.azure_resource_group
 
         if self.azure_resource_group:
             return self.azure_resource_group
@@ -252,11 +336,15 @@ class azure(object):
         self.azure_resource_group = group_list[selection]
         return self.azure_resource_group
 
-    def azure_get_subscription_id(self, default=None):
+    def azure_get_subscription_id(self, default=None, write=None):
         """Get Azure subscription ID"""
         inquire = ask()
         subscription_list = []
         subscription_name = []
+
+        if write:
+            self.azure_subscription_id = write
+            return self.azure_subscription_id
 
         if self.azure_subscription_id:
             return self.azure_subscription_id

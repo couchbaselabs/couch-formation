@@ -302,7 +302,7 @@ class gcp(object):
             if 'error' in response:
                 raise GCPDriverError(f"can not delete {name}: {response['error']['errors'][0]['message']}")
 
-    @prereq(PREREQUISITES)
+    @prereq(requirements=('gcp_get_subnet',))
     def gcp_get_availability_zone_list(self) -> list[dict]:
         """Build GCP availability zone data structure"""
         availability_zone_list = []

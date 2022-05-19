@@ -60,7 +60,7 @@ variable "azure_machine_type" {
 
 variable "azure_admin_user" {
   description = "Azure Admin User"
-  default     = "{{ AZURE_ADMIN_USER }}"
+  default     = "{{ OS_IMAGE_USER }}"
   type        = string
 }
 

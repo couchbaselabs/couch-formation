@@ -35,7 +35,7 @@ class ssh(object):
     def set_key_fingerprint(self, fingerprint: str):
         self.ssh_key_fingerprint = fingerprint
 
-    @prereq(PREREQUISITES)
+    @prereq(requirements=('get_private_key',))
     def get_public_key(self) -> str:
         fh = open(self.ssh_private_key, 'r')
         key_pem = fh.read()
