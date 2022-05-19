@@ -2,6 +2,7 @@
 ##
 
 import requests
+import ipaddress
 from urllib3.util.retry import Retry
 from requests.adapters import HTTPAdapter
 import json
@@ -120,11 +121,31 @@ class toolbox(object):
 
     def get_dns_servers(self, domain_name: str):
         """Get list of DNS servers"""
-        server_list = []
         dns_lookup = dynamicDNS(domain_name)
         server_list = dns_lookup.dns_get_servers()
-        dns_server_list = ','.join(f'"{s}"' for s in server_list)
-        return dns_server_list
+        return server_list
+
+    def get_subnet_cidr(self):
+        inquire = ask()
+        selection = inquire.ask_net('Subnet CIDR')
+        return selection
+
+    def get_subnet_mask(self, subnet_cidr: str):
+        subnet_netmask = ipaddress.ip_network(subnet_cidr).prefixlen
+        return subnet_netmask
+
+    def get_subnet_gateway(self):
+        inquire = ask()
+        selection = inquire.ask_ip('Default Gateway')
+        return selection
+
+    def get_omit_range(self):
+        inquire = ask()
+        selection = inquire.ask_net_range('Omit Network Range')
+        return selection
+
+    def get_first_ip(self, subnet_cidr: str):
+        return str(ipaddress.ip_network(subnet_cidr)[0])
 
     def create_dir(self, name) -> None:
         if not os.path.exists(name):

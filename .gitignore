@@ -50,3 +50,4 @@ dev-*/
 test-*/
 prod-*/
 setup.log
+db/*.json

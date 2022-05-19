@@ -90,3 +90,7 @@ class EnvMgrError(fatalError):
 class ClusterMgrError(fatalError):
     pass
 
+
+class NetworkMgrError(fatalError):
+    pass
+

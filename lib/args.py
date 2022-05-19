@@ -24,11 +24,7 @@ class params(object):
         parent_parser.add_argument('--user', action='store', help="vCenter Administrative User")
         parent_parser.add_argument('--password', action='store', help="vCenter Admin User Password")
         parent_parser.add_argument('--static', action='store_true', help="Assign Static IPs", default=False)
-        parent_parser.add_argument('--dns', action='store_true', help="Update DNS", default=False)
-        parent_parser.add_argument('--gateway', action='store', help="Default Gateway")
-        parent_parser.add_argument('--domain', action='store', help="DNS Domain")
-        parent_parser.add_argument('--subnet', action='store', help="Network Subnet")
-        parent_parser.add_argument('--omit', action='store', help="Omit IP Range")
+        parent_parser.add_argument('--dns', action='store_true', help="Update DNS", default=True)
         image_parser = argparse.ArgumentParser(add_help=False)
         image_parser.add_argument('--list', action='store_true', help='List images')
         image_parser.add_argument('--build', action='store_true', help='Build image')
@@ -38,13 +34,20 @@ class params(object):
         image_parser.add_argument('--version', action='store', help='OS Version')
         image_parser.add_argument('--image', action='store', help='Image Name', default=None)
         image_parser.add_argument('-h', '--help', action='help', default=argparse.SUPPRESS, help='Show help message')
+        net_parser = argparse.ArgumentParser(add_help=False)
+        net_parser.add_argument('--list', action='store_true', help='List network database')
+        net_parser.add_argument('--domain', action='store_true', help='Add domain')
+        net_parser.add_argument('--cidr', action='store_true', help='Add network')
+        net_parser.add_argument('-h', '--help', action='help', default=argparse.SUPPRESS, help='Show help message')
         subparsers = parser.add_subparsers(dest='command')
         image_mode = subparsers.add_parser('image', help="Manage CB Images", parents=[parent_parser, image_parser], add_help=False)
         create_mode = subparsers.add_parser('create', help="List Nodes", parents=[parent_parser], add_help=False)
         destroy_mode = subparsers.add_parser('destroy', help="Clean Up", parents=[parent_parser], add_help=False)
         list_mode = subparsers.add_parser('list', help="Load Data", parents=[parent_parser], add_help=False)
+        net_mode = subparsers.add_parser('net', help="Static Network Configuration", parents=[parent_parser, net_parser], add_help=False)
         self.parser = parser
         self.image_parser = image_mode
         self.create_parser = create_mode
         self.destroy_parser = destroy_mode
         self.list_parser = list_mode
+        self.net_parser = net_mode

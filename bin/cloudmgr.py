@@ -16,6 +16,7 @@ from lib.exceptions import *
 from lib.args import params
 from lib.imagemgr import image_manager
 from lib.runmgr import run_manager
+from lib.netmgr import network_manager
 
 VERSION = '2.0-alpha-1'
 
@@ -50,6 +51,15 @@ class cloud_manager(object):
         elif self.verb == 'destroy':
             sys.exit(0)
         elif self.verb == 'list':
+            sys.exit(0)
+        elif self.verb == 'net':
+            task = network_manager(self.args)
+            if self.args.list:
+                task.list_data()
+            elif self.args.domain:
+                task.add_domain()
+            elif self.args.cidr:
+                task.add_network()
             sys.exit(0)
 
 

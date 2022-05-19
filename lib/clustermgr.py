@@ -21,7 +21,7 @@ from lib.varfile import varfile
 from lib.cbrelmgr import cbrelease
 from lib.ssh import ssh
 from lib.toolbox import toolbox
-from lib.invoke import tf_run
+from lib.netmgr import network_manager
 from lib.envmgr import envmgr
 
 
@@ -41,36 +41,16 @@ class clustermgr(object):
         self.availability_zone_cycle = None
         self.static_ip = self.args.static
         self.update_dns = self.args.dns
-        self.subnet_cidr = self.args.subnet
+        self.subnet_cidr = None
         self.subnet_netmask = None
-        self.default_gateway = self.args.gateway
-        self.omit_range = self.args.omit
-        self.domain_name = self.args.domain
+        self.default_gateway = None
+        self.domain_name = None
         self.lc = location()
         self.lc.set_cloud(self.cloud)
         self.tools = toolbox()
+        self.nm = network_manager(self.args)
         self.cluster_file_name = 'cluster.tf'
         self.app_file_name = 'app.tf'
-
-    def get_subnet_cidr(self):
-        inquire = ask()
-        selection = inquire.ask_net('Subnet CIDR')
-        self.subnet_cidr = selection
-
-    def get_subnet_mask(self):
-        if not self.subnet_cidr:
-            self.get_subnet_cidr()
-        self.subnet_netmask = ipaddress.ip_network(self.subnet_cidr).prefixlen
-
-    def get_subnet_gateway(self):
-        inquire = ask()
-        selection = inquire.ask_ip('Default Gateway')
-        self.default_gateway = selection
-
-    def get_omit_range(self):
-        inquire = ask()
-        selection = inquire.ask_net_range('Omit Network Range')
-        self.omit_range = selection
 
     def set_availability_zone_cycle(self):
         inquire = ask()
@@ -96,8 +76,6 @@ class clustermgr(object):
         return next(self.availability_zone_cycle)
 
     def check_node_ip_address(self, node_ip):
-        if not self.subnet_cidr:
-            self.get_subnet_cidr()
         if ipaddress.ip_address(node_ip) in ipaddress.ip_network(self.subnet_cidr):
             return True
         else:
@@ -111,13 +89,15 @@ class clustermgr(object):
         node_ip_address = None
 
         if not self.domain_name:
-            self.tools.get_domain_name()
+            self.domain_name = self.nm.get_domain_name()
         if not self.subnet_cidr:
-            self.get_subnet_cidr()
+            self.subnet_cidr = self.nm.get_network_cidr()
         if not self.subnet_netmask:
-            self.get_subnet_mask()
+            self.subnet_netmask = self.nm.get_network_mask()
         if not self.default_gateway:
-            self.get_subnet_gateway()
+            self.default_gateway = self.nm.get_network_gateway()
+        if not self.omit_range:
+            self.omit_range = self.nm.get_network_omit()
         node_netmask = self.subnet_netmask
         node_gateway = self.default_gateway
         node_fqdn = "{}.{}".format(node_name, self.domain_name)
@@ -164,19 +144,19 @@ class clustermgr(object):
 
     def create_node_config(self, mode, destination):
         inquire = ask()
-        resolver = dns.resolver.Resolver()
         config_segments = []
         node = 1
-        change_node_ip_address = False
+        prefix_text = None
+        services = []
+        min_nodes = 3
+        output_file = None
 
         if mode == CLUSTER_CONFIG:
             services = ['data', 'index', 'query', 'fts', 'analytics', 'eventing', ]
-            min_nodes = 3
             prefix_text = 'cb'
             config_segments.append(CB_CFG_HEAD)
             output_file = self.cluster_file_name
         elif mode == APP_CONFIG:
-            services = []
             min_nodes = 1
             prefix_text = 'app'
             config_segments.append(APP_CFG_HEAD)
@@ -191,7 +171,6 @@ class clustermgr(object):
         while True:
             selected_services = []
             node_ip_address = None
-            old_ip_address = None
             node_netmask = None
             node_gateway = None
             node_name = f"{prefix_text}-{env_text}-n{node:02d}"
