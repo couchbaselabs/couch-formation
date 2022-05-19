@@ -15,6 +15,7 @@ from lib.toolbox import toolbox
 from lib.invoke import tf_run
 from lib.envmgr import envmgr
 from lib.clustermgr import clustermgr
+from lib.netmgr import network_manager
 from lib.ask import ask
 from lib.constants import CB_CFG_HEAD, CB_CFG_NODE, CB_CFG_TAIL, APP_CFG_HEAD, CLUSTER_CONFIG, APP_CONFIG
 
@@ -31,6 +32,7 @@ class run_manager(object):
         self.lc.set_cloud(self.cloud)
         self.env.set_cloud(self.cloud)
         self.env.set_env(self.args.dev, self.args.test, self.args.prod, self.args.app)
+        self.nm = network_manager(self.args)
 
     def build_env(self):
         inquire = ask()
@@ -92,6 +94,9 @@ class run_manager(object):
             pass_variables = t.process_vars(b, requested_vars, b.VARIABLES)
             build_variables = build_variables + pass_variables
 
+            pass_variables = t.process_vars(self.nm, requested_vars, self.nm.VARIABLES)
+            build_variables = build_variables + pass_variables
+
             pass_variables = t.process_vars(self.env, requested_vars, self.env.VARIABLES)
             build_variables = build_variables + pass_variables
 
@@ -108,7 +113,7 @@ class run_manager(object):
         except Exception as err:
             ImageMgmtError(f"can not write packer variables {var_file}: {err}")
 
-        cm = clustermgr(driver, self.env, self.args)
+        cm = clustermgr(driver, self.env, self.nm, self.args)
 
         print("")
         if inquire.ask_yn('Create cluster configuration', default=True):

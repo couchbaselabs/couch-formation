@@ -27,7 +27,7 @@ from lib.envmgr import envmgr
 
 class clustermgr(object):
 
-    def __init__(self, driver, env, parameters):
+    def __init__(self, driver, env, nm, parameters):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.cloud = parameters.cloud
         self.args = parameters
@@ -48,7 +48,7 @@ class clustermgr(object):
         self.lc = location()
         self.lc.set_cloud(self.cloud)
         self.tools = toolbox()
-        self.nm = network_manager(self.args)
+        self.nm = nm
         self.cluster_file_name = 'cluster.tf'
         self.app_file_name = 'app.tf'
 

@@ -109,7 +109,7 @@ resource "vsphere_virtual_machine" "couchbase_nodes" {
     connection {
       host        = each.value.node_ip_address
       type        = "ssh"
-      user        = var.ssh_user
+      user        = var.os_image_user
       private_key = file(var.ssh_private_key)
     }
   }
@@ -134,7 +134,7 @@ resource "null_resource" "couchbase-init" {
   connection {
     host        = each.value.default_ip_address
     type        = "ssh"
-    user        = var.ssh_user
+    user        = var.os_image_user
     private_key = file(var.ssh_private_key)
   }
   provisioner "remote-exec" {
@@ -152,7 +152,7 @@ resource "null_resource" "couchbase-rebalance" {
   connection {
     host        = local.rally_node
     type        = "ssh"
-    user        = var.ssh_user
+    user        = var.os_image_user
     private_key = file(var.ssh_private_key)
   }
   provisioner "remote-exec" {

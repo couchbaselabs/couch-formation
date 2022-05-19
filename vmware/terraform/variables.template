@@ -88,10 +88,10 @@ variable "index_memory" {
   type        = string
 }
 
-variable "ssh_user" {
+variable "os_image_user" {
   description = "The default username for setup"
   type        = string
-  default     = "{{ VMWARE_BUILD_USERNAME }}"
+  default     = "{{ OS_IMAGE_USER }}"
 }
 
 variable "ssh_private_key" {

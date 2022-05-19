@@ -109,7 +109,7 @@ resource "vsphere_virtual_machine" "app_nodes" {
     connection {
       host        = each.value.node_ip_address
       type        = "ssh"
-      user        = var.ssh_user
+      user        = var.os_image_user
       private_key = file(var.ssh_private_key)
     }
   }
