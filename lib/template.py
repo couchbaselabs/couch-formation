@@ -75,7 +75,7 @@ class template(object):
 
         return processed_set
 
-    def read_variable_file(self, file: str) -> list[dict]:
+    def read_variable_file(self, file: str):
         tf_vars = tfvars()
         file_contents = tf_vars.read_file(file)
         return file_contents
