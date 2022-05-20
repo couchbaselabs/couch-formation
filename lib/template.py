@@ -18,6 +18,7 @@ class template(object):
         self.formatted_template = None
         self.parameters = {}
         self.cloud = None
+        self.reuse_skip_list = []
 
     def read_file(self, file: str) -> bool:
         try:
@@ -39,6 +40,10 @@ class template(object):
             raise TemplateError(f"can not write template file: {err}")
 
         return True
+
+    def do_not_reuse(self, *items):
+        for item in items:
+            self.reuse_skip_list.append(item)
 
     def get_file_parameters(self) -> set[str]:
         env = jinja2.Environment(undefined=jinja2.DebugUndefined)
@@ -73,6 +78,8 @@ class template(object):
                 value = str(r_value).lower()
             elif type(r_value) == list:
                 value = ','.join(f'"{s}"' for s in r_value)
+            elif ',' in r_value:
+                value = ','.join(f'"{s}"' for s in r_value.split(','))
             else:
                 value = r_value
             processed_set.append((param, tfv, func, value))
@@ -88,14 +95,12 @@ class template(object):
         inquire = ask()
         processed_set = []
         for variable in variable_file:
-            # if type(variable['default']) == list:
-            #     default_value = ','.join(f'"{s}"' for s in variable['default'])
-            # elif type(variable['default']) == bool:
-            #     default_value = str(variable['default']).lower()
-            # else:
-            #     default_value = f"\"{variable['default']}\""
+            if type(variable['default']) == list:
+                variable['default'] = ','.join(variable['default'])
             param, tfv, func, value = next(((a, b, c, variable['default']) for (a, b, c, d) in cloud_vars if b == variable['name']), (None, None, None, None))
             if not func:
+                continue
+            if tfv in self.reuse_skip_list:
                 continue
             if inquire.ask_yn(f"Use previous setting found for \"{tfv}\" value \"{value}\"", default=True):
                 r_value = getattr(driver_class, func)(write=value)

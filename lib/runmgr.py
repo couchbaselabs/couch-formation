@@ -78,6 +78,7 @@ class run_manager(object):
             linux_release = selected_image['release']
             v.set_os_name(linux_type)
             v.set_os_ver(linux_release)
+            t.do_not_reuse('os_image_user', 'ami_id', 'gcp_cb_image', 'azure_image_name', 'vsphere_template')
         except Exception as err:
             raise RunMgmtError(f"can not get image for deployment: {err}")
 
