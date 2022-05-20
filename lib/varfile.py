@@ -39,6 +39,18 @@ class varfile(object):
         self.os_name = None
         self.os_ver = None
         self.cloud = None
+        self.image_owner = None
+        self.image_user = None
+        self.image_name = None
+        self.image_family = None
+        self.image_publisher = None
+        self.image_offer = None
+        self.image_sku = None
+        self.iso_checksum = None
+        self.sw_url = None
+        self.vmware_guest_type = None
+        self.var_file = None
+        self.hcl_file = None
 
         self.lc = location()
 
@@ -132,8 +144,12 @@ class varfile(object):
         except KeyError:
             raise VarFileError(f"can not get {self.cloud} OS releases for {self.os_name}")
 
-    def get_linux_release(self, default=None):
+    def get_linux_release(self, default=None, write=None):
         inquire = ask()
+
+        if write:
+            self.os_ver = write
+            return self.os_ver
 
         if self.os_ver:
             return self.os_ver
@@ -145,8 +161,12 @@ class varfile(object):
 
         return self.os_ver
 
-    def get_linux_type(self, default=None):
+    def get_linux_type(self, default=None, write=None):
         inquire = ask()
+
+        if write:
+            self.os_name = write
+            return self.os_name
 
         if self.os_name:
             return self.os_name
@@ -158,41 +178,101 @@ class varfile(object):
 
         return self.os_name
 
-    def get_image_owner(self):
-        return self.get_os_var('owner')
+    def get_image_owner(self, write=None):
+        if write:
+            self.image_owner = write
+            return self.image_owner
 
-    def get_image_user(self):
-        return self.get_os_var('user')
+        self.image_owner = self.get_os_var('owner')
+        return self.image_owner
 
-    def get_image_name(self):
-        return self.get_os_var('image')
+    def get_image_user(self, write=None):
+        if write:
+            self.image_user = write
+            return self.image_user
 
-    def get_image_family(self):
-        return self.get_os_var('family')
+        self.image_user = self.get_os_var('user')
+        return self.image_user
 
-    def get_image_publisher(self):
-        return self.get_os_var('publisher')
+    def get_image_name(self, write=None):
+        if write:
+            self.image_name = write
+            return self.image_name
 
-    def get_image_offer(self):
-        return self.get_os_var('offer')
+        self.image_name = self.get_os_var('image')
+        return self.image_name
 
-    def get_image_sku(self):
-        return self.get_os_var('sku')
+    def get_image_family(self, write=None):
+        if write:
+            self.image_family = write
+            return self.image_family
 
-    def get_iso_checksum(self):
-        return self.get_os_var('checksum')
+        self.image_family = self.get_os_var('family')
+        return self.image_family
 
-    def get_sw_url(self):
-        return self.get_os_var('sw_url')
+    def get_image_publisher(self, write=None):
+        if write:
+            self.image_publisher = write
+            return self.image_publisher
 
-    def get_vmware_guest_type(self):
-        return self.get_os_var('type')
+        self.image_publisher = self.get_os_var('publisher')
+        return self.image_publisher
 
-    def get_var_file(self):
-        return self.get_os_var('vars')
+    def get_image_offer(self, write=None):
+        if write:
+            self.image_offer = write
+            return self.image_offer
 
-    def get_hcl_file(self):
-        return self.get_os_var('hcl')
+        self.image_offer = self.get_os_var('offer')
+        return self.image_offer
+
+    def get_image_sku(self, write=None):
+        if write:
+            self.image_sku = write
+            return self.image_sku
+
+        self.image_sku = self.get_os_var('sku')
+        return self.image_sku
+
+    def get_iso_checksum(self, write=None):
+        if write:
+            self.iso_checksum = write
+            return self.iso_checksum
+
+        self.iso_checksum = self.get_os_var('checksum')
+        return self.iso_checksum
+
+    def get_sw_url(self, write=None):
+        if write:
+            self.sw_url = write
+            return self.sw_url
+
+        self.sw_url = self.get_os_var('sw_url')
+        return self.sw_url
+
+    def get_vmware_guest_type(self, write=None):
+        if write:
+            self.vmware_guest_type = write
+            return self.vmware_guest_type
+
+        self.vmware_guest_type = self.get_os_var('type')
+        return self.vmware_guest_type
+
+    def get_var_file(self, write=None):
+        if write:
+            self.var_file = write
+            return self.var_file
+
+        self.var_file = self.get_os_var('vars')
+        return self.var_file
+
+    def get_hcl_file(self, write=None):
+        if write:
+            self.hcl_file = write
+            return self.hcl_file
+
+        self.hcl_file = self.get_os_var('hcl')
+        return self.hcl_file
 
     def get_os_var(self, key: str) -> str:
         try:

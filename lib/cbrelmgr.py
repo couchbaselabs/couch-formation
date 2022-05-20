@@ -35,8 +35,15 @@ class cbrelease(object):
     def set_os_ver(self, release: str):
         self.os_release = release
 
-    def get_cb_index_mem_setting(self, default=None):
+    def get_cb_index_mem_setting(self, default=None, write=None):
         inquire = ask()
+
+        if write:
+            self.cb_index_mem_type = write
+            return self.cb_index_mem_type
+
+        if self.cb_index_mem_type:
+            return self.cb_index_mem_type
 
         option_list = [
             {
@@ -53,8 +60,15 @@ class cbrelease(object):
 
         return self.cb_index_mem_type
 
-    def get_cb_version(self, default=None):
+    def get_cb_version(self, default=None, write=None):
         inquire = ask()
+
+        if write:
+            self.cb_version = write
+            return self.cb_version
+
+        if self.cb_version:
+            return self.cb_version
 
         versions_list = self.get_versions()
         release_list = sorted(versions_list, reverse=True)

@@ -5,6 +5,8 @@ import logging
 import jinja2
 from jinja2.meta import find_undeclared_variables
 from lib.exceptions import TemplateError
+from lib.tfparser import tfvars
+from lib.ask import ask
 
 
 class template(object):
@@ -70,5 +72,23 @@ class template(object):
             else:
                 value = r_value
             processed_set.append((param, tfv, func, value))
+
+        return processed_set
+
+    def read_variable_file(self, file: str) -> list[dict]:
+        tf_vars = tfvars()
+        file_contents = tf_vars.read_file(file)
+        return file_contents
+
+    def get_previous_values(self, driver_class, variable_file, cloud_vars):
+        inquire = ask()
+        processed_set = []
+        for variable in variable_file:
+            param, tfv, func, value = next(((a, b, c, variable['default']) for (a, b, c, d) in cloud_vars if b == variable['name']), (None, None, None, None))
+            if not func:
+                continue
+            if inquire.ask_yn(f"Use previous setting found for \"{tfv}\" value \"{value}\"", default=True):
+                r_value = getattr(driver_class, func)(write=value)
+                processed_set.append((param, tfv, func, value))
 
         return processed_set

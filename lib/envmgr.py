@@ -29,6 +29,8 @@ class envmgr(object):
         self.working_dir = None
         self.working_app_dir = None
         self.cb_cluster_name = None
+        self.cluster_tf_file_name = 'cluster.tf'
+        self.variable_tf_file_name = 'variables.tf'
 
     def set_cloud(self, cloud: str):
         self.cloud = cloud
@@ -69,8 +71,15 @@ class envmgr(object):
         env_string = f"{self.env_type}:{self.env_num:02d}"
         return env_string
 
-    def get_cb_cluster_name(self, select=True, default=None):
+    def get_cb_cluster_name(self, select=True, default=None, write=None):
         inquire = ask()
+
+        if write:
+            self.cb_cluster_name = write
+            return self.cb_cluster_name
+
+        if self.cb_cluster_name:
+            return self.cb_cluster_name
 
         if self.env_type:
             self.cb_cluster_name = f"{self.env_type}{self.env_num:02d}db"
@@ -106,6 +115,20 @@ class envmgr(object):
     @property
     def app_env_dir(self):
         return self.working_app_dir
+
+    def get_tf_var_file(self):
+        tf_var_file = self.env_dir + '/' + self.variable_tf_file_name
+        if os.path.exists(tf_var_file):
+            return tf_var_file
+        else:
+            return None
+
+    def get_cluster_var_file(self):
+        cluster_var_file = self.env_dir + '/' + self.cluster_tf_file_name
+        if os.path.exists(cluster_var_file):
+            return cluster_var_file
+        else:
+            return None
 
     def create_env_dir(self, overwrite=False):
         copy_files = [

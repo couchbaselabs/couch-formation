@@ -36,6 +36,7 @@ class run_manager(object):
 
     def build_env(self):
         inquire = ask()
+        previous_tf_vars = None
 
         if self.cloud == 'aws':
             driver = aws()
@@ -77,29 +78,46 @@ class run_manager(object):
 
         var_file = self.env.env_dir + '/' + self.variable_file_name
         template_file = self.lc.tf_dir + '/' + self.var_template_file
+        previous_tf_var_file = self.env.get_tf_var_file()
+        if previous_tf_var_file:
+            previous_tf_vars = t.read_variable_file(previous_tf_var_file)
 
         try:
             t.read_file(template_file)
             requested_vars = t.get_file_parameters()
 
+            if previous_tf_vars:
+                t.get_previous_values(v, previous_tf_vars, v.VARIABLES)
             pass_variables = t.process_vars(v, requested_vars, v.VARIABLES)
             build_variables = build_variables + pass_variables
 
+            if previous_tf_vars:
+                t.get_previous_values(c, previous_tf_vars, c.VARIABLES)
             pass_variables = t.process_vars(c, requested_vars, c.VARIABLES)
             build_variables = build_variables + pass_variables
 
+            if previous_tf_vars:
+                t.get_previous_values(s, previous_tf_vars, s.VARIABLES)
             pass_variables = t.process_vars(s, requested_vars, s.VARIABLES)
             build_variables = build_variables + pass_variables
 
+            if previous_tf_vars:
+                t.get_previous_values(b, previous_tf_vars, b.VARIABLES)
             pass_variables = t.process_vars(b, requested_vars, b.VARIABLES)
             build_variables = build_variables + pass_variables
 
+            if previous_tf_vars:
+                t.get_previous_values(self.nm, previous_tf_vars, self.nm.VARIABLES)
             pass_variables = t.process_vars(self.nm, requested_vars, self.nm.VARIABLES)
             build_variables = build_variables + pass_variables
 
+            if previous_tf_vars:
+                t.get_previous_values(self.env, previous_tf_vars, self.env.VARIABLES)
             pass_variables = t.process_vars(self.env, requested_vars, self.env.VARIABLES)
             build_variables = build_variables + pass_variables
 
+            if previous_tf_vars:
+                t.get_previous_values(driver, previous_tf_vars, driver.VARIABLES)
             pass_variables = t.process_vars(driver, requested_vars, driver.VARIABLES)
             build_variables = build_variables + pass_variables
         except Exception as err:

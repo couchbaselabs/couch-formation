@@ -24,6 +24,8 @@ class toolbox(object):
 
     def __init__(self):
         self.logger = logging.getLogger(self.__class__.__name__)
+        self.os_timezone = None
+        self.use_public_ip = None
 
     def get_country(self):
         """Attempt to identify the location of the user"""
@@ -74,8 +76,16 @@ class toolbox(object):
         selection = inquire.ask_text('DNS Domain Name', recommendation=default_selection, default=default)
         return selection
 
-    def get_timezone(self, default=None):
+    def get_timezone(self, default=None, write=None):
         inquire = ask()
+
+        if write:
+            self.os_timezone = write
+            return self.os_timezone
+
+        if self.os_timezone:
+            return self.os_timezone
+
         local_code = datetime.datetime.now(datetime.timezone.utc).astimezone().tzname()
         tzpath = '/etc/localtime'
         tzlist = []
@@ -97,7 +107,8 @@ class toolbox(object):
             if code == local_code:
                 tzlist.append(tzone)
         selection = inquire.ask_list('Select timezone', tzlist, default=default)
-        return tzlist[selection]
+        self.os_timezone = tzlist[selection]
+        return self.os_timezone
 
     def get_linux_release_from_image_name(self, name):
         try:
@@ -113,11 +124,20 @@ class toolbox(object):
         except IndexError:
             raise ImageNameFormatError(f"can not get os name from image {name}")
 
-    def ask_to_use_public_ip(self, default=None):
+    def ask_to_use_public_ip(self, default=None, write=None):
         """Ask if the public IP should be assigned and used for SSH"""
         inquire = ask()
+
+        if write:
+            self.use_public_ip = write
+            return self.use_public_ip
+
+        if self.use_public_ip:
+            return self.use_public_ip
+
         selection = inquire.ask_bool('Use Public IP', recommendation='true', default=default)
-        return selection
+        self.use_public_ip = selection
+        return self.use_public_ip
 
     def get_dns_servers(self, domain_name: str):
         """Get list of DNS servers"""
