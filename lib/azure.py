@@ -142,6 +142,8 @@ class azure(object):
                 image_block['release'] = group.tags['Release']
             if 'Version' in group.tags:
                 image_block['version'] = image_block['description'] = group.tags['Version']
+            if 'type' not in image_block or 'release' not in image_block:
+                continue
             image_list.append(image_block)
         if select:
             selection = inquire.ask_list('Azure Image Name', image_list, default=default)
@@ -149,6 +151,10 @@ class azure(object):
         else:
             self.azure_image_name = image_list
 
+        return self.azure_image_name
+
+    @prereq(requirements=('azure_get_image_name',))
+    def get_image(self):
         return self.azure_image_name
 
     def azure_delete_image(self, name: str):

@@ -79,7 +79,7 @@ class network_manager(object):
         self.load_domain(select=False)
         self.load_network(select=False)
 
-    def load_domain(self, select=True):
+    def load_domain(self, select=True, write=None):
         inquire = ask()
         entry_list = []
 
@@ -113,7 +113,7 @@ class network_manager(object):
         else:
             raise NetworkMgrError("no domains configured")
 
-    def load_network(self, select=True):
+    def load_network(self, select=True, write=None):
         inquire = ask()
         entry_list = []
 
@@ -159,10 +159,9 @@ class network_manager(object):
     @prereq(requirements=('load_domain',))
     def get_dns_server_list(self, write=None):
         if write:
-            self.dns_server_list = write.replace('"', '').split(",")
+            self.dns_server_list = write
 
-        dns_server_list = ','.join(f'"{s}"' for s in self.dns_server_list)
-        return dns_server_list
+        return self.dns_server_list
 
     @prereq(requirements=('load_network',))
     def get_network_cidr(self, write=None):

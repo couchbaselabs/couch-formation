@@ -71,8 +71,16 @@ class run_manager(object):
         build_variables = []
 
         v.set_cloud(self.cloud)
-        linux_type = v.get_linux_type()
-        linux_release = v.get_linux_release()
+
+        try:
+            selected_image = driver.get_image()
+            linux_type = selected_image['type']
+            linux_release = selected_image['release']
+            v.set_os_name(linux_type)
+            v.set_os_ver(linux_release)
+        except Exception as err:
+            raise RunMgmtError(f"can not get image for deployment: {err}")
+
         c.set_os_name(linux_type)
         c.set_os_ver(linux_release)
 

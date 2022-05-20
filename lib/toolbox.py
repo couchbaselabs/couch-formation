@@ -124,6 +124,15 @@ class toolbox(object):
         except IndexError:
             raise ImageNameFormatError(f"can not get os name from image {name}")
 
+    def check_image_name_format(self, name):
+        try:
+            name_fields = name.split('-')
+            if name_fields[2] == 'couchbase' and len(name_fields) == 7:
+                return True
+        except IndexError:
+            pass
+        return False
+
     def ask_to_use_public_ip(self, default=None, write=None):
         """Ask if the public IP should be assigned and used for SSH"""
         inquire = ask()

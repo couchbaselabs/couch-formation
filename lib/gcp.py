@@ -279,6 +279,8 @@ class gcp(object):
                             image_block['release'] = image['labels']['release']
                         if 'version' in image['labels']:
                             image_block['version'] = image_block['description'] = image['labels']['version'].replace("_", ".")
+                    if 'type' not in image_block or 'release' not in image_block:
+                        continue
                     image_list.append(image_block)
                 request = gcp_client.images().list_next(previous_request=request, previous_response=response)
             else:
@@ -289,6 +291,10 @@ class gcp(object):
         else:
             self.gcp_cb_image = image_list
 
+        return self.gcp_cb_image
+
+    @prereq(requirements=('gcp_get_cb_image_name',))
+    def get_image(self):
         return self.gcp_cb_image
 
     def gcp_delete_cb_image(self, name: str):

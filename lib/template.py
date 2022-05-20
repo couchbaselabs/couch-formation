@@ -69,6 +69,10 @@ class template(object):
                     value = r_value['name']
                 except Exception as err:
                     TemplateError(f"template function return dict without a name key: {err}")
+            elif type(r_value) == bool:
+                value = str(r_value).lower()
+            elif type(r_value) == list:
+                value = ','.join(f'"{s}"' for s in r_value)
             else:
                 value = r_value
             processed_set.append((param, tfv, func, value))
@@ -84,6 +88,12 @@ class template(object):
         inquire = ask()
         processed_set = []
         for variable in variable_file:
+            # if type(variable['default']) == list:
+            #     default_value = ','.join(f'"{s}"' for s in variable['default'])
+            # elif type(variable['default']) == bool:
+            #     default_value = str(variable['default']).lower()
+            # else:
+            #     default_value = f"\"{variable['default']}\""
             param, tfv, func, value = next(((a, b, c, variable['default']) for (a, b, c, d) in cloud_vars if b == variable['name']), (None, None, None, None))
             if not func:
                 continue

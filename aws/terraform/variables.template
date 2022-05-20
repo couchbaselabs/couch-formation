@@ -48,7 +48,7 @@ variable "ssh_private_key" {
 
 variable "security_group_ids" {
   description = "Security group to assign to the instances"
-  default     = ["{{ AWS_SECURITY_GROUP }}"]
+  default     = [{{ AWS_SECURITY_GROUP }}]
   type        = list(string)
 }
 

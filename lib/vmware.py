@@ -131,6 +131,7 @@ class vmware(object):
 
     def vmware_get_template(self, select=True, default=None, write=None) -> Union[dict, list[dict]]:
         inquire = ask()
+        tb = toolbox()
 
         if write:
             self.vmware_template = write
@@ -152,7 +153,10 @@ class vmware(object):
                     image_block = {}
                     image_block['name'] = managed_object_ref.name
                     image_block['datetime'] = managed_object_ref.config.createDate
-                    templates.append(image_block)
+                    if tb.check_image_name_format(image_block['name']):
+                        image_block['type'] = tb.get_linux_type_from_image_name(image_block['name'])
+                        image_block['release'] = tb.get_linux_release_from_image_name(image_block['name'])
+                        templates.append(image_block)
             container.Destroy()
             if select:
                 selection = inquire.ask_list('Select template', templates, default=default)
@@ -163,6 +167,10 @@ class vmware(object):
             return self.vmware_template
         except Exception as err:
             raise VMwareDriverError(f"can not get template: {err}")
+
+    @prereq(requirements=('vmware_get_template',))
+    def get_image(self):
+        return self.vmware_template
 
     def vmware_delete_template(self, name: str):
         inquire = ask()

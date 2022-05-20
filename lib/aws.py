@@ -24,11 +24,6 @@ class aws(object):
         ('AWS_SUBNET_ID', 'subnet_id', 'aws_get_subnet_id', None),
         ('AWS_VPC_ID', 'vpc_id', 'aws_get_vpc_id', None),
     ]
-    PREREQUISITES = {
-        'aws_get_sg_id': [
-            'aws_get_vpc_id'
-        ]
-    }
 
     def __init__(self):
         self.logger = logging.getLogger(self.__class__.__name__)
@@ -48,6 +43,7 @@ class aws(object):
         self.aws_ssh_key = None
         self.aws_instance_type = None
         self.aws_ami_id = None
+        self.aws_ami_name = None
 
     def aws_init(self):
         self.aws_get_region()
@@ -108,12 +104,12 @@ class aws(object):
         return self.aws_root_iops
 
     @prereq(requirements=('aws_get_vpc_id',))
-    def aws_get_sg_id(self, default=None, write=None) -> str:
+    def aws_get_sg_id(self, default=None, write=None) -> list:
         """Get AWS security group ID"""
         inquire = ask()
 
         if write:
-            self.aws_sg_id = write
+            self.aws_sg_id = [write]
             return self.aws_sg_id
 
         if self.aws_sg_id:
@@ -136,7 +132,7 @@ class aws(object):
             sg_name_list.append(sgs['SecurityGroups'][i]['GroupName'])
 
         selection = inquire.ask_list('Select security group', sg_list, sg_name_list, default=default)
-        self.aws_sg_id = sgs['SecurityGroups'][selection]['GroupId']
+        self.aws_sg_id = [sgs['SecurityGroups'][selection]['GroupId']]
         return self.aws_sg_id
 
     def aws_get_vpc_id(self, default=None, write=None) -> str:
@@ -320,13 +316,20 @@ class aws(object):
                 if item_version_tag:
                     image_block['version'] = item_version_tag
                     image_block['description'] = image_block['description'] + f" ({item_version_tag})"
+            if 'type' not in image_block or 'release' not in image_block:
+                continue
             image_list.append(image_block)
         if select:
             selection = inquire.ask_list('Select AMI', image_list, default=default)
             self.aws_ami_id = image_list[selection]
+            self.aws_ami_name = image_list[selection]['name']
         else:
             self.aws_ami_id = image_list
 
+        return self.aws_ami_id
+
+    @prereq(requirements=('aws_get_ami_id',))
+    def get_image(self):
         return self.aws_ami_id
 
     def aws_remove_ami(self, ami: str):

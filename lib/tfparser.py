@@ -1,6 +1,7 @@
 ##
 ##
 
+from distutils.util import strtobool
 import ply.lex as lex
 import sys
 
@@ -101,6 +102,9 @@ class tfvars(object):
         while True:
             try:
                 variable_parameters = self.parse_variable_block()
+                if 'type' in variable_parameters:
+                    if variable_parameters['type'] == 'bool':
+                        variable_parameters['default'] = bool(strtobool(variable_parameters['default']))
                 variable_data.append(variable_parameters)
             except Exception as e:
                 print("Syntax error: %s" % str(e))
