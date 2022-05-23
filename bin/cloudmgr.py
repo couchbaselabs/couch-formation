@@ -18,7 +18,7 @@ from lib.imagemgr import image_manager
 from lib.runmgr import run_manager
 from lib.netmgr import network_manager
 
-VERSION = '2.0-alpha-1'
+VERSION = '2.0-alpha-2'
 
 
 def break_signal_handler(signum, frame):
@@ -49,6 +49,8 @@ class cloud_manager(object):
             task.build_env()
             sys.exit(0)
         elif self.verb == 'destroy':
+            task = run_manager(self.args)
+            task.destroy_env()
             sys.exit(0)
         elif self.verb == 'list':
             task = run_manager(self.args)

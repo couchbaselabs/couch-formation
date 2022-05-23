@@ -67,7 +67,7 @@ class template(object):
             param, tfv, func, value = next(((a, b, c, d) for (a, b, c, d) in cloud_vars if a == variable), (None, None, None, None))
             if not func:
                 continue
-            print(f"Processing template parameter {variable}")
+            self.logger.info(f"Processing template parameter {variable}")
             r_value = getattr(driver_class, func)()
             if type(r_value) == dict:
                 try:

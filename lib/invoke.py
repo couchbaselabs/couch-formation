@@ -14,7 +14,10 @@ from lib.logfile import log_file
 
 class packer_run(object):
 
-    def __init__(self):
+    def __init__(self, working_dir=None):
+        _logger = log_file(self.__class__.__name__, path=working_dir, filename='build.log')
+        self.logger = _logger.logger
+        self.working_dir = working_dir
         self.check_binary()
 
     def check_binary(self) -> bool:
@@ -40,6 +43,7 @@ class packer_run(object):
         }
         line_string = line.decode("utf-8")
         line_string = line_string.rstrip()
+        self.logger.info(line_string)
         line_contents: list = line_string.split(",")
 
         message['timestamp'] = line_contents[0]
@@ -50,7 +54,7 @@ class packer_run(object):
 
         return message
 
-    def _packer(self, *args: str, working_dir=None):
+    def _packer(self, *args: str):
         error_string: str = ''
         packer_cmd = [
             'packer',
@@ -58,7 +62,7 @@ class packer_run(object):
             *args
         ]
 
-        p = subprocess.Popen(packer_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, cwd=working_dir, bufsize=1)
+        p = subprocess.Popen(packer_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, cwd=self.working_dir, bufsize=1)
 
         sp = spinner()
         sp.start()
@@ -75,7 +79,7 @@ class packer_run(object):
         if p.returncode != 0:
             raise PackerRunError(f"error: {error_string}")
 
-    def build(self, working_dir: str, var_file: str, packer_file: str):
+    def build(self, var_file: str, packer_file: str):
         cmd = []
 
         cmd.append('build')
@@ -85,7 +89,7 @@ class packer_run(object):
 
         print("Beginning packer build (this can take several minutes)")
         start_time = time.perf_counter()
-        self._packer(*cmd, working_dir=working_dir)
+        self._packer(*cmd)
         end_time = time.perf_counter()
         run_time = time.strftime("%H hours %M minutes %S seconds.", time.gmtime(end_time - start_time))
         print(f"Image creation complete in {run_time}.")
@@ -106,7 +110,7 @@ class tf_run(object):
 
         return True
 
-    def _terraform(self, *args: str, json_output=False):
+    def _terraform(self, *args: str, json_output=False, ignore_error=False):
         command_output = ''
         tf_cmd = [
             'terraform',
@@ -133,7 +137,10 @@ class tf_run(object):
         sp.stop()
         p.communicate()
         if p.returncode != 0:
-            raise TerraformRunError(f"environment deployment error (see log file for details)")
+            if ignore_error:
+                return False
+            else:
+                raise TerraformRunError(f"environment deployment error (see log file for details)")
 
         if len(command_output) > 0:
             try:
@@ -141,13 +148,15 @@ class tf_run(object):
             except json.decoder.JSONDecodeError as err:
                 raise TerraformRunError(f"can not capture deployment output: {err}")
 
-    def _command(self, cmd: list, json_output=False, quiet=False):
+        return True
+
+    def _command(self, cmd: list, json_output=False, quiet=False, ignore_error=False):
         now = datetime.now()
         time_string = now.strftime("%D %I:%M:%S %p")
         self.logger.info(f" --- start {cmd[0]} at {time_string}")
 
         start_time = time.perf_counter()
-        self._terraform(*cmd, json_output=json_output)
+        result = self._terraform(*cmd, json_output=json_output, ignore_error=ignore_error)
         end_time = time.perf_counter()
         run_time = time.strftime("%H hours %M minutes %S seconds.", time.gmtime(end_time - start_time))
 
@@ -157,6 +166,8 @@ class tf_run(object):
 
         if not quiet:
             print(f"Step complete in {run_time}.")
+
+        return result
 
     def init(self):
         cmd = []
@@ -176,6 +187,23 @@ class tf_run(object):
 
         print("Deploying environment")
         self._command(cmd)
+
+    def destroy(self):
+        cmd = []
+
+        cmd.append('destroy')
+        cmd.append('-input=false')
+        cmd.append('-auto-approve')
+
+        print("Removing environment")
+        self._command(cmd)
+
+    def validate(self):
+        cmd = []
+
+        cmd.append('validate')
+
+        return self._command(cmd, ignore_error=True, quiet=True)
 
     def output(self, quiet=False):
         cmd = []

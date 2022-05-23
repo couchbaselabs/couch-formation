@@ -176,12 +176,40 @@ class run_manager(object):
             except Exception as err:
                 RunMgmtError(f"can not deploy environment: {err}")
 
+    def destroy_env(self):
+        inquire = ask()
+        self.env.create_env(create=False)
+        env_text = self.env.get_env
+        env_text = env_text.replace(':', '-')
+
+        print(f"Cloud: {self.cloud} :: Environment {env_text}")
+
+        try:
+            if inquire.ask_yn(f"Remove instances for {env_text}", default=False):
+                tf = tf_run(working_dir=self.env.env_dir)
+                if not tf.validate():
+                    tf.init()
+                tf.destroy()
+        except Exception as err:
+            RunMgmtError(f"can not destroy environment: {err}")
+
+        for app_env in self.env.all_app_dirs:
+            try:
+                if inquire.ask_yn(f"Remove instances for {app_env}", default=False):
+                    app_env_dir = self.env.env_dir + '/' + app_env
+                    tf = tf_run(working_dir=app_env_dir)
+                    if not tf.validate():
+                        tf.init()
+                    tf.destroy()
+            except Exception as err:
+                RunMgmtError(f"can not destroy environment: {err}")
+
     def list_env(self):
         self.env.create_env(create=False)
         env_text = self.env.get_env
         env_text = env_text.replace(':', ' ')
 
-        print(f"Cloud: {self.cloud} :: Environment {env_text} assets")
+        print(f"Cloud: {self.cloud} :: Environment {env_text}")
 
         try:
             tf = tf_run(working_dir=self.env.env_dir)
