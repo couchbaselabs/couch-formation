@@ -3,6 +3,7 @@
 
 import logging
 import os
+import re
 from shutil import copyfile
 from lib.location import location
 from lib.exceptions import EnvMgrError
@@ -115,6 +116,12 @@ class envmgr(object):
     @property
     def app_env_dir(self):
         return self.working_app_dir
+
+    @property
+    def all_app_dirs(self):
+        for file_name in os.listdir(self.working_dir):
+            if re.match(r'app-[0-9]+', file_name):
+                yield file_name
 
     def get_tf_var_file(self):
         tf_var_file = self.env_dir + '/' + self.variable_tf_file_name

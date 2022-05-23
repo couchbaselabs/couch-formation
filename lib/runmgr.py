@@ -1,6 +1,7 @@
 ##
 ##
 
+from shutil import copyfile
 from lib.exceptions import *
 from lib.aws import aws
 from lib.gcp import gcp
@@ -37,6 +38,7 @@ class run_manager(object):
     def build_env(self):
         inquire = ask()
         previous_tf_vars = None
+        create_app_nodes = False
 
         if self.cloud == 'aws':
             driver = aws()
@@ -61,7 +63,7 @@ class run_manager(object):
         env_text = env_text.replace(':', ' ')
 
         print(f"Operating on environment {env_text}")
-        self.env.create_env()
+        self.env.create_env(overwrite=True)
 
         t = template()
         v = varfile()
@@ -138,7 +140,7 @@ class run_manager(object):
             t.process_template(build_variables)
             t.write_file(var_file)
         except Exception as err:
-            ImageMgmtError(f"can not write packer variables {var_file}: {err}")
+            RunMgmtError(f"can not write packer variables {var_file}: {err}")
 
         cm = clustermgr(driver, self.env, self.nm, self.args)
 
@@ -149,15 +151,60 @@ class run_manager(object):
 
         print("")
         if self.env.app_env_dir:
+            destination = self.env.app_env_dir + '/' + self.variable_file_name
+            copyfile(var_file, destination)
             if inquire.ask_yn('Create app configuration', default=True):
+                create_app_nodes = True
                 print("")
                 cm.create_node_config(APP_CONFIG, self.env.app_env_dir)
 
         print("")
         print("Beginning environment deploy process")
 
-        # try:
-        #     tf = tf_run()
-        #     tf.init(self.lc.packer_dir)
-        # except Exception as err:
-        #     ImageMgmtError(f"can not build image: {err}")
+        try:
+            tf = tf_run(working_dir=self.env.env_dir)
+            tf.init()
+            tf.apply()
+        except Exception as err:
+            RunMgmtError(f"can not deploy environment: {err}")
+
+        if create_app_nodes:
+            try:
+                tf = tf_run(working_dir=self.env.app_env_dir)
+                tf.init()
+                tf.apply()
+            except Exception as err:
+                RunMgmtError(f"can not deploy environment: {err}")
+
+    def list_env(self):
+        self.env.create_env(create=False)
+        env_text = self.env.get_env
+        env_text = env_text.replace(':', ' ')
+
+        print(f"Cloud: {self.cloud} :: Environment {env_text} assets")
+
+        try:
+            tf = tf_run(working_dir=self.env.env_dir)
+            env_data = tf.output(quiet=True)
+            if env_data:
+                print("Couchbase cluster:")
+            for item in env_data:
+                print(f"{item}:")
+                for n, host in enumerate(env_data[item]['value']):
+                    print(f" {n+1:d}) {host}")
+        except Exception as err:
+            RunMgmtError(f"can not deploy environment: {err}")
+
+        for app_env in self.env.all_app_dirs:
+            try:
+                app_env_dir = self.env.env_dir + '/' + app_env
+                tf = tf_run(working_dir=app_env_dir)
+                env_data = tf.output(quiet=True)
+                if env_data:
+                    print(f"{app_env} node(s):")
+                for item in env_data:
+                    print(f"{item}:")
+                    for n, host in enumerate(env_data[item]['value']):
+                        print(f" {n + 1:d}) {host}")
+            except Exception as err:
+                RunMgmtError(f"can not deploy environment: {err}")

@@ -183,8 +183,8 @@ class aws(object):
             self.aws_subnet_id = write
             return self.aws_subnet_id
 
-        if self.aws_subnet_id:
-            return self.aws_subnet_id
+        # if self.aws_subnet_id:
+        #     return self.aws_subnet_id
 
         subnet_list = []
         subnet_name_list = []
