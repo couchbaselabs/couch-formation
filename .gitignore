@@ -52,3 +52,4 @@ prod-*/
 setup.log
 db/*.json
 deploy.log
+build.log
