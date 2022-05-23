@@ -25,7 +25,7 @@ resource "azurerm_public_ip" "node_external" {
   name                = "${each.key}-pub"
   resource_group_name = var.azure_resource_group
   location            = var.azure_location
-  zones               = each.value.node_zone
+  zones               = [each.value.node_zone]
   allocation_method   = "Static"
   sku                 = "Standard"
 }
