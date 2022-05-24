@@ -1,6 +1,6 @@
 ##
 ##
-
+import os.path
 from shutil import copyfile
 from lib.exceptions import *
 from lib.aws import aws
@@ -18,7 +18,8 @@ from lib.envmgr import envmgr
 from lib.clustermgr import clustermgr
 from lib.netmgr import network_manager
 from lib.ask import ask
-from lib.constants import CB_CFG_HEAD, CB_CFG_NODE, CB_CFG_TAIL, APP_CFG_HEAD, CLUSTER_CONFIG, APP_CONFIG
+from lib.tfparser import tfgen
+from lib.constants import CB_CFG_HEAD, CB_CFG_NODE, CB_CFG_TAIL, APP_CFG_HEAD, CLUSTER_CONFIG, APP_CONFIG, SGW_CONFIG
 
 
 class run_manager(object):
@@ -32,13 +33,14 @@ class run_manager(object):
         self.variable_file_name = 'variables.tf'
         self.lc.set_cloud(self.cloud)
         self.env.set_cloud(self.cloud)
-        self.env.set_env(self.args.dev, self.args.test, self.args.prod, self.args.app)
+        self.env.set_env(self.args.dev, self.args.test, self.args.prod, self.args.app, self.args.sgw)
         self.nm = network_manager(self.args)
 
     def build_env(self):
         inquire = ask()
         previous_tf_vars = None
         create_app_nodes = False
+        create_sgw_nodes = False
 
         if self.cloud == 'aws':
             driver = aws()
@@ -132,7 +134,7 @@ class run_manager(object):
             pass_variables = t.process_vars(driver, requested_vars, driver.VARIABLES)
             build_variables = build_variables + pass_variables
         except Exception as err:
-            RunMgmtError(f"can not process template {template_file}: {err}")
+            raise RunMgmtError(f"can not process template {template_file}: {err}")
 
         print("Writing environment variables")
 
@@ -140,7 +142,7 @@ class run_manager(object):
             t.process_template(build_variables)
             t.write_file(var_file)
         except Exception as err:
-            RunMgmtError(f"can not write packer variables {var_file}: {err}")
+            raise RunMgmtError(f"can not write packer variables {var_file}: {err}")
 
         cm = clustermgr(driver, self.env, self.nm, self.args)
 
@@ -159,6 +161,19 @@ class run_manager(object):
                 cm.create_node_config(APP_CONFIG, self.env.app_env_dir)
 
         print("")
+        if self.env.sgw_env_dir:
+            destination = self.env.sgw_env_dir + '/' + self.variable_file_name
+            copyfile(var_file, destination)
+            if inquire.ask_yn('Create SGW configuration', default=True):
+                create_sgw_nodes = True
+                print("")
+                cm.create_node_config(SGW_CONFIG, self.env.sgw_env_dir)
+
+        print("")
+        if not inquire.ask_yn("Proceed with environment deployment", default=True):
+            return True
+
+        print("")
         print("Beginning environment deploy process")
 
         try:
@@ -166,7 +181,7 @@ class run_manager(object):
             tf.init()
             tf.apply()
         except Exception as err:
-            RunMgmtError(f"can not deploy environment: {err}")
+            raise RunMgmtError(f"can not deploy environment: {err}")
 
         if create_app_nodes:
             try:
@@ -174,7 +189,16 @@ class run_manager(object):
                 tf.init()
                 tf.apply()
             except Exception as err:
-                RunMgmtError(f"can not deploy environment: {err}")
+                raise RunMgmtError(f"can not deploy environment: {err}")
+
+        if create_sgw_nodes:
+            try:
+                self.create_cluster_var_file(self.env.env_dir, self.env.sgw_env_dir)
+                tf = tf_run(working_dir=self.env.sgw_env_dir)
+                tf.init()
+                tf.apply()
+            except Exception as err:
+                raise RunMgmtError(f"can not deploy environment: {err}")
 
     def destroy_env(self):
         inquire = ask()
@@ -191,18 +215,21 @@ class run_manager(object):
                     tf.init()
                 tf.destroy()
         except Exception as err:
-            RunMgmtError(f"can not destroy environment: {err}")
+            raise RunMgmtError(f"can not destroy environment: {err}")
 
         for app_env in self.env.all_app_dirs:
             try:
+                app_env_dir = self.env.env_dir + '/' + app_env
+                if not os.path.exists(app_env_dir + '/variables.tf'):
+                    print(f"Skipping incomplete environment {app_env}")
+                    continue
                 if inquire.ask_yn(f"Remove instances for {app_env}", default=False):
-                    app_env_dir = self.env.env_dir + '/' + app_env
                     tf = tf_run(working_dir=app_env_dir)
                     if not tf.validate():
                         tf.init()
                     tf.destroy()
             except Exception as err:
-                RunMgmtError(f"can not destroy environment: {err}")
+                raise RunMgmtError(f"can not destroy environment: {err}")
 
     def list_env(self):
         self.env.create_env(create=False)
@@ -221,7 +248,7 @@ class run_manager(object):
                 for n, host in enumerate(env_data[item]['value']):
                     print(f" {n+1:d}) {host}")
         except Exception as err:
-            RunMgmtError(f"can not deploy environment: {err}")
+            raise RunMgmtError(f"can not deploy environment: {err}")
 
         for app_env in self.env.all_app_dirs:
             try:
@@ -235,4 +262,21 @@ class run_manager(object):
                     for n, host in enumerate(env_data[item]['value']):
                         print(f" {n + 1:d}) {host}")
             except Exception as err:
-                RunMgmtError(f"can not deploy environment: {err}")
+                raise RunMgmtError(f"can not deploy environment: {err}")
+
+    def create_cluster_var_file(self, env_dir, out_dir):
+        var_filename = out_dir + '/cb_cluster.tf'
+        try:
+            var_file = tfgen(var_filename)
+            var_file.open_file()
+            tf = tf_run(working_dir=env_dir)
+            env_data = tf.output(quiet=True)
+            if not env_data:
+                raise RunMgmtError("cluster was not created")
+            for item in env_data:
+                if item == 'node-private':
+                    for n, host in enumerate(env_data[item]['value']):
+                        var_file.tf_variable_str(f"cb_node_{n + 1}", host)
+            var_file.close_file()
+        except Exception as err:
+            raise RunMgmtError(f"can not deploy environment: {err}")

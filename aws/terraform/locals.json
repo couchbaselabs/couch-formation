@@ -24,7 +24,7 @@
   "defaults": {
     "instance_type": "c5.xlarge",
     "root_iops": "0",
-    "root_size": "50",
+    "root_size": "100",
     "root_type": "gp3"
   }
 }

@@ -84,7 +84,7 @@ class envmgr(object):
 
     @property
     def get_sgw_env(self) -> str:
-        sgw_env_string = f"{self.env_type}{self.env_num:02d}:sgw{self.app_num:02d}"
+        sgw_env_string = f"{self.env_type}{self.env_num:02d}:sgw{self.sgw_num:02d}"
         return sgw_env_string
 
     def get_cb_cluster_name(self, select=True, default=None, write=None):
@@ -136,9 +136,13 @@ class envmgr(object):
         return self.working_app_dir
 
     @property
+    def sgw_env_dir(self):
+        return self.working_sgw_dir
+
+    @property
     def all_app_dirs(self):
         for file_name in os.listdir(self.working_dir):
-            if re.match(r'app-[0-9]+', file_name):
+            if re.match(r'app-[0-9]+', file_name) or re.match(r'sgw-[0-9]+', file_name):
                 yield file_name
 
     def get_tf_var_file(self):

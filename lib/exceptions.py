@@ -94,3 +94,7 @@ class ClusterMgrError(fatalError):
 class NetworkMgrError(fatalError):
     pass
 
+
+class TFGenError(fatalError):
+    pass
+
