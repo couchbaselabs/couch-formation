@@ -347,6 +347,12 @@ class gcp(object):
     def gcp_get_root_type(self, default=None, write=None) -> str:
         """Get GCP root disk type"""
         inquire = ask()
+        gcp_type_list = [
+            'pd-standard',
+            'pd-balanced',
+            'pd-ssd',
+            'pd-extreme',
+        ]
 
         if write:
             self.gcp_root_type = write
@@ -357,8 +363,8 @@ class gcp(object):
 
         default_selection = self.vf.gcp_get_default('root_type')
         self.logger.info("Default root type is %s" % default_selection)
-        selection = inquire.ask_text('Root volume type', recommendation=default_selection, default=default)
-        self.gcp_root_type = selection
+        selection = inquire.ask_list('Root volume type', gcp_type_list, default=default_selection)
+        self.gcp_root_type = gcp_type_list[selection]
         return self.gcp_root_type
 
     def gcp_get_root_size(self, default=None, write=None) -> str:

@@ -79,6 +79,14 @@ class azure(object):
     def azure_get_root_type(self, default=None, write=None) -> str:
         """Get Azure root disk size"""
         inquire = ask()
+        azure_type_list = [
+            'Standard_LRS',
+            'StandardSSD_ZRS',
+            'Premium_LRS',
+            'Premium_ZRS',
+            'StandardSSD_LRS',
+            'UltraSSD_LRS'
+        ]
 
         if write:
             self.azure_disk_type = write
@@ -89,8 +97,8 @@ class azure(object):
 
         default_selection = self.vf.azure_get_default('root_type')
         self.logger.info("Default root size is %s" % default_selection)
-        selection = inquire.ask_text('Root volume type', recommendation=default_selection, default=default)
-        self.azure_disk_type = selection
+        selection = inquire.ask_list('Root volume type', azure_type_list, default=default_selection)
+        self.azure_disk_type = azure_type_list[selection]
         return self.azure_disk_type
 
     def azure_get_machine_type(self, default=None, write=None) -> str:

@@ -23,7 +23,7 @@
   },
   "defaults": {
     "machine_type": "n2-standard-4",
-    "root_size": "50",
-    "root_type": "pd-standard"
+    "root_size": "100",
+    "root_type": "pd-ssd"
   }
 }

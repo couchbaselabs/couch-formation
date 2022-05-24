@@ -55,7 +55,7 @@ class ask(object):
             else:
                 default_selection = next((i for i, item in enumerate(options) if item == default), None)
             if default_selection is not None:
-                if self.ask_yn("Use previous value: \"%s\"" % default, default=True):
+                if self.ask_yn("Use default value: \"%s\"" % default, default=True):
                     return default_selection
         if list_lenghth == 1:
             print("Auto selecting the only option available => %s" % self.get_option_text(options, option_type))

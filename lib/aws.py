@@ -55,6 +55,11 @@ class aws(object):
     def aws_get_root_type(self, default=None, write=None) -> str:
         """Get root volume type"""
         inquire = ask()
+        aws_type_list = [
+            'io2',
+            'gp2',
+            'gp3',
+        ]
 
         if write:
             self.aws_root_type = write
@@ -65,8 +70,8 @@ class aws(object):
 
         default_selection = self.vf.aws_get_default('root_type')
         self.logger.info("Default root type is %s" % default_selection)
-        selection = inquire.ask_text('Root volume type', default_selection, default=default)
-        self.aws_root_type = selection
+        selection = inquire.ask_list('Root volume type', aws_type_list, default=default_selection)
+        self.aws_root_type = aws_type_list[selection]
         return self.aws_root_type
 
     def aws_get_root_size(self, default=None, write=None) -> str:
