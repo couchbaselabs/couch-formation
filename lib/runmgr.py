@@ -200,6 +200,8 @@ class run_manager(object):
             except Exception as err:
                 raise RunMgmtError(f"can not deploy environment: {err}")
 
+        self.list_env()
+
     def destroy_env(self):
         inquire = ask()
         self.env.create_env(create=False)
