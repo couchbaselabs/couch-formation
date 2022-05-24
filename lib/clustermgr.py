@@ -5,24 +5,13 @@ import logging
 import jinja2
 import dns.resolver
 import ipaddress
-from datetime import datetime
 from itertools import cycle
 from lib.exceptions import *
 from lib.ask import ask
 from lib.dns import dynamicDNS
-from lib.constants import CB_CFG_HEAD, CB_CFG_NODE, CB_CFG_TAIL, APP_CFG_HEAD, CLUSTER_CONFIG, APP_CONFIG
-from lib.aws import aws
-from lib.gcp import gcp
-from lib.azure import azure
-from lib.vmware import vmware
+from lib.constants import CB_CFG_HEAD, CB_CFG_NODE, CB_CFG_TAIL, APP_CFG_HEAD, CLUSTER_CONFIG, APP_CONFIG, SGW_CFG_HEAD, SGW_CONFIG
 from lib.location import location
-from lib.template import template
-from lib.varfile import varfile
-from lib.cbrelmgr import cbrelease
-from lib.ssh import ssh
 from lib.toolbox import toolbox
-from lib.netmgr import network_manager
-from lib.envmgr import envmgr
 
 
 class clustermgr(object):
@@ -51,6 +40,7 @@ class clustermgr(object):
         self.nm = nm
         self.cluster_file_name = 'cluster.tf'
         self.app_file_name = 'app.tf'
+        self.sgw_file_name = 'sgw.tf'
 
     def set_availability_zone_cycle(self):
         inquire = ask()
@@ -150,6 +140,9 @@ class clustermgr(object):
         services = []
         min_nodes = 3
         output_file = None
+        env_text = self.env.get_env
+        env_text = env_text.replace(':', '')
+        node_env = env_text
 
         if mode == CLUSTER_CONFIG:
             services = ['data', 'index', 'query', 'fts', 'analytics', 'eventing', ]
@@ -159,13 +152,17 @@ class clustermgr(object):
         elif mode == APP_CONFIG:
             min_nodes = 1
             prefix_text = 'app'
+            node_env = self.env.get_app_env.replace(':', '-')
             config_segments.append(APP_CFG_HEAD)
             output_file = self.app_file_name
+        elif mode == SGW_CONFIG:
+            min_nodes = 1
+            prefix_text = 'sgw'
+            node_env = self.env.get_sgw_env.replace(':', '-')
+            config_segments.append(SGW_CFG_HEAD)
+            output_file = self.sgw_file_name
 
         self.set_availability_zone_cycle()
-
-        env_text = self.env.get_env
-        env_text = env_text.replace(':', '')
 
         print(f"Building {prefix_text} node configuration")
         while True:
@@ -205,6 +202,7 @@ class clustermgr(object):
                 NODE_NUMBER=node,
                 NODE_SERVICES=','.join(selected_services),
                 NODE_INSTALL_MODE=install_mode,
+                NODE_ENV=node_env,
                 NODE_ZONE=availability_zone,
                 NODE_SUBNET=node_subnet,
                 NODE_IP_ADDRESS=node_ip_address,

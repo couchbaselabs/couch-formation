@@ -17,6 +17,7 @@ class params(object):
         parent_parser.add_argument('--test', action='store', help="Test Environment", type=int)
         parent_parser.add_argument('--prod', action='store', help="Prod Environment", type=int)
         parent_parser.add_argument('--app', action='store', help="Application Environment", type=int)
+        parent_parser.add_argument('--sgw', action='store', help="Application Environment", type=int)
         parent_parser.add_argument('--cloud', action='store', help="Cloud type", default='aws')
         parent_parser.add_argument('--singlezone', action='store_true', help="Use One Availability Zone", default=False)
         parent_parser.add_argument('--refresh', action='store_true', help="Overwrite configuration files", default=False)

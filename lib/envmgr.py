@@ -27,8 +27,10 @@ class envmgr(object):
         self.test_num = None
         self.prod_num = None
         self.app_num = None
+        self.sgw_num = None
         self.working_dir = None
         self.working_app_dir = None
+        self.working_sgw_dir = None
         self.cb_cluster_name = None
         self.cluster_tf_file_name = 'cluster.tf'
         self.variable_tf_file_name = 'variables.tf'
@@ -51,7 +53,7 @@ class envmgr(object):
         else:
             raise EnvMgrError(f"unknown cloud {self.cloud}")
 
-    def set_env(self, dev_num=None, test_num=None, prod_num=None, app_num=None):
+    def set_env(self, dev_num=None, test_num=None, prod_num=None, app_num=None, sgw_num=None):
         if dev_num:
             self.env_type = 'dev'
             self.env_num = dev_num
@@ -67,10 +69,23 @@ class envmgr(object):
         if app_num:
             self.app_num = app_num
 
+        if sgw_num:
+            self.sgw_num = sgw_num
+
     @property
-    def get_env(self):
+    def get_env(self) -> str:
         env_string = f"{self.env_type}:{self.env_num:02d}"
         return env_string
+
+    @property
+    def get_app_env(self) -> str:
+        app_env_string = f"{self.env_type}{self.env_num:02d}:app{self.app_num:02d}"
+        return app_env_string
+
+    @property
+    def get_sgw_env(self) -> str:
+        sgw_env_string = f"{self.env_type}{self.env_num:02d}:sgw{self.app_num:02d}"
+        return sgw_env_string
 
     def get_cb_cluster_name(self, select=True, default=None, write=None):
         inquire = ask()
@@ -102,6 +117,9 @@ class envmgr(object):
 
         if self.app_num:
             self.working_app_dir = self.working_dir + '/' + "app-{:02d}".format(self.app_num)
+
+        if self.sgw_num:
+            self.working_sgw_dir = self.working_dir + '/' + "sgw-{:02d}".format(self.sgw_num)
 
         if create:
             try:
@@ -148,6 +166,10 @@ class envmgr(object):
             'app_main.tf',
             'app_outputs.tf',
         ]
+        sgw_files = [
+            'sgw_main.tf',
+            'sgw_outputs.tf',
+        ]
 
         print(f"Creating directory structure for {self.get_env}")
 
@@ -166,6 +188,14 @@ class envmgr(object):
                 except Exception as err:
                     raise EnvMgrError(f"can not create {self.working_app_dir}: {err}")
 
+        if self.working_sgw_dir:
+            if not os.path.exists(self.working_sgw_dir):
+                try:
+                    self.logger.info("Creating %s" % self.working_sgw_dir)
+                    os.mkdir(self.working_sgw_dir)
+                except Exception as err:
+                    raise EnvMgrError(f"can not create {self.working_sgw_dir}: {err}")
+
         for file_name in copy_files:
             source = self.tf_dir + '/' + file_name
             destination = self.working_dir + '/' + file_name
@@ -180,6 +210,17 @@ class envmgr(object):
             for file_name in app_files:
                 source = self.tf_dir + '/' + file_name
                 destination = self.working_app_dir + '/' + file_name
+                if not os.path.exists(destination) or overwrite:
+                    try:
+                        self.logger.info("Copying %s -> %s" % (source, destination))
+                        copyfile(source, destination)
+                    except Exception as err:
+                        raise EnvMgrError(f"can not copy {source} -> {destination}: {err}")
+
+        if self.working_sgw_dir:
+            for file_name in sgw_files:
+                source = self.tf_dir + '/' + file_name
+                destination = self.working_sgw_dir + '/' + file_name
                 if not os.path.exists(destination) or overwrite:
                     try:
                         self.logger.info("Copying %s -> %s" % (source, destination))

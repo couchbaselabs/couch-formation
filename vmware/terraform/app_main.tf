@@ -7,6 +7,10 @@ provider "vsphere" {
   allow_unverified_ssl = true
 }
 
+locals {
+  node_env = element([for node in var.app_spec: node.node_env], 0)
+}
+
 data "vsphere_datacenter" "dc" {
   name = var.vsphere_datacenter
 }
@@ -38,7 +42,7 @@ data "vsphere_virtual_machine" "template" {
 }
 
 resource "vsphere_tag_category" "appsrv" {
-  name        = var.vsphere_folder
+  name        = local.node_env
   cardinality = "MULTIPLE"
   description = "Managed by Terraform"
 
@@ -55,7 +59,7 @@ resource "vsphere_tag" "appsrv" {
 }
 
 resource "vsphere_folder" "folder" {
-  path          = var.vsphere_folder
+  path          = local.node_env
   type          = "vm"
   datacenter_id = data.vsphere_datacenter.dc.id
 }
