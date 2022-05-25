@@ -188,15 +188,18 @@ class tf_run(object):
         print("Deploying environment")
         self._command(cmd)
 
-    def destroy(self):
+    def destroy(self, refresh=True, ignore_error=False):
         cmd = []
 
         cmd.append('destroy')
         cmd.append('-input=false')
         cmd.append('-auto-approve')
+        if not refresh:
+            cmd.append('-refresh=false')
 
         print("Removing environment")
-        self._command(cmd)
+        if not self._command(cmd, ignore_error=True):
+            self.destroy(refresh=False, ignore_error=ignore_error)
 
     def validate(self):
         cmd = []
