@@ -22,21 +22,21 @@ $ ./setup.sh
 ````
 Create an image in the target cloud:
 ````
-$ bin/cloudmgr.py image --build --cloud aws
-$ bin/cloudmgr.py image --build --cloud gcp
-$ bin/cloudmgr.py image --build --cloud azure
+$ bin/cloudmgr image --build --cloud aws
+$ bin/cloudmgr image --build --cloud gcp
+$ bin/cloudmgr image --build --cloud azure
 ````
 Create the environment (development environment number 4 with application and Sync Gateway nodes). Note the numbers are environment specifiers so that you can have multiple active environments. These are not node counts. You will be prompted for the node count for each node type.
 ````
-$ bin/cloudmgr.py create --dev 4 --app 1 --sgw 1 --cloud gcp
+$ bin/cloudmgr create --dev 4 --app 1 --sgw 1 --cloud gcp
 ````
 
 ### VMware
 For VMware environments with static IPs, store DNS and subnet details to be used for environment creation (requires DNS servers that allow TSIG dynamic updates):
 ````
-$ bin/cloudmgr.py net --domain
-$ bin/cloudmgr.py net --cidr
-$ bin/cloudmgr.py create --dev 4 --app 1 --cloud vmware
+$ bin/cloudmgr net --domain
+$ bin/cloudmgr net --cidr
+$ bin/cloudmgr create --dev 4 --app 1 --cloud vmware
 ````
 
 ## Cloudmgr Utility
