@@ -30,6 +30,14 @@ Create the environment (development environment number 4 with application and Sy
 ````
 $ bin/cloudmgr create --dev 4 --app 1 --sgw 1 --cloud gcp
 ````
+List node information for an environment:
+````
+$ bin/cloudmgr list --dev 5 --cloud gcp
+````
+Remove an environment:
+````
+$ bin/cloudmgr destroy --dev 5 --cloud gcp
+````
 
 ### VMware
 For VMware environments with static IPs, store DNS and subnet details to be used for environment creation (requires DNS servers that allow TSIG dynamic updates):
@@ -42,19 +50,19 @@ $ bin/cloudmgr create --dev 4 --app 1 --cloud vmware
 ## Cloudmgr Utility
 The cloudmgr utility orchestrates environment builds. It accelerates environment build time by attempting to autoconfigure as much as possible, and using multiple choice prompts when possible for any answers it requires.
 
-| Create Options      | Description                                               |
-|---------------------|-----------------------------------------------------------|
-| -h, --help          | Show help message and exit                                |
-| --debug DEBUG       | Debug level                                               |
-| --dev DEV           | Development environment number                            |
-| --test TEST         | Test environment number                                   |
-| --prod PROD         | Prod environment number                                   |
-| --app APP           | App environment number                                    |
-| --sgw SGW           | Sync Gateway environment number                           |
-| --cloud CLOUD       | Cloud type (aws,gcp,azure,vmware)                         |
-| --zone              | Use One Availability Zone                                 |
-| --static            | Assign Static IPs (where supported)                       |
-| --dns               | Update DNS with static IPs (required dynamic DNS service) |
+| Create/Destroy Options | Description                                               |
+|------------------------|-----------------------------------------------------------|
+| -h, --help             | Show help message and exit                                |
+| --debug DEBUG          | Debug level                                               |
+| --dev DEV              | Development environment number                            |
+| --test TEST            | Test environment number                                   |
+| --prod PROD            | Prod environment number                                   |
+| --app APP              | App environment number                                    |
+| --sgw SGW              | Sync Gateway environment number                           |
+| --cloud CLOUD          | Cloud type (aws,gcp,azure,vmware)                         |
+| --zone                 | Use One Availability Zone                                 |
+| --static               | Assign Static IPs (where supported)                       |
+| --dns                  | Update DNS with static IPs (required dynamic DNS service) |
 
 | Image Options | Description                                               |
 |---------------|-----------------------------------------------------------|
