@@ -54,7 +54,10 @@ class cloud_manager(object):
             sys.exit(0)
         elif self.verb == 'list':
             task = run_manager(self.args)
-            task.list_env()
+            if self.args.all:
+                task.list_all()
+            else:
+                task.list_env()
             sys.exit(0)
         elif self.verb == 'net':
             task = network_manager(self.args)

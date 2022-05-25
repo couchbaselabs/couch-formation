@@ -11,6 +11,12 @@ class location(object):
         self.cloud = None
         self._packer_dir = None
         self._tf_dir = None
+        self._all_clouds = [
+            'aws',
+            'gcp',
+            'azure',
+            'vmware',
+        ]
 
     def set_cloud(self, cloud: str):
         self.cloud = cloud
@@ -47,6 +53,11 @@ class location(object):
         if not os.path.exists(tf_dir):
             raise DirectoryStructureError(f"Expecting {_location} terraform dir at {tf_dir}")
         return tf_dir
+
+    @property
+    def cloud_list(self):
+        for cloud in self._all_clouds:
+            yield cloud
 
     @property
     def packer_dir(self):

@@ -53,7 +53,7 @@ class envmgr(object):
         else:
             raise EnvMgrError(f"unknown cloud {self.cloud}")
 
-    def set_env(self, dev_num=None, test_num=None, prod_num=None, app_num=None, sgw_num=None):
+    def set_env(self, dev_num=None, test_num=None, prod_num=None, app_num=None, sgw_num=None, all_opt=False):
         if dev_num:
             self.env_type = 'dev'
             self.env_num = dev_num
@@ -64,7 +64,8 @@ class envmgr(object):
             self.env_type = 'prod'
             self.env_num = prod_num
         else:
-            raise EnvMgrError("no environment specified")
+            if not all_opt:
+                raise EnvMgrError("no environment specified")
 
         if app_num:
             self.app_num = app_num
@@ -139,9 +140,20 @@ class envmgr(object):
     def sgw_env_dir(self):
         return self.working_sgw_dir
 
-    @property
-    def all_app_dirs(self):
-        for file_name in os.listdir(self.working_dir):
+    def all_env_dirs(self, cloud):
+        items = []
+        for file_name in os.listdir(self.lc.package_dir + '/' + cloud + '/terraform'):
+            if re.match(r'dev-[0-9]+', file_name) or re.match(r'test-[0-9]+', file_name) or re.match(r'prod-[0-9]+', file_name):
+                items.append(file_name)
+        for item in sorted(items):
+            yield item
+
+    def all_app_dirs(self, working_dir=None):
+        if working_dir:
+            list_dir = working_dir
+        else:
+            list_dir = self.working_dir
+        for file_name in os.listdir(list_dir):
             if re.match(r'app-[0-9]+', file_name) or re.match(r'sgw-[0-9]+', file_name):
                 yield file_name
 

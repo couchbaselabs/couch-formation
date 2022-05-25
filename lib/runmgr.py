@@ -1,6 +1,8 @@
 ##
 ##
+
 import os.path
+import re
 from shutil import copyfile
 from lib.exceptions import *
 from lib.aws import aws
@@ -19,7 +21,7 @@ from lib.clustermgr import clustermgr
 from lib.netmgr import network_manager
 from lib.ask import ask
 from lib.tfparser import tfgen
-from lib.constants import CB_CFG_HEAD, CB_CFG_NODE, CB_CFG_TAIL, APP_CFG_HEAD, CLUSTER_CONFIG, APP_CONFIG, SGW_CONFIG
+from lib.constants import CLUSTER_CONFIG, APP_CONFIG, SGW_CONFIG
 
 
 class run_manager(object):
@@ -33,7 +35,7 @@ class run_manager(object):
         self.variable_file_name = 'variables.tf'
         self.lc.set_cloud(self.cloud)
         self.env.set_cloud(self.cloud)
-        self.env.set_env(self.args.dev, self.args.test, self.args.prod, self.args.app, self.args.sgw)
+        self.env.set_env(self.args.dev, self.args.test, self.args.prod, self.args.app, self.args.sgw, all_opt=self.args.all)
         self.nm = network_manager(self.args)
 
     def build_env(self):
@@ -219,7 +221,7 @@ class run_manager(object):
         except Exception as err:
             raise RunMgmtError(f"can not destroy environment: {err}")
 
-        for app_env in self.env.all_app_dirs:
+        for app_env in self.env.all_app_dirs():
             try:
                 app_env_dir = self.env.env_dir + '/' + app_env
                 if not os.path.exists(app_env_dir + '/variables.tf'):
@@ -252,7 +254,7 @@ class run_manager(object):
         except Exception as err:
             raise RunMgmtError(f"can not deploy environment: {err}")
 
-        for app_env in self.env.all_app_dirs:
+        for app_env in self.env.all_app_dirs():
             try:
                 app_env_dir = self.env.env_dir + '/' + app_env
                 tf = tf_run(working_dir=app_env_dir)
@@ -265,6 +267,32 @@ class run_manager(object):
                         print(f" {n + 1:d}) {host}")
             except Exception as err:
                 raise RunMgmtError(f"can not deploy environment: {err}")
+
+    def list_all(self):
+        for cloud in self.lc.cloud_list:
+            print(f" => Cloud {cloud}")
+            for environment in self.env.all_env_dirs(cloud):
+                app_envs = []
+                env_dir = self.lc.package_dir + '/' + cloud + '/terraform/' + environment
+                tf = tf_run(working_dir=env_dir)
+                env_data = tf.output(quiet=True)
+                if env_data:
+                    running = 'yes'
+                else:
+                    running = 'no'
+                for app_env in self.env.all_app_dirs(working_dir=env_dir):
+                    app_envs.append(app_env)
+                    env_dir = self.lc.package_dir + '/' + cloud + '/terraform/' + environment + '/' + app_env
+                    tf = tf_run(working_dir=env_dir)
+                    env_data = tf.output(quiet=True)
+                    if env_data:
+                        app_envs.append('yes')
+                    else:
+                        app_envs.append('no')
+                print(f"      {environment.ljust(7)} active: {running.ljust(3)}", end='')
+                for item in zip(*[iter(app_envs)] * 2):
+                    print(f" {item[0]} active: {item[1].ljust(3)}", end='')
+                print("")
 
     def create_cluster_var_file(self, env_dir, out_dir):
         var_filename = out_dir + '/cb_cluster.tf'
