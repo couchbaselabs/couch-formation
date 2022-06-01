@@ -7,15 +7,16 @@ from requests.adapters import HTTPAdapter
 import xml.etree.ElementTree as ET
 import gzip
 import re
-from typing import Type
+import json
 from lib.ask import ask
-from lib.envmgr import envmgr
+from lib.exceptions import CBReleaseManagerError
 
 
 class cbrelease(object):
     VARIABLES = [
         ('CB_INDEX_MEM_TYPE', 'index_memory', 'get_cb_index_mem_setting', None),
         ('CB_VERSION', 'cb_version', 'get_cb_version', None),
+        ('SGW_VERSION', 'sgw_version', 'get_sgw_version', None),
     ]
 
     def __init__(self, pkgmgr=None, release=None):
@@ -24,6 +25,7 @@ class cbrelease(object):
         self.os_name = None
         self.cb_version = None
         self.cb_index_mem_type = None
+        self.sgw_version = None
 
     def set_os_name(self, name: str):
         self.os_name = name
@@ -72,7 +74,7 @@ class cbrelease(object):
 
         versions_list = self.get_versions()
         release_list = sorted(versions_list, reverse=True)
-        selection = inquire.ask_list('Select Couchbase Version', release_list, page_len=5, default=default)
+        selection = inquire.ask_list('Select Couchbase Version', release_list, page_len=8, default=default)
         self.cb_version = release_list[selection]
 
         return self.cb_version
@@ -165,3 +167,65 @@ class cbrelease(object):
                 return_list.append(version)
 
         return return_list
+
+    def get_sgw_version(self, default=None, write=None):
+        inquire = ask()
+
+        if write:
+            self.sgw_version = write
+            return self.sgw_version
+
+        if self.sgw_version:
+            return self.sgw_version
+
+        versions_list = self.get_sgw_versions()
+        release_list = sorted(versions_list, reverse=True)
+        selection = inquire.ask_list('Select Sync Gateway Version', release_list, page_len=8, default=default)
+        self.sgw_version = release_list[selection]
+
+        return self.sgw_version
+
+    def get_sgw_rpm(self, version):
+        return f"http://packages.couchbase.com/releases/couchbase-sync-gateway/{version}/couchbase-sync-gateway-enterprise_{version}_x86_64.rpm"
+
+    def get_sgw_apt(self, version):
+        return f"http://packages.couchbase.com/releases/couchbase-sync-gateway/{version}/couchbase-sync-gateway-enterprise_{version}_x86_64.deb"
+
+    def get_sgw_versions(self):
+        sgw_git_release_url = 'https://api.github.com/repos/couchbase/sync_gateway/releases'
+        git_release_list = []
+        found_release_list = []
+
+        session = requests.Session()
+        retries = Retry(total=60,
+                        backoff_factor=0.1,
+                        status_forcelist=[500, 501, 503])
+        session.mount('http://', HTTPAdapter(max_retries=retries))
+        session.mount('https://', HTTPAdapter(max_retries=retries))
+
+        response = requests.get(sgw_git_release_url, verify=False, timeout=15)
+
+        if response.status_code != 200:
+            raise Exception("Can not get Sync Gateway release data: error %d" % response.status_code)
+
+        try:
+            releases = json.loads(response.content)
+            for release in releases:
+                git_release_list.append(release['tag_name'])
+        except Exception as err:
+            raise CBReleaseManagerError(f"can not process Sync Gateway release data: {err}")
+
+        for release in git_release_list:
+            check_url = self.get_sgw_rpm(release)
+            response = requests.head(check_url, verify=False, timeout=15)
+
+            if response.status_code != 200:
+                continue
+
+            check_url = self.get_sgw_apt(release)
+            response = requests.head(check_url, verify=False, timeout=15)
+
+            if response.status_code == 200:
+                found_release_list.append(release)
+
+        return found_release_list

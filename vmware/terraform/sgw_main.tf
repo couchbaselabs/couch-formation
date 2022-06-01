@@ -108,7 +108,7 @@ resource "vsphere_virtual_machine" "sgw_nodes" {
   provisioner "remote-exec" {
     inline = [
       "sudo /usr/local/hostprep/bin/refresh.sh",
-      "sudo /usr/local/hostprep/bin/hostprep.sh -t sgw",
+      "sudo /usr/local/hostprep/bin/hostprep.sh -t sgw -g ${var.sgw_version}",
       "sudo /usr/local/hostprep/bin/clusterinit.sh -m sgw -r ${var.cb_node_1}",
     ]
     connection {

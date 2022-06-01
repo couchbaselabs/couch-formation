@@ -98,3 +98,7 @@ class NetworkMgrError(fatalError):
 class TFGenError(fatalError):
     pass
 
+
+class CBReleaseManagerError(fatalError):
+    pass
+

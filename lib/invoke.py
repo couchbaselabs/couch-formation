@@ -196,10 +196,13 @@ class tf_run(object):
         cmd.append('-auto-approve')
         if not refresh:
             cmd.append('-refresh=false')
+        else:
+            ignore_error = True
 
         print("Removing environment")
-        if not self._command(cmd, ignore_error=True):
-            self.destroy(refresh=False, ignore_error=ignore_error)
+        if not self._command(cmd, ignore_error=ignore_error):
+            print("First destroy attempt failed, retrying without refresh ...")
+            self.destroy(refresh=False, ignore_error=False)
 
     def validate(self):
         cmd = []

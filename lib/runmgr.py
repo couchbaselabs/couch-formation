@@ -169,6 +169,7 @@ class run_manager(object):
             if inquire.ask_yn('Create SGW configuration', default=True):
                 create_sgw_nodes = True
                 print("")
+                self.create_sgw_var_file(self.env.sgw_env_dir)
                 cm.create_node_config(SGW_CONFIG, self.env.sgw_env_dir)
 
         print("")
@@ -309,4 +310,16 @@ class run_manager(object):
                         var_file.tf_variable_str(f"cb_node_{n + 1}", host)
             var_file.close_file()
         except Exception as err:
-            raise RunMgmtError(f"can not deploy environment: {err}")
+            raise RunMgmtError(f"can not create cluster var file: {err}")
+
+    def create_sgw_var_file(self, out_dir):
+        var_filename = out_dir + '/sgw_config.tf'
+        try:
+            cbr = cbrelease()
+            sgw_version = cbr.get_sgw_version()
+            var_file = tfgen(var_filename)
+            var_file.open_file()
+            var_file.tf_variable_str("sgw_version", sgw_version)
+            var_file.close_file()
+        except Exception as err:
+            raise RunMgmtError(f"can not create sync gateway var file: {err}")
