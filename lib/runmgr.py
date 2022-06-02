@@ -108,7 +108,14 @@ class run_manager(object):
         try:
             if self.args.standalone:
                 selected_image = driver.get_market_image()
-                t.do_not_reuse('aws_market_name', 'gcp_cb_image', 'azure_image_name')
+                t.do_not_reuse('aws_market_name',
+                               'gcp_market_image',
+                               'gcp_image_project',
+                               'azure_image_publisher',
+                               'azure_image_offer',
+                               'azure_image_sku',
+                               'azure_location',
+                               'azure_resource_group')
             else:
                 selected_image = driver.get_image()
                 linux_type = selected_image['type']

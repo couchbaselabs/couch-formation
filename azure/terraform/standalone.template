@@ -1,0 +1,83 @@
+##########################################################
+#
+# Default values for creating a node on Azure
+#
+##########################################################
+
+variable "azure_resource_group" {
+  description = "Azure Resource Group"
+  default     = "{{ AZURE_RG }}"
+  type        = string
+}
+
+variable "azure_location" {
+  description = "Azure Location"
+  default     = "{{ AZURE_LOCATION }}"
+  type        = string
+}
+
+variable "azure_vnet" {
+  description = "Azure Virtual Network"
+  default     = "{{ AZURE_VNET }}"
+  type        = string
+}
+
+variable "azure_nsg" {
+  description = "Azure Network Security Group"
+  type        = string
+  default     = "{{ AZURE_NSG }}"
+}
+
+variable "ssh_public_key_file" {
+  description = "Public key file to use"
+  default     = "{{ SSH_PUBLIC_KEY_FILE }}"
+  type        = string
+}
+
+variable "ssh_private_key" {
+  description = "The private key to use when connecting to the instances"
+  default     = "{{ SSH_PRIVATE_KEY }}"
+  type        = string
+}
+
+variable "azure_image_publisher" {
+  description = "Azure Image Publisher"
+  default     = "{{ AZURE_IMAGE_PUBLISHER }}"
+  type        = string
+}
+
+variable "azure_image_offer" {
+  description = "Azure Image Offer"
+  default     = "{{ AZURE_IMAGE_OFFER }}"
+  type        = string
+}
+
+variable "azure_image_sku" {
+  description = "Azure Image SKU"
+  default     = "{{ AZURE_IMAGE_SKU }}"
+  type        = string
+}
+
+variable "azure_machine_type" {
+  description = "Azure Machine Type"
+  default     = "{{ AZURE_MACHINE_TYPE }}"
+  type        = string
+}
+
+variable "azure_disk_type" {
+  description = "Azure Disk Type"
+  default     = "{{ AZURE_DISK_TYPE }}"
+  type        = string
+}
+
+variable "azure_disk_size" {
+  description = "Azure Disk Size"
+  default     = "{{ AZURE_DISK_SIZE }}"
+  type        = string
+}
+
+variable "use_public_ip" {
+  description = "Use public or private IP for SSH"
+  default     = {{ USE_PUBLIC_IP }}
+  type        = bool
+}

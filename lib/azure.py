@@ -27,6 +27,9 @@ class azure(object):
         ('AZURE_SUBNET', 'azure_subnet', 'azure_get_subnet', None),
         ('AZURE_SUBSCRIPTION_ID', 'azure_subscription_id', 'azure_get_subscription_id', None),
         ('AZURE_VNET', 'azure_vnet', 'azure_get_vnet', None),
+        ('AZURE_IMAGE_PUBLISHER', 'azure_image_publisher', 'azure_get_image_publisher', None),
+        ('AZURE_IMAGE_OFFER', 'azure_image_offer', 'azure_get_image_offer', None),
+        ('AZURE_IMAGE_SKU', 'azure_image_sku', 'azure_get_image_sku', None),
     ]
 
     def __init__(self):
@@ -42,6 +45,10 @@ class azure(object):
         self.azure_subnet_id = None
         self.azure_nsg = None
         self.azure_image_name = None
+        self.azure_market_image = None
+        self.azure_image_publisher = None
+        self.azure_image_offer = None
+        self.azure_image_sku = None
         self.azure_machine_type = None
         self.azure_disk_type = None
         self.azure_disk_size = None
@@ -126,6 +133,136 @@ class azure(object):
         self.azure_machine_type = size_list[selection]['name']
         return self.azure_machine_type
 
+    @prereq(requirements=('azure_get_location',))
+    def azure_get_market_image(self, select=True, default=None, write=None) -> dict:
+        """Get Azure Image Name"""
+        inquire = ask()
+        offer_list = []
+        pruned_offer_list = []
+        publisher_list = [
+            {
+                "name": "Canonical",
+                "description": "Ubuntu Linux"
+            },
+            {
+                "name": "OpenLogic",
+                "description": "CentOS Linux"
+            },
+            {
+                "name": "RedHat",
+                "description": "RedHat Linux"
+            },
+            {
+                "name": "SUSE",
+                "description": "Suse Linux"
+            },
+            {
+                "name": "credativ",
+                "description": "Debian 9 and earlier"
+            },
+            {
+                "name": "Debian",
+                "description": "Debian 10 and later"
+            },
+            {
+                "name": "Oracle-Linux",
+                "description": "Oracle RHEL Derivatives"
+            },
+            {
+                "name": "CoreOS",
+                "description": "CoreOS"
+            },
+        ]
+
+        if write:
+            self.azure_market_image = write
+            return self.azure_market_image
+
+        if self.azure_market_image:
+            return self.azure_market_image
+
+        credential = AzureCliCredential()
+        compute_client = ComputeManagementClient(credential, self.azure_subscription_id)
+
+        selection = inquire.ask_list('Image Publisher', publisher_list)
+        publisher = publisher_list[selection]['name']
+
+        offers = compute_client.virtual_machine_images.list_offers(self.azure_location, publisher)
+        for group in list(offers):
+            offer_block = {}
+            offer_block['name'] = group.name
+            offer_block['skus'] = []
+            offer_block['count'] = 0
+            offer_list.append(offer_block)
+
+        for n, offer in enumerate(offer_list):
+            offer_name = offer['name']
+            skus = compute_client.virtual_machine_images.list_skus(self.azure_location, publisher, offer_name)
+            for group in list(skus):
+                sku_name = group.name
+                versions = compute_client.virtual_machine_images.list(self.azure_location, publisher, offer_name, sku_name)
+                if len(list(versions)) > 0:
+                    offer_list[n]['skus'].append(sku_name)
+                    offer_list[n]['count'] = len(offer_list[n]['skus'])
+
+        for offer in offer_list:
+            if offer['count'] != 0:
+                pruned_offer_list.append(offer)
+
+        # skus = compute_client.virtual_machine_images.list_skus(self.azure_location, publisher, offer)
+        # for group in list(skus):
+        #     image_block = {}
+        #     image_block['name'] = group.name
+        #     image_block['offer'] = offer
+        #     image_block['publisher'] = publisher
+        #     sku_list.append(image_block)
+
+        # print(f"{publisher} {offer} {sku}")
+        # versions = compute_client.virtual_machine_images.list(self.azure_location, publisher, offer, sku)
+        # for group in list(versions):
+        #     print(group)
+        #     version_list.append(group.name)
+        #
+        # print(version_list)
+        # selection = inquire.ask_list('Image version', version_list)
+
+        if select:
+            selection = inquire.ask_list('Image Offer', pruned_offer_list)
+            offer = pruned_offer_list[selection]
+            selection = inquire.ask_list('Image SKU', offer['skus'])
+            self.azure_image_sku = offer['skus'][selection]
+            self.azure_image_offer = offer['name']
+            self.azure_image_publisher = publisher
+            self.azure_market_image = offer
+        else:
+            self.azure_market_image = pruned_offer_list
+
+        return self.azure_market_image
+
+    @prereq(requirements=('azure_get_market_image',))
+    def azure_get_image_publisher(self, default=None, write=None) -> str:
+        if write:
+            self.azure_image_publisher = write
+            return self.azure_image_publisher
+
+        return self.azure_image_publisher
+
+    @prereq(requirements=('azure_get_market_image',))
+    def azure_get_image_offer(self, default=None, write=None) -> str:
+        if write:
+            self.azure_image_offer = write
+            return self.azure_image_offer
+
+        return self.azure_image_offer
+
+    @prereq(requirements=('azure_get_market_image',))
+    def azure_get_image_sku(self, default=None, write=None) -> str:
+        if write:
+            self.azure_image_sku = write
+            return self.azure_image_sku
+
+        return self.azure_image_sku
+
     def azure_get_image_name(self, select=True, default=None, write=None) -> Union[dict, list[dict]]:
         """Get Azure Couchbase Image Name"""
         inquire = ask()
@@ -164,6 +301,10 @@ class azure(object):
     @prereq(requirements=('azure_get_image_name',))
     def get_image(self):
         return self.azure_image_name
+
+    @prereq(requirements=('azure_get_market_image',))
+    def get_market_image(self):
+        return self.azure_market_image
 
     def azure_delete_image(self, name: str):
         inquire = ask()
