@@ -1,0 +1,83 @@
+##########################################################
+#
+# Default values for creating an image on GCP
+#
+##########################################################
+
+variable "gcp_region" {
+  description = "Region name"
+  default     = "{{ GCP_REGION }}"
+  type        = string
+}
+
+variable "gcp_market_image" {
+  description = "Image Name"
+  default     = "{{ GCP_MARKET_IMAGE }}"
+  type        = string
+}
+
+variable "gcp_image_project" {
+  description = "Image Project"
+  default     = "{{ GCP_IMAGE_PROJECT }}"
+  type        = string
+}
+
+variable "gcp_machine_type" {
+  description = "Machine type"
+  default     = "{{ GCP_MACHINE_TYPE }}"
+  type        = string
+}
+
+variable "ssh_public_key_file" {
+  description = "Public key file to use"
+  default     = "{{ SSH_PUBLIC_KEY_FILE }}"
+  type        = string
+}
+
+variable "ssh_private_key" {
+  description = "The private key to use when connecting to the instances"
+  default     = "{{ SSH_PRIVATE_KEY }}"
+  type        = string
+}
+
+variable "gcp_disk_size" {
+  description = "The root volume size"
+  default     = "{{ GCP_ROOT_SIZE }}"
+  type        = string
+}
+
+variable "gcp_disk_type" {
+  description = "The root volume type"
+  default     = "{{ GCP_ROOT_TYPE }}"
+  type        = string
+}
+
+variable "gcp_project" {
+  description = "The GCP project"
+  default     = "{{ GCP_PROJECT }}"
+  type        = string
+}
+
+variable "gcp_account_file" {
+  description = "The auth JSON"
+  default     = "{{ GCP_ACCOUNT_FILE }}"
+  type        = string
+}
+
+variable "gcp_service_account_email" {
+  description = "The service account email"
+  default     = "{{ GCP_SA_EMAIL }}"
+  type        = string
+}
+
+variable "gcp_zone" {
+  description = "The GCP zone"
+  default     = "{{ GCP_ZONE }}"
+  type        = string
+}
+
+variable "use_public_ip" {
+  description = "Use public or private IP for SSH"
+  default     = {{ USE_PUBLIC_IP }}
+  type        = bool
+}

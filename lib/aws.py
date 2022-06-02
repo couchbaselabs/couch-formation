@@ -393,6 +393,10 @@ class aws(object):
     def get_image(self):
         return self.aws_ami_id
 
+    @prereq(requirements=('aws_get_market_ami',))
+    def get_market_image(self):
+        return self.aws_market_ami
+
     def aws_remove_ami(self, ami: str):
         inquire = ask()
 

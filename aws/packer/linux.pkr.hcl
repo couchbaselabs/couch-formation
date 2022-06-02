@@ -46,6 +46,11 @@ variable "region_name" {
   type        = string
 }
 
+variable "host_prep_repo" {
+  description = "Host prep repo"
+  type        = string
+}
+
 source "amazon-ebs" "cb-node" {
   ami_name      = "${var.os_linux_type}-${var.os_linux_release}-couchbase-${local.timestamp}"
   instance_type = "c5.large"

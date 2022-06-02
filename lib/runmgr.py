@@ -107,7 +107,7 @@ class run_manager(object):
 
         try:
             if self.args.standalone:
-                selected_image = driver.aws_get_market_ami()
+                selected_image = driver.get_market_image()
                 t.do_not_reuse('aws_market_name', 'gcp_cb_image', 'azure_image_name')
             else:
                 selected_image = driver.get_image()

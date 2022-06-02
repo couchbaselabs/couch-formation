@@ -25,6 +25,8 @@ class gcp(object):
         ('GCP_SA_EMAIL', 'gcp_service_account_email', 'gcp_get_account_email', None),
         ('GCP_SUBNET', 'gcp_subnet', 'gcp_get_subnet', None),
         ('GCP_ZONE', 'gcp_zone', 'get_gcp_zones', None),
+        ('GCP_MARKET_IMAGE', 'gcp_market_image', 'gcp_get_market_image_name', None),
+        ('GCP_IMAGE_PROJECT', 'gcp_image_project', 'gcp_get_image_project', None),
     ]
     PREREQUISITES = {
         'gcp_get_availability_zone_list': [
@@ -47,6 +49,8 @@ class gcp(object):
         self.gcp_root_size = None
         self.gcp_root_type = None
         self.gcp_cb_image = None
+        self.gcp_market_image = None
+        self.gcp_image_project = None
 
     def gcp_init(self):
         try:
@@ -250,6 +254,69 @@ class gcp(object):
         self.gcp_machine_type = machine_type_list[selection]['name']
         return self.gcp_machine_type
 
+    def gcp_get_market_image_name(self, select=True, default=None, write=None) -> dict:
+        """Select GCP image"""
+        inquire = ask()
+        image_list = []
+        project_list = [
+            'centos-cloud',
+            'cos-cloud',
+            'debian-cloud',
+            'fedora-cloud',
+            'opensuse-cloud',
+            'rhel-cloud',
+            'rocky-linux-cloud',
+            'suse-cloud',
+            'ubuntu-os-cloud',
+            'ubuntu-os-pro-cloud',
+            'fedora-coreos-cloud',
+        ]
+
+        if write:
+            self.gcp_market_image = write
+            return self.gcp_market_image
+
+        if self.gcp_market_image:
+            return self.gcp_market_image
+
+        credentials = service_account.Credentials.from_service_account_file(self.gcp_account_file)
+        gcp_client = googleapiclient.discovery.build('compute', 'v1', credentials=credentials)
+
+        for project in project_list:
+            request = gcp_client.images().list(project=project)
+            while request is not None:
+                response = request.execute()
+                if "items" in response:
+                    for image in response['items']:
+                        if 'deprecated' in image:
+                            if (image['deprecated']['state'] == "DEPRECATED") or (image['deprecated']['state'] == "OBSOLETE"):
+                                continue
+                        image_block = {}
+                        image_block['name'] = image['name']
+                        image_block['date'] = image['creationTimestamp']
+                        image_block['project'] = project
+                        image_list.append(image_block)
+                    request = gcp_client.images().list_next(previous_request=request, previous_response=response)
+                else:
+                    raise GCPDriverError("No images exist")
+
+        if select:
+            selection = inquire.ask_list('GCP Image', image_list, default=default)
+            self.gcp_market_image = image_list[selection]
+            self.gcp_image_project = image_list[selection]['project']
+        else:
+            self.gcp_market_image = image_list
+
+        return self.gcp_market_image
+
+    @prereq(requirements=('gcp_get_market_image_name',))
+    def gcp_get_image_project(self, default=None, write=None) -> str:
+        if write:
+            self.gcp_image_project = write
+            return self.gcp_image_project
+
+        return self.gcp_image_project
+
     def gcp_get_cb_image_name(self, select=True, default=None, write=None) -> Union[dict, list[dict]]:
         """Select Couchbase GCP image"""
         inquire = ask()
@@ -296,6 +363,10 @@ class gcp(object):
     @prereq(requirements=('gcp_get_cb_image_name',))
     def get_image(self):
         return self.gcp_cb_image
+
+    @prereq(requirements=('gcp_get_market_image_name',))
+    def get_market_image(self):
+        return self.gcp_market_image
 
     def gcp_delete_cb_image(self, name: str):
         inquire = ask()
