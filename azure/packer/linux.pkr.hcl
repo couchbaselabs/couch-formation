@@ -51,6 +51,11 @@ variable "azure_location" {
   type        = string
 }
 
+variable "host_prep_repo" {
+  description = "Host prep repo"
+  type        = string
+}
+
 source "azure-arm" "cb-node" {
   use_azure_cli_auth = true
 
@@ -85,8 +90,8 @@ build {
   inline = [
     "echo Installing Couchbase",
     "sleep 30",
-    "curl -sfL https://raw.githubusercontent.com/mminichino/hostprep/main/bin/bootstrap.sh | sudo -E bash -",
-    "sudo git clone https://github.com/mminichino/hostprep /usr/local/hostprep",
+    "curl -sfL https://raw.githubusercontent.com/${var.host_prep_repo}/main/bin/bootstrap.sh | sudo -E bash -",
+    "sudo git clone https://github.com/${var.host_prep_repo} /usr/local/hostprep",
     "sudo /usr/local/hostprep/bin/hostprep.sh -t couchbase -v ${var.cb_version}",
   ]
   }

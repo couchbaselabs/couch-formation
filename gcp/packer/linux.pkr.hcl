@@ -56,6 +56,11 @@ variable "gcp_zone" {
   type        = string
 }
 
+variable "host_prep_repo" {
+  description = "Host prep repo"
+  type        = string
+}
+
 source "googlecompute" "cb-node" {
   image_name          = "${var.os_linux_type}-${var.os_linux_release}-couchbase-${local.timestamp}"
   account_file        = var.gcp_account_file
@@ -88,8 +93,8 @@ build {
   inline = [
     "echo Installing Couchbase",
     "sleep 30",
-    "curl -sfL https://raw.githubusercontent.com/mminichino/hostprep/main/bin/bootstrap.sh | sudo -E bash -",
-    "sudo git clone https://github.com/mminichino/hostprep /usr/local/hostprep",
+    "curl -sfL https://raw.githubusercontent.com/${var.host_prep_repo}/main/bin/bootstrap.sh | sudo -E bash -",
+    "sudo git clone https://github.com/${var.host_prep_repo} /usr/local/hostprep",
     "sudo /usr/local/hostprep/bin/hostprep.sh -t couchbase -v ${var.cb_version}",
   ]
   }

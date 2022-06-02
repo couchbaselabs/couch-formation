@@ -297,6 +297,44 @@ class aws(object):
         """Get an AMI name"""
         inquire = ask()
         image_list = []
+        owner_list = [
+            {
+                "name": "099720109477",
+                "description": "Ubuntu Linux"
+            },
+            {
+                "name": "125523088429",
+                "description": "CentOS Linux"
+            },
+            {
+                "name": "309956199498",
+                "description": "RedHat Linux"
+            },
+            {
+                "name": "013907871322",
+                "description": "Suse Linux"
+            },
+            {
+                "name": "379101102735",
+                "description": "Debian 9 and earlier"
+            },
+            {
+                "name": "136693071363",
+                "description": "Debian 10 and later"
+            },
+            {
+                "name": "131827586825",
+                "description": "Oracle Linux"
+            },
+            {
+                "name": "679593333241",
+                "description": "Fedora and CoreOS Linux"
+            },
+            {
+                "name": "137112412989",
+                "description": "Amazon Linux"
+            },
+        ]
 
         if write:
             self.aws_market_ami = write
@@ -305,12 +343,13 @@ class aws(object):
         if self.aws_market_ami:
             return self.aws_market_ami
 
-        filter_text = inquire.ask_text("Image filter expression", recommendation='.*')
+        selection = inquire.ask_list("Linux Distribution", owner_list)
+        ownerid = owner_list[selection]['name']
 
         print("Searching images (this can take a few minutes) ...")
 
         ec2_client = boto3.client('ec2', region_name=self.aws_region)
-        images = ec2_client.describe_images(Filters=[
+        images = ec2_client.describe_images(Owners=[ownerid], Filters=[
                                             {
                                                 'Name': 'architecture',
                                                 'Values': [
@@ -325,10 +364,6 @@ class aws(object):
                                             },
                                             ])
         for i in range(len(images['Images'])):
-            match_string = images['Images'][i]['Name']
-            match_string = match_string.lower()
-            if not re.search(filter_text, match_string):
-                continue
             image_block = {}
             image_block['name'] = images['Images'][i]['ImageId']
             image_block['description'] = images['Images'][i]['Name']

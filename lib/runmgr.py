@@ -83,6 +83,8 @@ class run_manager(object):
             driver.azure_init()
             driver.azure_prep()
         elif self.cloud == 'vmware':
+            if self.args.standalone:
+                raise RunMgmtError("Standalone mode is not supported with vmware")
             driver = vmware()
             driver.vmware_init()
             driver.vmware_set_cluster_name(self.env.get_cb_cluster_name(select=False))

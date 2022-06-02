@@ -166,7 +166,7 @@ class azure(object):
             },
             {
                 "name": "Oracle-Linux",
-                "description": "Oracle RHEL Derivatives"
+                "description": "Oracle Linux"
             },
             {
                 "name": "CoreOS",
@@ -208,23 +208,6 @@ class azure(object):
         for offer in offer_list:
             if offer['count'] != 0:
                 pruned_offer_list.append(offer)
-
-        # skus = compute_client.virtual_machine_images.list_skus(self.azure_location, publisher, offer)
-        # for group in list(skus):
-        #     image_block = {}
-        #     image_block['name'] = group.name
-        #     image_block['offer'] = offer
-        #     image_block['publisher'] = publisher
-        #     sku_list.append(image_block)
-
-        # print(f"{publisher} {offer} {sku}")
-        # versions = compute_client.virtual_machine_images.list(self.azure_location, publisher, offer, sku)
-        # for group in list(versions):
-        #     print(group)
-        #     version_list.append(group.name)
-        #
-        # print(version_list)
-        # selection = inquire.ask_list('Image version', version_list)
 
         if select:
             selection = inquire.ask_list('Image Offer', pruned_offer_list)
