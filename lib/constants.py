@@ -11,6 +11,7 @@ MODE_APP_MAP = 0x0005
 CLUSTER_CONFIG = 0x0010
 APP_CONFIG = 0x0011
 SGW_CONFIG = 0x0012
+STD_CONFIG = 0x0099
 
 CB_CFG_HEAD = """####
 variable "cluster_spec" {
@@ -27,6 +28,12 @@ variable "app_spec" {
 SGW_CFG_HEAD = """####
 variable "sgw_spec" {
   description = "Map of Sync Gateway nodes."
+  type        = map
+  default     = {"""
+
+STD_CFG_HEAD = """####
+variable "node_spec" {
+  description = "Map of nodes."
   type        = map
   default     = {"""
 

@@ -19,6 +19,7 @@ class params(object):
         parent_parser.add_argument('--static', action='store_true', help="Assign Static IPs", default=False)
         parent_parser.add_argument('--dns', action='store_true', help="Update DNS", default=True)
         parent_parser.add_argument('--all', action='store_true', help="List all environments", default=False)
+        parent_parser.add_argument('--standalone', action='store_true', help="Build standalone machine", default=False)
         image_parser = argparse.ArgumentParser(add_help=False)
         image_parser.add_argument('--list', action='store_true', help='List images')
         image_parser.add_argument('--build', action='store_true', help='Build image')

@@ -28,6 +28,7 @@ class envmgr(object):
         self.prod_num = None
         self.app_num = None
         self.sgw_num = None
+        self.standalone_mode = False
         self.working_dir = None
         self.working_app_dir = None
         self.working_sgw_dir = None
@@ -53,7 +54,7 @@ class envmgr(object):
         else:
             raise EnvMgrError(f"unknown cloud {self.cloud}")
 
-    def set_env(self, dev_num=None, test_num=None, prod_num=None, app_num=None, sgw_num=None, all_opt=False):
+    def set_env(self, dev_num=None, test_num=None, prod_num=None, app_num=None, sgw_num=None, all_opt=False, standalone_opt=False):
         if dev_num:
             self.env_type = 'dev'
             self.env_num = dev_num
@@ -72,6 +73,8 @@ class envmgr(object):
 
         if sgw_num:
             self.sgw_num = sgw_num
+
+        self.standalone_mode = standalone_opt
 
     @property
     def get_env(self) -> str:
@@ -186,6 +189,11 @@ class envmgr(object):
             'sgw_main.tf',
             'sgw_outputs.tf',
         ]
+        standalone_files = [
+            'locals.json',
+            'standalone.tf',
+            'standalone.template',
+        ]
 
         print(f"Creating directory structure for {self.get_env}")
 
@@ -212,7 +220,12 @@ class envmgr(object):
                 except Exception as err:
                     raise EnvMgrError(f"can not create {self.working_sgw_dir}: {err}")
 
-        for file_name in copy_files:
+        if not self.standalone_mode:
+            main_dir_contents = copy_files
+        else:
+            main_dir_contents = standalone_files
+
+        for file_name in main_dir_contents:
             source = self.tf_dir + '/' + file_name
             destination = self.working_dir + '/' + file_name
             if not os.path.exists(destination) or overwrite:
@@ -221,6 +234,7 @@ class envmgr(object):
                     copyfile(source, destination)
                 except Exception as err:
                     raise EnvMgrError(f"can not copy {source} -> {destination}: {err}")
+
 
         if self.working_app_dir:
             for file_name in app_files:

@@ -9,7 +9,7 @@ from itertools import cycle
 from lib.exceptions import *
 from lib.ask import ask
 from lib.dns import dynamicDNS
-from lib.constants import CB_CFG_HEAD, CB_CFG_NODE, CB_CFG_TAIL, APP_CFG_HEAD, CLUSTER_CONFIG, APP_CONFIG, SGW_CFG_HEAD, SGW_CONFIG
+from lib.constants import CB_CFG_HEAD, CB_CFG_NODE, CB_CFG_TAIL, APP_CFG_HEAD, CLUSTER_CONFIG, APP_CONFIG, SGW_CFG_HEAD, SGW_CONFIG, STD_CFG_HEAD, STD_CONFIG
 from lib.location import location
 from lib.toolbox import toolbox
 
@@ -41,6 +41,7 @@ class clustermgr(object):
         self.cluster_file_name = 'cluster.tf'
         self.app_file_name = 'app.tf'
         self.sgw_file_name = 'sgw.tf'
+        self.std_file_name = 'nodes.tf'
 
     def set_availability_zone_cycle(self):
         inquire = ask()
@@ -161,6 +162,11 @@ class clustermgr(object):
             node_env = self.env.get_sgw_env.replace(':', '-')
             config_segments.append(SGW_CFG_HEAD)
             output_file = self.sgw_file_name
+        elif mode == STD_CONFIG:
+            min_nodes = 1
+            prefix_text = 'node'
+            config_segments.append(STD_CFG_HEAD)
+            output_file = self.std_file_name
 
         self.set_availability_zone_cycle()
 

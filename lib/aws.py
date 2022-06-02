@@ -4,6 +4,7 @@
 import logging
 import boto3
 import os
+import re
 from lib.exceptions import AWSDriverError
 from typing import Union
 from lib.ask import ask
@@ -23,6 +24,7 @@ class aws(object):
         ('AWS_SSH_KEY', 'ssh_key', 'aws_get_ssh_key', None),
         ('AWS_SUBNET_ID', 'subnet_id', 'aws_get_subnet_id', None),
         ('AWS_VPC_ID', 'vpc_id', 'aws_get_vpc_id', None),
+        ('AWS_MARKET_NAME', 'aws_market_name', 'aws_get_market_ami', None),
     ]
 
     def __init__(self):
@@ -44,6 +46,7 @@ class aws(object):
         self.aws_instance_type = None
         self.aws_ami_id = None
         self.aws_ami_name = None
+        self.aws_market_ami = None
 
     def aws_init(self):
         self.aws_get_region()
@@ -289,6 +292,59 @@ class aws(object):
         selection = inquire.ask_machine_type('AWS Instance Type', size_list, default=default)
         self.aws_instance_type = size_list[selection]['name']
         return self.aws_instance_type
+
+    def aws_get_market_ami(self, select=True, default=None, write=None, arch="x86_64", root_dev="ebs") -> dict:
+        """Get an AMI name"""
+        inquire = ask()
+        image_list = []
+
+        if write:
+            self.aws_market_ami = write
+            return self.aws_market_ami
+
+        if self.aws_market_ami:
+            return self.aws_market_ami
+
+        filter_text = inquire.ask_text("Image filter expression", recommendation='.*')
+
+        print("Searching images (this can take a few minutes) ...")
+
+        ec2_client = boto3.client('ec2', region_name=self.aws_region)
+        images = ec2_client.describe_images(Filters=[
+                                            {
+                                                'Name': 'architecture',
+                                                'Values': [
+                                                    arch,
+                                                ]
+                                            },
+                                            {
+                                                'Name': 'root-device-type',
+                                                'Values': [
+                                                    root_dev,
+                                                ]
+                                            },
+                                            ])
+        for i in range(len(images['Images'])):
+            match_string = images['Images'][i]['Name']
+            match_string = match_string.lower()
+            if not re.search(filter_text, match_string):
+                continue
+            image_block = {}
+            image_block['name'] = images['Images'][i]['ImageId']
+            image_block['description'] = images['Images'][i]['Name']
+            image_block['date'] = images['Images'][i]['CreationDate']
+            image_block['arch'] = images['Images'][i]['Architecture']
+            image_list.append(image_block)
+
+        image_list = sorted(image_list, key=lambda d: d['description'])
+
+        if select:
+            selection = inquire.ask_list('Select AMI', image_list, default=default)
+            self.aws_market_ami = image_list[selection]
+        else:
+            self.aws_market_ami = image_list
+
+        return self.aws_market_ami
 
     def aws_get_ami_id(self, select=True, default=None, write=None) -> Union[dict, list[dict]]:
         """Get the Couchbase AMI to use"""

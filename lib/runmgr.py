@@ -21,7 +21,7 @@ from lib.clustermgr import clustermgr
 from lib.netmgr import network_manager
 from lib.ask import ask
 from lib.tfparser import tfgen
-from lib.constants import CLUSTER_CONFIG, APP_CONFIG, SGW_CONFIG
+from lib.constants import CLUSTER_CONFIG, APP_CONFIG, SGW_CONFIG, STD_CONFIG
 
 
 class run_manager(object):
@@ -32,11 +32,38 @@ class run_manager(object):
         self.lc = location()
         self.env = envmgr()
         self.var_template_file = 'variables.template'
+        self.var_standalone_file = 'standalone.template'
         self.variable_file_name = 'variables.tf'
         self.lc.set_cloud(self.cloud)
         self.env.set_cloud(self.cloud)
-        self.env.set_env(self.args.dev, self.args.test, self.args.prod, self.args.app, self.args.sgw, all_opt=self.args.all)
+        self.env.set_env(self.args.dev, self.args.test, self.args.prod, self.args.app, self.args.sgw, all_opt=self.args.all, standalone_opt=self.args.standalone)
         self.nm = network_manager(self.args)
+
+    # def standalone_env(self):
+    #     inquire = ask()
+    #     previous_tf_vars = None
+    #
+    #     if self.cloud == 'aws':
+    #         driver = aws()
+    #         driver.aws_init()
+    #     elif self.cloud == 'gcp':
+    #         driver = gcp()
+    #         driver.gcp_init()
+    #         driver.gcp_prep(select=False)
+    #     elif self.cloud == 'azure':
+    #         driver = azure()
+    #         driver.azure_init()
+    #         driver.azure_prep()
+    #     elif self.cloud == 'vmware':
+    #         driver = vmware()
+    #         driver.vmware_init()
+    #         driver.vmware_set_cluster_name(self.env.get_cb_cluster_name(select=False))
+    #         self.args.static = True
+    #     else:
+    #         raise RunMgmtError(f"unknown cloud {self.cloud}")
+    #
+    #     env_text = self.env.get_env
+    #     env_text = env_text.replace(':', ' ')
 
     def build_env(self):
         inquire = ask()
@@ -79,20 +106,28 @@ class run_manager(object):
         v.set_cloud(self.cloud)
 
         try:
-            selected_image = driver.get_image()
-            linux_type = selected_image['type']
-            linux_release = selected_image['release']
-            v.set_os_name(linux_type)
-            v.set_os_ver(linux_release)
-            t.do_not_reuse('os_image_user', 'ami_id', 'gcp_cb_image', 'azure_image_name', 'vsphere_template')
+            if self.args.standalone:
+                selected_image = driver.aws_get_market_ami()
+                t.do_not_reuse('aws_market_name', 'gcp_cb_image', 'azure_image_name')
+            else:
+                selected_image = driver.get_image()
+                linux_type = selected_image['type']
+                linux_release = selected_image['release']
+                v.set_os_name(linux_type)
+                v.set_os_ver(linux_release)
+                c.set_os_name(linux_type)
+                c.set_os_ver(linux_release)
+                t.do_not_reuse('os_image_user', 'ami_id', 'gcp_cb_image', 'azure_image_name', 'vsphere_template')
         except Exception as err:
             raise RunMgmtError(f"can not get image for deployment: {err}")
 
-        c.set_os_name(linux_type)
-        c.set_os_ver(linux_release)
+        if self.args.standalone:
+            template_file_name = self.var_standalone_file
+        else:
+            template_file_name = self.var_template_file
 
         var_file = self.env.env_dir + '/' + self.variable_file_name
-        template_file = self.lc.tf_dir + '/' + self.var_template_file
+        template_file = self.lc.tf_dir + '/' + template_file_name
         previous_tf_var_file = self.env.get_tf_var_file()
         if previous_tf_var_file:
             previous_tf_vars = t.read_variable_file(previous_tf_var_file)
@@ -144,14 +179,19 @@ class run_manager(object):
             t.process_template(build_variables)
             t.write_file(var_file)
         except Exception as err:
-            raise RunMgmtError(f"can not write packer variables {var_file}: {err}")
+            raise RunMgmtError(f"can not write variables {var_file}: {err}")
 
         cm = clustermgr(driver, self.env, self.nm, self.args)
 
         print("")
-        if inquire.ask_yn('Create cluster configuration', default=True):
-            print("")
-            cm.create_node_config(CLUSTER_CONFIG, self.env.env_dir)
+        if self.args.standalone:
+            if inquire.ask_yn('Create node configuration', default=True):
+                print("")
+                cm.create_node_config(STD_CONFIG, self.env.env_dir)
+        else:
+            if inquire.ask_yn('Create cluster configuration', default=True):
+                print("")
+                cm.create_node_config(CLUSTER_CONFIG, self.env.env_dir)
 
         print("")
         if self.env.app_env_dir:
