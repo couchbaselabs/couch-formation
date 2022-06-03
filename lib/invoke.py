@@ -7,6 +7,7 @@ import time
 import re
 import json
 from datetime import datetime
+from typing import Union
 from lib.exceptions import *
 from lib.output import spinner
 from lib.logfile import log_file
@@ -33,6 +34,14 @@ class packer_run(object):
         data = data.replace('\n', '')
         return data
 
+    def log_output(self, line: Union[str, bytes]):
+        if type(line) == bytes:
+            line_string = line.decode("utf-8")
+            line_string = line_string.rstrip()
+        else:
+            line_string = line
+        self.logger.info(line_string)
+
     def parse_output(self, line: bytes) -> dict:
         message: dict = {
             'timestamp': None,
@@ -43,7 +52,7 @@ class packer_run(object):
         }
         line_string = line.decode("utf-8")
         line_string = line_string.rstrip()
-        self.logger.info(line_string)
+        self.log_output(line_string)
         line_contents: list = line_string.split(",")
 
         message['timestamp'] = line_contents[0]
@@ -54,13 +63,19 @@ class packer_run(object):
 
         return message
 
-    def _packer(self, *args: str):
+    def _packer(self, *args: str, no_output=False):
         error_string: str = ''
-        packer_cmd = [
-            'packer',
-            '-machine-readable',
-            *args
-        ]
+        if no_output:
+            packer_cmd = [
+                'packer',
+                *args
+            ]
+        else:
+            packer_cmd = [
+                'packer',
+                '-machine-readable',
+                *args
+            ]
 
         p = subprocess.Popen(packer_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, cwd=self.working_dir, bufsize=1)
 
@@ -70,9 +85,12 @@ class packer_run(object):
             line = p.stdout.readline()
             if not line:
                 break
-            message = self.parse_output(line)
-            if message['type'] == 'error':
-                error_string += message['content']
+            if no_output:
+                self.log_output(line)
+            else:
+                message = self.parse_output(line)
+                if message['type'] == 'error':
+                    error_string += message['content']
 
         sp.stop()
         p.communicate()
@@ -86,7 +104,7 @@ class packer_run(object):
 
         print("Beginning packer init")
         start_time = time.perf_counter()
-        self._packer(*cmd)
+        self._packer(*cmd, no_output=True)
         end_time = time.perf_counter()
         run_time = time.strftime("%H hours %M minutes %S seconds.", time.gmtime(end_time - start_time))
         print(f"Init complete in {run_time}.")
