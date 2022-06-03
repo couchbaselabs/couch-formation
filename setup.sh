@@ -5,8 +5,9 @@ YUM_PKGS=""
 APT_PKGS="python3-venv"
 MAC_PKGS="terraform packer"
 MAJOR_REV=3
-MINOR_REV=6
+MINOR_REV=9
 VENV_NAME=venv
+PYTHON_BIN=python3.9
 
 check_yum () {
   for package in $YUM_PKGS
@@ -84,9 +85,9 @@ case "$SYSTEM_UNAME" in
       ;;
 esac
 
-which python3 >/dev/null 2>&1
+which $PYTHON_BIN >/dev/null 2>&1
 if [ $? -ne 0 ]; then
-  echo "Python 3 is required and python3 should be in the execution search PATH."
+  echo "Python 3 is required and $PYTHON_BIN should be in the execution search PATH."
   exit 1
 fi
 
@@ -109,7 +110,7 @@ if [ -d $SCRIPTDIR/$VENV_NAME ]; then
 fi
 
 printf "Creating virtual environment... "
-python3 -m venv $SCRIPTDIR/$VENV_NAME
+$PYTHON_BIN -m venv $SCRIPTDIR/$VENV_NAME
 if [ $? -ne 0 ]; then
   echo "Virtual environment setup failed."
   exit 1
@@ -121,7 +122,7 @@ printf "Activating virtual environment... "
 echo "Done."
 
 printf "Installing dependencies... "
-python3 -m pip install --upgrade pip > setup.log 2>&1
+$PYTHON_BIN -m pip install --upgrade pip > setup.log 2>&1
 pip3 install -r requirements.txt > setup.log 2>&1
 if [ $? -ne 0 ]; then
   echo "Setup failed."
