@@ -103,6 +103,9 @@ class ssh(object):
                 self.ssh_private_key = dir_list[i]
                 return self.ssh_private_key
 
+        if len(key_file_list) == 0:
+            raise SSHError("No SSH keys found. Please make sure you have at least one SSH key configured.")
+
         selection = inquire.ask_list('Select SSH private key', key_file_list, default=default)
         self.ssh_private_key = key_file_list[selection]
         return self.ssh_private_key
