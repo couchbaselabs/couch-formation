@@ -85,6 +85,19 @@ case "$SYSTEM_UNAME" in
       ;;
 esac
 
+while getopts "p:" opt
+do
+  case $opt in
+    p)
+      PYTHON_BIN=$OPTARG
+      ;;
+    \?)
+      echo "Invalid Argument"
+      exit 1
+      ;;
+  esac
+done
+
 which $PYTHON_BIN >/dev/null 2>&1
 if [ $? -ne 0 ]; then
   echo "Python 3 is required and $PYTHON_BIN should be in the execution search PATH."
@@ -96,8 +109,8 @@ if [ ! -f requirements.txt ]; then
   exit 1
 fi
 
-PY_MAJOR=$(python3 --version | awk '{print $NF}' | cut -d. -f1)
-PY_MINOR=$(python3 --version | awk '{print $NF}' | cut -d. -f2)
+PY_MAJOR=$($PYTHON_BIN --version | awk '{print $NF}' | cut -d. -f1)
+PY_MINOR=$($PYTHON_BIN --version | awk '{print $NF}' | cut -d. -f2)
 
 if [ "$PY_MAJOR" -lt "$MAJOR_REV" ] || [ "$PY_MINOR" -lt "$MINOR_REV" ]; then
   echo "Python ${MAJOR_REV}.${MINOR_REV} or higher is required."
