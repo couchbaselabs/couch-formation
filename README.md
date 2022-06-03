@@ -1,4 +1,4 @@
-# terraform-couchbase
+# couch-formation
 Toolset for running and managing Couchbase clusters. Supports AWS, GCP, Azure, and VMware vSphere.
 
 Runs on any POSIX style client such as macOS and Linux.
