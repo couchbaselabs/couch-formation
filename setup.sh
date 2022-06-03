@@ -1,21 +1,53 @@
-#!/bin/sh
+#!/bin/bash
 #
 SCRIPTDIR=$(cd $(dirname $0) && pwd)
 YUM_PKGS=""
-APT_PKGS="python3-venv"
+APT_PKGS="python3.9-venv"
 MAC_PKGS="terraform packer"
 MAJOR_REV=3
 MINOR_REV=9
 VENV_NAME=venv
 PYTHON_BIN=python3.9
 
+err_exit () {
+   if [ -n "$1" ]; then
+      echo "[!] Error: $1"
+   fi
+   exit 1
+}
+
+install_pkg () {
+  set_linux_type
+  case $PKGMGR in
+  yum)
+    sudo yum install -q -y "$@"
+    ;;
+  apt)
+    sudo apt-get update
+    sudo apt-get install -q -y "$@"
+    ;;
+  *)
+    err_exit "Unknown package manager $PKGMGR"
+    ;;
+  esac
+}
+
 check_yum () {
   for package in $YUM_PKGS
   do
     yum list installed $package >/dev/null 2>&1
     if [ $? -ne 0 ]; then
-      echo "Please install $package"
-      exit 1
+      for package in $YUM_PKGS
+      do
+        echo -n "Install dependency ${package}? (y/n) [y]:"
+        read INPUT
+        if [ "$INPUT" == "y" -o -z "$INPUT" ]; then
+          install_pkg $package
+        else
+          echo "Please install $package"
+          exit 1
+        fi
+      done
     fi
   done
 }
@@ -25,8 +57,17 @@ check_apt () {
   do
     dpkg -l $package >/dev/null 2>&1
     if [ $? -ne 0 ]; then
-      echo "Please install $package"
-      exit 1
+      for package in $APT_PKGS
+      do
+        echo -n "Install dependency ${package}? (y/n) [y]:"
+        read INPUT
+        if [ "$INPUT" == "y" -o -z "$INPUT" ]; then
+          install_pkg $package
+        else
+          echo "Please install $package"
+          exit 1
+        fi
+      done
     fi
   done
 }
@@ -52,9 +93,11 @@ check_linux_by_type () {
   export LINUXTYPE=$ID
   case $ID in
   centos|rhel)
+    PKGMGR="yum"
     check_yum
     ;;
   ubuntu)
+    PKGMGR="apt"
     check_apt
     ;;
   *)
