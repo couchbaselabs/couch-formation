@@ -1,7 +1,11 @@
 # terraform-couchbase
 Toolset for running and managing Couchbase clusters. Supports AWS, GCP, Azure, and VMware vSphere.
 
-Runs on any POSIX style client including macOS and Linux.
+Runs on any POSIX style client such as macOS and Linux.
+
+## Disclaimer
+
+> This package is **NOT SUPPORTED BY COUCHBASE**. The toolset is under active development, therefore features and functionality can change.
 
 ## Prerequisites
 - Python 3
