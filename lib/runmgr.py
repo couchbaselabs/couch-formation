@@ -2,6 +2,7 @@
 ##
 
 import os.path
+import traceback
 import re
 from shutil import copyfile
 from lib.exceptions import *
@@ -154,6 +155,7 @@ class run_manager(object):
             pass_variables = t.process_vars(driver, requested_vars, driver.VARIABLES)
             build_variables = build_variables + pass_variables
         except Exception as err:
+            traceback.format_exc()
             raise RunMgmtError(f"can not process template {template_file}: {err}")
 
         try:
