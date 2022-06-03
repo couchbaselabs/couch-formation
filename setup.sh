@@ -2,7 +2,7 @@
 #
 SCRIPTDIR=$(cd $(dirname $0) && pwd)
 YUM_PKGS=""
-APT_PKGS=""
+APT_PKGS="python3-venv"
 MAC_PKGS="terraform packer"
 MAJOR_REV=3
 MINOR_REV=6
