@@ -19,6 +19,17 @@ check_yum () {
   done
 }
 
+check_apt () {
+  for package in $APT_PKGS
+  do
+    dpkg -l $package >/dev/null 2>&1
+    if [ $? -ne 0 ]; then
+      echo "Please install $package"
+      exit 1
+    fi
+  done
+}
+
 check_macos () {
   which brew >/dev/null 2>&1
   if [ $? -ne 0 ]; then
@@ -39,8 +50,11 @@ check_linux_by_type () {
   . /etc/os-release
   export LINUXTYPE=$ID
   case $ID in
-  centos)
+  centos|rhel)
     check_yum
+    ;;
+  ubuntu)
+    check_apt
     ;;
   *)
     echo "Unknown Linux distribution $ID"
