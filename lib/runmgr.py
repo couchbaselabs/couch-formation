@@ -39,32 +39,6 @@ class run_manager(object):
         self.env.set_env(self.args.dev, self.args.test, self.args.prod, self.args.app, self.args.sgw, all_opt=self.args.all, standalone_opt=self.args.standalone)
         self.nm = network_manager(self.args)
 
-    # def standalone_env(self):
-    #     inquire = ask()
-    #     previous_tf_vars = None
-    #
-    #     if self.cloud == 'aws':
-    #         driver = aws()
-    #         driver.aws_init()
-    #     elif self.cloud == 'gcp':
-    #         driver = gcp()
-    #         driver.gcp_init()
-    #         driver.gcp_prep(select=False)
-    #     elif self.cloud == 'azure':
-    #         driver = azure()
-    #         driver.azure_init()
-    #         driver.azure_prep()
-    #     elif self.cloud == 'vmware':
-    #         driver = vmware()
-    #         driver.vmware_init()
-    #         driver.vmware_set_cluster_name(self.env.get_cb_cluster_name(select=False))
-    #         self.args.static = True
-    #     else:
-    #         raise RunMgmtError(f"unknown cloud {self.cloud}")
-    #
-    #     env_text = self.env.get_env
-    #     env_text = env_text.replace(':', ' ')
-
     def build_env(self):
         inquire = ask()
         previous_tf_vars = None
@@ -182,9 +156,9 @@ class run_manager(object):
         except Exception as err:
             raise RunMgmtError(f"can not process template {template_file}: {err}")
 
-        print("Writing environment variables")
-
         try:
+            print("")
+            print("Writing environment variables")
             t.process_template(build_variables)
             t.write_file(var_file)
         except Exception as err:
@@ -202,55 +176,78 @@ class run_manager(object):
                 print("")
                 cm.create_node_config(CLUSTER_CONFIG, self.env.env_dir)
 
-        print("")
         if self.env.app_env_dir:
+            print("")
             destination = self.env.app_env_dir + '/' + self.variable_file_name
             copyfile(var_file, destination)
             if inquire.ask_yn('Create app configuration', default=True):
-                create_app_nodes = True
                 print("")
                 cm.create_node_config(APP_CONFIG, self.env.app_env_dir)
 
-        print("")
         if self.env.sgw_env_dir:
+            print("")
             destination = self.env.sgw_env_dir + '/' + self.variable_file_name
             copyfile(var_file, destination)
             if inquire.ask_yn('Create SGW configuration', default=True):
-                create_sgw_nodes = True
                 print("")
                 self.create_sgw_var_file(self.env.sgw_env_dir)
                 cm.create_node_config(SGW_CONFIG, self.env.sgw_env_dir)
 
+        self.deploy_env()
+
+    def deploy_env(self):
+        inquire = ask()
+        self.env.create_env(create=False)
+
+        env_text = self.env.get_env
+        env_text = env_text.replace(':', '-')
+
         print("")
-        if not inquire.ask_yn("Proceed with environment deployment", default=True):
+        if not inquire.ask_yn(f"Proceed with environment {env_text} deployment", default=True):
             return True
 
         print("")
         print("Beginning environment deploy process")
 
         try:
+            print("")
+            print(f"{env_text} node deployment phase ...")
             tf = tf_run(working_dir=self.env.env_dir)
             tf.init()
+            if not tf.validate():
+                raise RunMgmtError("Environment is not configured, please use create mode to try again.")
             tf.apply()
         except Exception as err:
             raise RunMgmtError(f"can not deploy environment: {err}")
 
-        if create_app_nodes:
+        if self.env.app_env_dir and os.path.exists(self.env.app_env_dir + '/variables.tf'):
             try:
+                print("")
+                print(f"{env_text} app deployment phase ...")
                 tf = tf_run(working_dir=self.env.app_env_dir)
                 tf.init()
+                if not tf.validate():
+                    raise RunMgmtError("Environment is not configured, please use create mode to try again.")
                 tf.apply()
             except Exception as err:
                 raise RunMgmtError(f"can not deploy environment: {err}")
 
-        if create_sgw_nodes:
+        if self.env.sgw_env_dir and os.path.exists(self.env.sgw_env_dir + '/variables.tf'):
             try:
+                print("")
+                print(f"{env_text} sync gateway deployment phase ...")
                 self.create_cluster_var_file(self.env.env_dir, self.env.sgw_env_dir)
                 tf = tf_run(working_dir=self.env.sgw_env_dir)
                 tf.init()
+                if not tf.validate():
+                    raise RunMgmtError("Environment is not configured, please use create mode to try again.")
                 tf.apply()
             except Exception as err:
                 raise RunMgmtError(f"can not deploy environment: {err}")
+
+        print("")
+        print("Deployment complete.")
+        print("")
 
         self.list_env()
 

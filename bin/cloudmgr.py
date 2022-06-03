@@ -48,6 +48,10 @@ class cloud_manager(object):
             task = run_manager(self.args)
             task.build_env()
             sys.exit(0)
+        elif self.verb == 'deploy':
+            task = run_manager(self.args)
+            task.deploy_env()
+            sys.exit(0)
         elif self.verb == 'destroy':
             task = run_manager(self.args)
             task.destroy_env()

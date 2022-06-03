@@ -32,13 +32,15 @@ class params(object):
         net_parser.add_argument('-h', '--help', action='help', default=argparse.SUPPRESS, help='Show help message')
         subparsers = parser.add_subparsers(dest='command')
         image_mode = subparsers.add_parser('image', help="Manage CB Images", parents=[parent_parser, image_parser], add_help=False)
-        create_mode = subparsers.add_parser('create', help="List Nodes", parents=[parent_parser], add_help=False)
+        create_mode = subparsers.add_parser('create', help="Create Nodes", parents=[parent_parser], add_help=False)
+        deploy_mode = subparsers.add_parser('deploy', help="Deploy Nodes", parents=[parent_parser], add_help=False)
         destroy_mode = subparsers.add_parser('destroy', help="Clean Up", parents=[parent_parser], add_help=False)
-        list_mode = subparsers.add_parser('list', help="Load Data", parents=[parent_parser], add_help=False)
+        list_mode = subparsers.add_parser('list', help="List Nodes", parents=[parent_parser], add_help=False)
         net_mode = subparsers.add_parser('net', help="Static Network Configuration", parents=[parent_parser, net_parser], add_help=False)
         self.parser = parser
         self.image_parser = image_mode
         self.create_parser = create_mode
+        self.deploy_parser = deploy_mode
         self.destroy_parser = destroy_mode
         self.list_parser = list_mode
         self.net_parser = net_mode
