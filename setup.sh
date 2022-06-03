@@ -37,17 +37,14 @@ check_yum () {
   do
     yum list installed $package >/dev/null 2>&1
     if [ $? -ne 0 ]; then
-      for package in $YUM_PKGS
-      do
-        echo -n "Install dependency ${package}? (y/n) [y]:"
-        read INPUT
-        if [ "$INPUT" == "y" -o -z "$INPUT" ]; then
-          install_pkg $package
-        else
-          echo "Please install $package"
-          exit 1
-        fi
-      done
+      echo -n "Install dependency ${package}? (y/n) [y]:"
+      read INPUT
+      if [ "$INPUT" == "y" -o -z "$INPUT" ]; then
+        install_pkg $package
+      else
+        echo "Please install $package"
+        exit 1
+      fi
     fi
   done
 }
@@ -55,19 +52,16 @@ check_yum () {
 check_apt () {
   for package in $APT_PKGS
   do
-    dpkg -l $package >/dev/null 2>&1
+    dpkg -s $package >/dev/null 2>&1
     if [ $? -ne 0 ]; then
-      for package in $APT_PKGS
-      do
-        echo -n "Install dependency ${package}? (y/n) [y]:"
-        read INPUT
-        if [ "$INPUT" == "y" -o -z "$INPUT" ]; then
-          install_pkg $package
-        else
-          echo "Please install $package"
-          exit 1
-        fi
-      done
+      echo -n "Install dependency ${package}? (y/n) [y]:"
+      read INPUT
+      if [ "$INPUT" == "y" -o -z "$INPUT" ]; then
+        install_pkg $package
+      else
+        echo "Please install $package"
+        exit 1
+      fi
     fi
   done
 }
