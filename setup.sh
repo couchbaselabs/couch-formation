@@ -1,8 +1,8 @@
 #!/bin/bash
 #
 SCRIPTDIR=$(cd $(dirname $0) && pwd)
-YUM_PKGS=""
-APT_PKGS="python3.9-venv"
+YUM_PKGS="packer terraform"
+APT_PKGS="python3.9-venv packer terraform"
 MAC_PKGS="terraform packer"
 MAJOR_REV=3
 MINOR_REV=9
@@ -32,6 +32,24 @@ install_pkg () {
   esac
 }
 
+install_packer_yum () {
+  sudo yum-config-manager --add-repo https://rpm.releases.hashicorp.com/RHEL/hashicorp.repo
+}
+
+install_packer_apt () {
+  curl -fsSL https://apt.releases.hashicorp.com/gpg | sudo apt-key add -
+  sudo apt-add-repository "deb [arch=amd64] https://apt.releases.hashicorp.com $(lsb_release -cs) main"
+}
+
+install_tf_yum () {
+  sudo yum-config-manager --add-repo https://rpm.releases.hashicorp.com/RHEL/hashicorp.repo
+}
+
+install_tf_apt () {
+  curl -fsSL https://apt.releases.hashicorp.com/gpg | sudo apt-key add -
+  sudo apt-add-repository "deb [arch=amd64] https://apt.releases.hashicorp.com $(lsb_release -cs) main"
+}
+
 check_yum () {
   for package in $YUM_PKGS
   do
@@ -40,6 +58,12 @@ check_yum () {
       echo -n "Install dependency ${package}? (y/n) [y]:"
       read INPUT
       if [ "$INPUT" == "y" -o -z "$INPUT" ]; then
+        if [ "$package" = "packer" ]; then
+          install_packer_yum
+        fi
+        if [ "$package" = "terraform" ]; then
+          install_tf_yum
+        fi
         install_pkg $package
       else
         echo "Please install $package"
@@ -57,6 +81,12 @@ check_apt () {
       echo -n "Install dependency ${package}? (y/n) [y]:"
       read INPUT
       if [ "$INPUT" == "y" -o -z "$INPUT" ]; then
+        if [ "$package" = "packer" ]; then
+          install_packer_apt
+        fi
+        if [ "$package" = "terraform" ]; then
+          install_tf_apt
+        fi
         install_pkg $package
       else
         echo "Please install $package"
