@@ -3,7 +3,7 @@
 SCRIPTDIR=$(cd $(dirname $0) && pwd)
 YUM_PKGS="packer terraform"
 APT_PKGS="python3.9-venv packer terraform"
-MAC_PKGS="terraform packer"
+MAC_PKGS="python@3.9 terraform packer"
 MAJOR_REV=3
 MINOR_REV=9
 VENV_NAME=venv
@@ -17,7 +17,6 @@ err_exit () {
 }
 
 install_pkg () {
-  set_linux_type
   case $PKGMGR in
   yum)
     sudo yum install -q -y "$@"
@@ -25,6 +24,9 @@ install_pkg () {
   apt)
     sudo apt-get update
     sudo apt-get install -q -y "$@"
+    ;;
+  brew)
+    brew install "$@"
     ;;
   *)
     err_exit "Unknown package manager $PKGMGR"
@@ -97,17 +99,24 @@ check_apt () {
 }
 
 check_macos () {
+  PKGMGR="brew"
   which brew >/dev/null 2>&1
   if [ $? -ne 0 ]; then
-    echo "Please install brew, then install openssl."
+    echo "Please install homebrew"
     exit 1
   fi
   for package in $MAC_PKGS
   do
     brew list $package >/dev/null 2>&1
     if [ $? -ne 0 ]; then
-      echo "Please install brew package $package"
-      exit 1
+      echo -n "Install dependency ${package}? (y/n) [y]:"
+      read INPUT
+      if [ "$INPUT" == "y" -o -z "$INPUT" ]; then
+        install_pkg $package
+      else
+        echo "Please install $package"
+        exit 1
+      fi
     fi
   done
 }

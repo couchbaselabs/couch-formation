@@ -79,6 +79,18 @@ class packer_run(object):
         if p.returncode != 0:
             raise PackerRunError(f"error: {error_string}")
 
+    def init(self):
+        cmd = []
+
+        cmd.append('init')
+
+        print("Beginning packer init")
+        start_time = time.perf_counter()
+        self._packer(*cmd)
+        end_time = time.perf_counter()
+        run_time = time.strftime("%H hours %M minutes %S seconds.", time.gmtime(end_time - start_time))
+        print(f"Init complete in {run_time}.")
+
     def build(self, var_file: str, packer_file: str):
         cmd = []
 

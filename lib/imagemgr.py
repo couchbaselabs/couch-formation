@@ -118,6 +118,7 @@ class image_manager(object):
 
         try:
             pr = invoke.packer_run(working_dir=self.lc.packer_dir)
+            pr.init()
             pr.build(var_file, hcl_file)
         except Exception as err:
             ImageMgmtError(f"can not build image: {err}")
