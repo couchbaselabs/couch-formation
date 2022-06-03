@@ -186,7 +186,14 @@ fi
 
 if [ -d $SCRIPTDIR/$VENV_NAME ]; then
   echo "Virtual environment $SCRIPTDIR/$VENV_NAME already exists."
-  exit 1
+  echo -n "Remove the existing directory? (y/n) [y]:"
+  read INPUT
+  if [ "$INPUT" == "y" -o -z "$INPUT" ]; then
+    [ -n "$SCRIPTDIR" ] && [ -n "$VENV_NAME" ] && rm -rf $SCRIPTDIR/$VENV_NAME
+  else
+    echo "Setup cancelled. No changes were made."
+    exit 1
+  fi
 fi
 
 printf "Creating virtual environment... "
