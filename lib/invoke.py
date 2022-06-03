@@ -101,6 +101,7 @@ class packer_run(object):
         cmd = []
 
         cmd.append('init')
+        cmd.append('.')
 
         print("Beginning packer init")
         start_time = time.perf_counter()
