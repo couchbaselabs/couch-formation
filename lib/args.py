@@ -8,7 +8,7 @@ class params(object):
     def __init__(self):
         parser = argparse.ArgumentParser(add_help=False)
         parent_parser = argparse.ArgumentParser(add_help=False)
-        parent_parser.add_argument('--debug', action='store', help="Debug level", type=int, default=3)
+        parent_parser.add_argument('--debug', action='store_true', help="Debug output", default=False)
         parent_parser.add_argument('--dev', action='store', help="Development Environment", type=int)
         parent_parser.add_argument('--test', action='store', help="Test Environment", type=int)
         parent_parser.add_argument('--prod', action='store', help="Prod Environment", type=int)
