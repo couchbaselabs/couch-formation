@@ -114,8 +114,8 @@ class envmgr(object):
 
     def create_env(self, overwrite=False, create=True):
         if self.env_type:
-            dev_directory = "dev-{:02d}".format(self.env_num)
-            self.working_dir = self.tf_dir + '/' + dev_directory
+            env_directory = f"{self.env_type}-{self.env_num:02d}"
+            self.working_dir = self.tf_dir + '/' + env_directory
         else:
             raise EnvMgrError("Environment not specified.")
 
@@ -130,6 +130,15 @@ class envmgr(object):
                 self.create_env_dir(overwrite=overwrite)
             except Exception as err:
                 raise EnvMgrError(f"can not create environment structure: {err}")
+
+    def remove_env(self):
+        if self.env_type:
+            env_directory = f"{self.env_type}-{self.env_num:02d}"
+            self.working_dir = self.tf_dir + '/' + env_directory
+        else:
+            raise EnvMgrError("Environment not specified.")
+
+        self.remove_env_dir()
 
     @property
     def env_dir(self):
@@ -257,3 +266,21 @@ class envmgr(object):
                         copyfile(source, destination)
                     except Exception as err:
                         raise EnvMgrError(f"can not copy {source} -> {destination}: {err}")
+
+    def remove_env_dir(self):
+        file_list = []
+        if not self.tf_dir:
+            raise EnvMgrError("call set_cloud before any environment operations")
+        if not self.working_dir.startswith(self.tf_dir):
+            raise EnvMgrError(f"environment directory {self.working_dir} should be a subdirectory of cloud root {self.tf_dir}")
+
+        for root, dirs, files in os.walk(self.working_dir, topdown=False):
+            for filename in files:
+                file_list.append(filename)
+            if root:
+                if root == '/':
+                    raise EnvMgrError("Can not remove the system root directory")
+                for file in file_list:
+                    os.remove(f"{root}/{file}")
+                os.rmdir(root)
+                file_list.clear()
