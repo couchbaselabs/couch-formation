@@ -372,3 +372,12 @@ class run_manager(object):
             var_file.close_file()
         except Exception as err:
             raise RunMgmtError(f"can not create sync gateway var file: {err}")
+
+    def remove_env(self):
+        inquire = ask()
+
+        env_text = self.env.get_env
+        env_text = env_text.replace(':', '-')
+
+        if inquire.ask_yn(f"Permanently remove environment {env_text}", default=False):
+            self.env.remove_env()

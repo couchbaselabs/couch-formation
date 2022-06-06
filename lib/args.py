@@ -34,7 +34,8 @@ class params(object):
         image_mode = subparsers.add_parser('image', help="Manage CB Images", parents=[parent_parser, image_parser], add_help=False)
         create_mode = subparsers.add_parser('create', help="Create Nodes", parents=[parent_parser], add_help=False)
         deploy_mode = subparsers.add_parser('deploy', help="Deploy Nodes", parents=[parent_parser], add_help=False)
-        destroy_mode = subparsers.add_parser('destroy', help="Clean Up", parents=[parent_parser], add_help=False)
+        destroy_mode = subparsers.add_parser('destroy', help="Destroy Nodes", parents=[parent_parser], add_help=False)
+        remove_mode = subparsers.add_parser('remove', help="Remove Environments", parents=[parent_parser], add_help=False)
         list_mode = subparsers.add_parser('list', help="List Nodes", parents=[parent_parser], add_help=False)
         net_mode = subparsers.add_parser('net', help="Static Network Configuration", parents=[parent_parser, net_parser], add_help=False)
         self.parser = parser
@@ -42,5 +43,6 @@ class params(object):
         self.create_parser = create_mode
         self.deploy_parser = deploy_mode
         self.destroy_parser = destroy_mode
+        self.remove_parser = remove_mode
         self.list_parser = list_mode
         self.net_parser = net_mode

@@ -56,6 +56,10 @@ class cloud_manager(object):
             task = run_manager(self.args)
             task.destroy_env()
             sys.exit(0)
+        elif self.verb == 'remove':
+            task = run_manager(self.args)
+            task.remove_env()
+            sys.exit(0)
         elif self.verb == 'list':
             task = run_manager(self.args)
             if self.args.all:
