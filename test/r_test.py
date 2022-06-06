@@ -19,10 +19,8 @@ def main():
 
     if args.packer:
         pr = invoke.packer_run()
-        pr.build('/Users/michaelminichino/IdeaProjects/terraform-couchbase/aws/packer', 'centos-8.pkrvars.hcl', 'linux.pkr.hcl')
     else:
         tf = invoke.tf_run()
-        tf.init('/Users/michaelminichino/IdeaProjects/terraform-couchbase/aws/terraform/dev-01')
 
 
 if __name__ == '__main__':

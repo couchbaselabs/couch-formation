@@ -109,8 +109,11 @@ check_macos () {
   do
     brew list $package >/dev/null 2>&1
     if [ $? -ne 0 ]; then
-      echo -n "Install dependency ${package}? (y/n) [y]:"
+      echo -n "Install dependency ${package}? (y/n/s) [y]:"
       read INPUT
+      if [ "$INPUT" == "s" ]; then
+        continue
+      fi
       if [ "$INPUT" == "y" -o -z "$INPUT" ]; then
         install_pkg $package
       else
