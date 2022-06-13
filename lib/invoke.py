@@ -97,11 +97,11 @@ class packer_run(object):
         if p.returncode != 0:
             raise PackerRunError(f"error: {error_string}")
 
-    def init(self):
+    def init(self, packer_file: str):
         cmd = []
 
         cmd.append('init')
-        cmd.append('.')
+        cmd.append(packer_file)
 
         print("Beginning packer init")
         start_time = time.perf_counter()
