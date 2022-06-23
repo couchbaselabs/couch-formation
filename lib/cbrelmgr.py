@@ -29,9 +29,9 @@ class cbrelease(object):
 
     def set_os_name(self, name: str):
         self.os_name = name
-        if self.os_name == 'centos':
+        if self.os_name == 'centos' or self.os_name == 'rhel':
             self.pkgmgr_type = 'yum'
-        elif self.os_name == 'ubuntu':
+        elif self.os_name == 'ubuntu' or self.os_name == 'debian':
             self.pkgmgr_type = 'apt'
 
     def set_os_ver(self, release: str):

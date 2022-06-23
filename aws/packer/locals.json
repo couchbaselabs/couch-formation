@@ -18,6 +18,16 @@
         "hcl": "linux.pkr.hcl"
       }
     ],
+    "rhel": [
+      {
+        "version": "8",
+        "image": "RHEL-8.6.0_HVM-20220503-x86_64-2-Hourly2-GP2",
+        "owner": "309956199498",
+        "user": "ec2-user",
+        "vars": "rhel-8.pkrvars.hcl",
+        "hcl": "linux.pkr.hcl"
+      }
+    ],
     "ubuntu": [
       {
         "version": "bionic",
