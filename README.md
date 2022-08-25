@@ -21,7 +21,7 @@ Runs on any POSIX style client such as macOS and Linux.
 ## Quick Start
 Setup Python environment:
 ````
-$ cd terraform-couchbase
+$ cd couch-formation
 $ ./setup.sh
 ````
 Create an image in the target cloud:
