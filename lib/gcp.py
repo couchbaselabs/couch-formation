@@ -14,6 +14,7 @@ from lib.prereq import prereq
 
 
 class gcp(object):
+    TEMPLATE = True
     VARIABLES = [
         ('GCP_ACCOUNT_FILE', 'gcp_account_file', 'gcp_get_account_file', None),
         ('GCP_CB_IMAGE', 'gcp_cb_image', 'gcp_get_cb_image_name', None),

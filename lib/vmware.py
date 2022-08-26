@@ -18,6 +18,7 @@ from lib.prereq import prereq
 
 
 class vmware(object):
+    TEMPLATE = True
     VARIABLES = [
         ('VMWARE_BUILD_PASSWORD', 'build_password', 'vmware_get_build_password', None),
         ('VMWARE_BUILD_PWD_ENCRYPTED', 'build_password_encrypted', 'vmware_get_build_pwd_encrypted', None),

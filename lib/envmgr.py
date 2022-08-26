@@ -33,6 +33,7 @@ class envmgr(object):
         self.working_app_dir = None
         self.working_sgw_dir = None
         self.cb_cluster_name = None
+        self.template_mode = True
         self.cluster_tf_file_name = 'cluster.tf'
         self.variable_tf_file_name = 'variables.tf'
 
@@ -51,6 +52,8 @@ class envmgr(object):
         elif self.cloud == 'vmware':
             self.packer_dir = self.lc.vmware_packer
             self.tf_dir = self.lc.vmware_tf
+        elif self.cloud == 'capella':
+            self.tf_dir = self.lc.capella_tf
         else:
             raise EnvMgrError(f"unknown cloud {self.cloud}")
 
@@ -90,6 +93,9 @@ class envmgr(object):
     def get_sgw_env(self) -> str:
         sgw_env_string = f"{self.env_type}{self.env_num:02d}:sgw{self.sgw_num:02d}"
         return sgw_env_string
+
+    def set_template_mode(self, mode: bool) -> None:
+        self.template_mode = mode
 
     def get_cb_cluster_name(self, select=True, default=None, write=None):
         inquire = ask()
@@ -228,6 +234,9 @@ class envmgr(object):
                     os.mkdir(self.working_sgw_dir)
                 except Exception as err:
                     raise EnvMgrError(f"can not create {self.working_sgw_dir}: {err}")
+
+        if not self.template_mode:
+            return
 
         if not self.standalone_mode:
             main_dir_contents = copy_files

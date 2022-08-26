@@ -16,6 +16,7 @@ from lib.prereq import prereq
 
 
 class azure(object):
+    TEMPLATE = True
     VARIABLES = [
         ('AZURE_DISK_SIZE', 'azure_disk_size', 'azure_get_root_size', None),
         ('AZURE_DISK_TYPE', 'azure_disk_type', 'azure_get_root_type', None),

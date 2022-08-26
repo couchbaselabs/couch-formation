@@ -3,6 +3,7 @@
 
 from lib.exceptions import *
 
+
 class location(object):
 
     def __init__(self):
@@ -33,6 +34,8 @@ class location(object):
         elif self.cloud == 'vmware':
             self._packer_dir = self.vmware_packer
             self._tf_dir = self.vmware_tf
+        elif self.cloud == 'capella':
+            self._tf_dir = self.capella_tf
         else:
             raise VarFileError(f"unknown cloud {self.cloud}")
 
@@ -118,3 +121,11 @@ class location(object):
     @property
     def vmware_tf(self):
         return self.get_tf('vmware')
+
+    @property
+    def capella_home(self):
+        return self.get_home('capella')
+
+    @property
+    def capella_tf(self):
+        return self.get_tf('capella')

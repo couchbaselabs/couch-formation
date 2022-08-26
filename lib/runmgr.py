@@ -10,6 +10,7 @@ from lib.aws import aws
 from lib.gcp import gcp
 from lib.azure import azure
 from lib.vmware import vmware
+from lib.capella import capella
 from lib.location import location
 from lib.template import template
 from lib.varfile import varfile
@@ -39,12 +40,14 @@ class run_manager(object):
         self.env.set_cloud(self.cloud)
         self.env.set_env(self.args.dev, self.args.test, self.args.prod, self.args.app, self.args.sgw, all_opt=self.args.all, standalone_opt=self.args.standalone)
         self.nm = network_manager(self.args)
+        self.template_mode = True
 
     def build_env(self):
         inquire = ask()
         previous_tf_vars = None
         create_app_nodes = False
         create_sgw_nodes = False
+        env_text = self.env.get_env
 
         if self.cloud == 'aws':
             driver = aws()
@@ -64,14 +67,21 @@ class run_manager(object):
             driver.vmware_init()
             driver.vmware_set_cluster_name(self.env.get_cb_cluster_name(select=False))
             self.args.static = True
+        elif self.cloud == 'capella':
+            driver = capella()
+            driver.capella_init(env_text)
         else:
             raise RunMgmtError(f"unknown cloud {self.cloud}")
 
-        env_text = self.env.get_env
+        self.template_mode = driver.TEMPLATE
         env_text = env_text.replace(':', ' ')
 
         print(f"Operating on environment {env_text}")
         self.env.create_env(overwrite=True)
+
+        if not self.template_mode:
+            driver.write_tf(self.env.env_dir)
+            return
 
         t = template()
         v = varfile()

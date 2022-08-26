@@ -370,3 +370,34 @@ class ask(object):
             except Exception as e:
                 print("Invalid input: %s, please try again..." % str(e))
                 continue
+
+    def ask_multi(self, question, options=[], default=[]):
+        selections = []
+        used_numbers = []
+        print("%s:" % question)
+        for count, item in enumerate(options):
+            print(f" {count+1}) {item}")
+        while True:
+            print(f"Selection: [{','.join(selections)}]")
+            sys.stdout.write("\033[K")
+            answer = input("Selection [d=done, q=quit]: ")
+            answer = answer.rstrip("\n")
+            if answer == "q":
+                sys.exit(0)
+            if answer == "d":
+                if len(selections) == 0 and len(default) != 0:
+                    selections = default
+                break
+            try:
+                value = int(answer)
+                if value not in used_numbers:
+                    if value > 0 and value <= len(options):
+                        selections.append(options[value - 1])
+                        used_numbers.append(value)
+                else:
+                    raise Exception
+            except Exception:
+                pass
+            sys.stdout.write("\x1b[A")
+            sys.stdout.write("\x1b[A")
+        return selections

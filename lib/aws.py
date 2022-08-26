@@ -13,6 +13,7 @@ from lib.prereq import prereq
 
 
 class aws(object):
+    TEMPLATE = True
     VARIABLES = [
         ('AWS_AMI_ID', 'ami_id', 'aws_get_ami_id', None),
         ('AWS_INSTANCE_TYPE', 'instance_type', 'aws_get_instance_type', None),

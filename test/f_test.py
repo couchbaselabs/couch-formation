@@ -10,6 +10,7 @@ sys.path.append(parent)
 
 from lib.netmgr import network_manager
 from lib.cbrelmgr import cbrelease
+from lib.ask import ask
 
 
 def main():
@@ -21,6 +22,12 @@ def main():
     parser.add_argument('--release', action='store_true')
     parser.add_argument('--all', action='store_true')
     args = parser.parse_args()
+
+    options = ["data", "index", "query", "fts", "analytics", "eventing", ]
+    inquire = ask()
+    results = inquire.ask_multi("Services", options, ["data", "index", "query"])
+    print(results)
+    sys.exit(0)
 
     if args.release or args.all:
         cbr = cbrelease()
