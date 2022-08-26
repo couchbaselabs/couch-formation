@@ -11,6 +11,7 @@ sys.path.append(parent)
 from lib.netmgr import network_manager
 from lib.cbrelmgr import cbrelease
 from lib.ask import ask
+from lib.capsessionmgr import capella_session
 
 
 def main():
@@ -22,9 +23,22 @@ def main():
     parser.add_argument('--release', action='store_true')
     parser.add_argument('--all', action='store_true')
     args = parser.parse_args()
+    inquire = ask()
+
+    capella = capella_session()
+
+    result = capella.api_get("/v2/projects")
+    options = []
+    for item in result:
+        element = {}
+        element["name"] = item["name"]
+        element["description"] = item["id"]
+        options.append(element)
+    result = inquire.ask_search("Capella project", options)
+    print(result)
+    sys.exit(0)
 
     options = ["data", "index", "query", "fts", "analytics", "eventing", ]
-    inquire = ask()
     results = inquire.ask_multi("Services", options, ["data", "index", "query"])
     print(results)
     sys.exit(0)

@@ -3,8 +3,10 @@
 
 import logging
 import jinja2
+import os
 from lib.ask import ask
-from lib.exceptions import nonFatalError, fatalError
+from lib.exceptions import fatalError
+from lib.capsessionmgr import capella_session
 
 
 class CapellaDriverError(fatalError):
@@ -14,6 +16,7 @@ class CapellaDriverError(fatalError):
 class capella(object):
     TEMPLATE = False
     CONFIG_FILE = "main.tf"
+    OUTPUT_FILE = "outputs.tf"
     VARIABLES = []
     SUPPORT_PACKAGE = [
         "Basic",
@@ -118,13 +121,9 @@ terraform {
 
 provider "couchbasecapella" {}
 
-resource "couchbasecapella_project" "project" {
-  name = "{{ CAPELLA_PROJECT }}"
-}
-
-resource "couchbasecapella_hosted_cluster" "cluster" {
+resource "couchbasecapella_hosted_cluster" "capella_cluster" {
   name        = "{{ CAPELLA_CLUSTER }}"
-  project_id  = couchbasecapella_project.project.id
+  project_id  = "{{ CAPELLA_PROJECT }}"
   place {
     single_az = {{ CAPELLA_SINGLE_AZ }}
     hosted {
@@ -149,6 +148,11 @@ resource "couchbasecapella_hosted_cluster" "cluster" {
   }
 }
 """
+    OUTPUT_TEMPLATE = """
+output "cluster-id" {
+  value = couchbasecapella_hosted_cluster.capella_cluster.id
+}
+"""
 
     def __init__(self):
         self.logger = logging.getLogger(self.__class__.__name__)
@@ -168,11 +172,17 @@ resource "couchbasecapella_hosted_cluster" "cluster" {
         self.root_volume_size = "100"
         self.root_volume_type = "GP3"
 
+        if 'CBC_ACCESS_KEY' not in os.environ:
+            raise CapellaDriverError("Please set CBC_ACCESS_KEY for Capella API access")
+
+        if 'CBC_SECRET_KEY' not in os.environ:
+            raise CapellaDriverError("Please set CBC_SECRET_KEY for Capella API access")
+
     def capella_init(self, environment):
         inquire = ask()
         environment = environment.replace(':', '-')
 
-        self.project = inquire.ask_text("Project name", recommendation=environment)
+        self.project = self.capella_get_project()
         self.cluster_name = inquire.ask_text("Cluster name", recommendation=environment)
         self.single_az = inquire.ask_bool("Single AZ", recommendation="false")
         provider_option = inquire.ask_list("Cloud provider", capella.CLOUD_PROVIDER)
@@ -180,7 +190,7 @@ resource "couchbasecapella_hosted_cluster" "cluster" {
         if self.provider == "aws":
             region_option = inquire.ask_list("Cloud region", capella.AWS_REGIONS)
             self.region = capella.AWS_REGIONS[region_option]
-        self.cidr = inquire.ask_text("Cluster CIDR", recommendation="10.1.2.0/23")
+        self.cidr = inquire.ask_text("Cluster CIDR", recommendation="10.0.2.0/23")
         support_package_option = inquire.ask_list("Support package", capella.SUPPORT_PACKAGE)
         self.support_package = capella.SUPPORT_PACKAGE[support_package_option]
         self.cluster_size = int(inquire.ask_text("Cluster size", recommendation="3"))
@@ -193,29 +203,65 @@ resource "couchbasecapella_hosted_cluster" "cluster" {
             self.root_volume_iops = inquire.ask_text("Storage IOPS", recommendation="3000")
             self.root_volume_type = inquire.ask_text("Storage type", recommendation="GP3")
 
+    def capella_get_project(self, default=None, write=None):
+        inquire = ask()
+        options = []
+        capella = capella_session()
+
+        result = capella.api_get("/v2/projects")
+
+        try:
+            for item in result:
+                element = {}
+                element["name"] = item["name"]
+                element["description"] = item["id"]
+                options.append(element)
+        except Exception as err:
+            raise CapellaDriverError(f"Error getting Capella projects: {err}")
+
+        if len(options) == 0:
+            raise CapellaDriverError("Can not fine any Capella projects.")
+
+        selection = inquire.ask_search("Capella project", options)
+
+        self.project = selection["description"]
+        return self.project
+
     def write_tf(self, directory):
         output_file = directory + '/' + capella.CONFIG_FILE
+        substitutions = {
+            "CAPELLA_PROJECT": self.project,
+            "CAPELLA_CLUSTER": self.cluster_name,
+            "CAPELLA_SINGLE_AZ": str(self.single_az).lower(),
+            "CAPELLA_PROVIDER": self.provider,
+            "CAPELLA_REGION": self.region,
+            "CAPELLA_CIDR": self.cidr,
+            "CAPELLA_SUPPORT_PACKAGE": self.support_package,
+            "CAPELLA_CLUSTER_SIZE": self.cluster_size,
+            "CAPELLA_COMPUTE_TYPE": self.machine_type,
+            "CAPELLA_SERVICES": ','.join(f'"{s}"' for s in self.services),
+            "CAPELLA_STORAGE_TYPE": self.root_volume_type,
+            "CAPELLA_STORAGE_IOPS": self.root_volume_iops,
+            "CAPELLA_STORAGE_SIZE": self.root_volume_size
+        }
 
         raw_template = jinja2.Template(capella.MAIN_TEMPLATE)
-        format_template = raw_template.render(
-            CAPELLA_PROJECT=self.project,
-            CAPELLA_CLUSTER=self.cluster_name,
-            CAPELLA_SINGLE_AZ=str(self.single_az).lower(),
-            CAPELLA_PROVIDER=self.provider,
-            CAPELLA_REGION=self.region,
-            CAPELLA_CIDR=self.cidr,
-            CAPELLA_SUPPORT_PACKAGE=self.support_package,
-            CAPELLA_CLUSTER_SIZE=self.cluster_size,
-            CAPELLA_COMPUTE_TYPE=self.machine_type,
-            CAPELLA_SERVICES=','.join(f'"{s}"' for s in self.services),
-            CAPELLA_STORAGE_TYPE=self.root_volume_type,
-            CAPELLA_STORAGE_IOPS=self.root_volume_iops,
-            CAPELLA_STORAGE_SIZE=self.root_volume_size
-        )
+        format_template = raw_template.render(substitutions)
         try:
             with open(output_file, 'w') as write_file:
                 write_file.write(format_template)
                 write_file.write("\n")
                 write_file.close()
         except OSError as err:
-            raise CapellaDriverError(f"Can not write to new node file: {err}")
+            raise CapellaDriverError(f"Can not write to new main file: {err}")
+
+        raw_template = jinja2.Template(capella.OUTPUT_TEMPLATE)
+        format_template = raw_template.render(substitutions)
+        output_file = directory + '/' + capella.OUTPUT_FILE
+        try:
+            with open(output_file, 'w') as write_file:
+                write_file.write(format_template)
+                write_file.write("\n")
+                write_file.close()
+        except OSError as err:
+            raise CapellaDriverError(f"Can not write to new output file: {err}")

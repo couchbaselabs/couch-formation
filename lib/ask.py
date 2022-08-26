@@ -5,6 +5,7 @@ import logging
 import sys
 import ipaddress
 import getpass
+import re
 from distutils.util import strtobool
 
 
@@ -401,3 +402,37 @@ class ask(object):
             sys.stdout.write("\x1b[A")
             sys.stdout.write("\x1b[A")
         return selections
+
+    def ask_search(self, question, options=[]):
+        print("%s:" % question)
+        while True:
+            sub_options = []
+            answer = input("Search term [q=quit]: ")
+            answer = answer.rstrip("\n")
+            if answer == "q":
+                sys.exit(0)
+            for option in options:
+                p = re.compile(answer)
+                if p.match(option["name"]):
+                    sub_options.append(option)
+            if len(sub_options) == 0:
+                print("Search term not found.")
+                continue
+            while True:
+                for count, item in enumerate(sub_options):
+                    print(f" {count+1}) {item['name']} ({item['description']})")
+                answer = input("Selection [r=retry, q=quit]: ")
+                answer = answer.rstrip("\n")
+                if answer == "q":
+                    sys.exit(0)
+                if answer == "r":
+                    break
+                try:
+                    value = int(answer)
+                    if value > 0 and value <= len(options):
+                        return sub_options[value - 1]
+                    else:
+                        raise Exception
+                except Exception:
+                    print("Please select the number corresponding to your selection.")
+                    continue

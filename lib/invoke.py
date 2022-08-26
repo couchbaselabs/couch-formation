@@ -148,6 +148,9 @@ class tf_run(object):
             *args
         ]
 
+        if not json_output:
+            os.environ['TF_LOG'] = "DEBUG"
+
         p = subprocess.Popen(tf_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, cwd=self.working_dir, bufsize=1)
 
         sp = spinner()
@@ -167,6 +170,10 @@ class tf_run(object):
 
         sp.stop()
         p.communicate()
+
+        if not json_output:
+            del os.environ['TF_LOG']
+
         if p.returncode != 0:
             if ignore_error:
                 return False

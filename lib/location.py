@@ -17,6 +17,7 @@ class location(object):
             'gcp',
             'azure',
             'vmware',
+            'capella'
         ]
 
     def set_cloud(self, cloud: str):

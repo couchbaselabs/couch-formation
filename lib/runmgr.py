@@ -81,6 +81,7 @@ class run_manager(object):
 
         if not self.template_mode:
             driver.write_tf(self.env.env_dir)
+            self.deploy_env()
             return
 
         t = template()
@@ -309,8 +310,11 @@ class run_manager(object):
                 print("Couchbase cluster:")
             for item in env_data:
                 print(f"{item}:")
-                for n, host in enumerate(env_data[item]['value']):
-                    print(f" {n+1:d}) {host}")
+                if type(env_data[item]['value']) == list:
+                    for n, host in enumerate(env_data[item]['value']):
+                        print(f" {n+1:d}) {host}")
+                else:
+                    print(f" {env_data[item]['value']}")
         except Exception as err:
             raise RunMgmtError(f"can not deploy environment: {err}")
 
