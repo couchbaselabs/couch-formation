@@ -71,7 +71,9 @@ class capella_session(object):
         self._response = response.text
         return self
 
-    def api_get(self, endpoint, items=[]):
+    def api_get(self, endpoint, items=None):
+        if items is None:
+            items = []
         ep = f"{self.capella_url}{endpoint}"
 
         response = self.session.get(ep, auth=capella_auth())
@@ -85,7 +87,10 @@ class capella_session(object):
 
         if "cursor" in response_json:
             if "pages" in response_json["cursor"]:
-                items.extend(response_json["data"])
+                if "items" in response_json["data"]:
+                    items.extend(response_json["data"]["items"])
+                else:
+                    items.extend(response_json["data"])
                 if "next" in response_json["cursor"]["pages"]:
                     cur_page = response_json["cursor"]["pages"]["page"]
                     next_page = response_json["cursor"]["pages"]["next"]

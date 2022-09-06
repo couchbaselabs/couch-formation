@@ -67,6 +67,6 @@ class CapellaConnectException(capellaException):
     pass
 
 
-class CapellaNotImplemented(capellaError):
+class CapellaNotImplemented(capellaException):
     pass
 

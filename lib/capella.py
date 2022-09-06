@@ -4,9 +4,11 @@
 import logging
 import jinja2
 import os
+import ipaddress
 from lib.ask import ask
 from lib.exceptions import fatalError
 from lib.capsessionmgr import capella_session
+from lib.capexceptions import CapellaNotImplemented
 
 
 class CapellaDriverError(fatalError):
@@ -163,11 +165,12 @@ output "cluster-id" {
         self.single_az = True
         self.provider = "aws"
         self.region = None
-        self.cidr = "10.1.2.0/23"
+        self.cidr = "10.1.0.0/16"
         self.support_package = "DeveloperPro"
         self.cluster_size = 3
         self.machine_type = None
         self.services = []
+        self.clusters = []
         self.root_volume_iops = "0"
         self.root_volume_size = "100"
         self.root_volume_type = "GP3"
@@ -181,6 +184,7 @@ output "cluster-id" {
     def capella_init(self, environment):
         inquire = ask()
         environment = environment.replace(':', '-')
+        self.capella_get_clusters()
 
         self.project = self.capella_get_project()
         self.cluster_name = inquire.ask_text("Cluster name", recommendation=environment)
@@ -190,7 +194,7 @@ output "cluster-id" {
         if self.provider == "aws":
             region_option = inquire.ask_list("Cloud region", capella.AWS_REGIONS)
             self.region = capella.AWS_REGIONS[region_option]
-        self.cidr = inquire.ask_text("Cluster CIDR", recommendation="10.0.2.0/23")
+        self.cidr = self.capella_get_cidr()
         support_package_option = inquire.ask_list("Support package", capella.SUPPORT_PACKAGE)
         self.support_package = capella.SUPPORT_PACKAGE[support_package_option]
         self.cluster_size = int(inquire.ask_text("Cluster size", recommendation="3"))
@@ -226,6 +230,47 @@ output "cluster-id" {
 
         self.project = selection["description"]
         return self.project
+
+    def capella_get_clusters(self):
+        capella = capella_session()
+        self.clusters = capella.api_get("/v3/clusters")
+
+    def capella_get_cidrs(self):
+        cidr_list = []
+        capella = capella_session()
+        try:
+            for item in self.clusters:
+                try:
+                    cluster = capella.api_get(f"/v3/clusters/{item['id']}")
+                    cidr_list.append(cluster[0]["place"]["CIDR"])
+                except CapellaNotImplemented:
+                    continue
+            return cidr_list
+        except KeyError:
+            raise CapellaDriverError("Can not get CIDR from cluster record.")
+
+    def find_cidr(self, subnet: str, cidr_list: list[str]) -> bool:
+        sub_network = ipaddress.ip_network(subnet)
+        for cidr in cidr_list:
+            cmp_network = ipaddress.ip_network(cidr)
+            if sub_network.overlaps(cmp_network):
+                return True
+        return False
+
+    def capella_get_cidr(self, default=None, write=None):
+        cluster_cidr = None
+        inquire = ask()
+        cidr_in_use = self.capella_get_cidrs()
+        selection = inquire.ask_text("Cluster CIDR pool", recommendation=self.cidr)
+        for subnet in list(ipaddress.ip_network(selection).subnets(new_prefix=23)):
+            if self.find_cidr(subnet.exploded, cidr_in_use):
+                continue
+            else:
+                cluster_cidr = subnet.exploded
+                break
+        if cluster_cidr is None:
+            raise CapellaDriverError(f"can not compute available cluster cidr from pool {selection}")
+        return cluster_cidr
 
     def write_tf(self, directory):
         output_file = directory + '/' + capella.CONFIG_FILE
