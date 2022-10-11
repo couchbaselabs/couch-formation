@@ -233,6 +233,11 @@ class aws(object):
                     item_name = item_tag
             subnet_name_list.append(item_name)
 
+        if len(subnet_list) == 0:
+            print("Can not find a suitable subnet.")
+            print("If you have Public IP enabled, make sure you have subnets with Public IP enabled.")
+            raise AWSDriverError("No suitable subnets")
+
         selection = inquire.ask_list(question, subnet_list, subnet_name_list, default=default)
         self.aws_subnet_id = subnet_list[selection]
         return self.aws_subnet_id
