@@ -7,6 +7,7 @@ Couchbase Cluster Manager
 import signal
 import sys
 import os
+import logging
 
 current = os.path.dirname(os.path.realpath(__file__))
 parent = os.path.dirname(current)
@@ -18,7 +19,8 @@ from lib.imagemgr import image_manager
 from lib.runmgr import run_manager
 from lib.netmgr import network_manager
 
-VERSION = '2.0-alpha-2'
+VERSION = '2.0-beta-1'
+logger = logging.getLogger()
 
 
 def break_signal_handler(signum, frame):
@@ -79,9 +81,24 @@ class cloud_manager(object):
 
 
 def main():
+    global logger
     arg_parser = params()
     parameters = arg_parser.parser.parse_args()
     signal.signal(signal.SIGINT, break_signal_handler)
+
+    try:
+        debug_level = int(os.environ['CF_DEBUG_LEVEL'])
+        logging.basicConfig()
+        if debug_level == 0:
+            logger.setLevel(logging.DEBUG)
+        elif debug_level == 1:
+            logger.setLevel(logging.INFO)
+        elif debug_level == 2:
+            logger.setLevel(logging.ERROR)
+        else:
+            logger.setLevel(logging.CRITICAL)
+    except (ValueError, KeyError):
+        pass
 
     session = cloud_manager(parameters)
     session.run()
