@@ -282,10 +282,13 @@ class aws(object):
                 config_block['name'] = machine_type['InstanceType']
                 config_block['cpu'] = int(machine_type['VCpuInfo']['DefaultVCpus'])
                 config_block['mem'] = int(machine_type['MemoryInfo']['SizeInMiB'])
-                config_block['description'] = ",".join(machine_type['ProcessorInfo']['SupportedArchitectures']) \
-                                              + ' ' + str(machine_type['ProcessorInfo']['SustainedClockSpeedInGhz']) + 'GHz' \
-                                              + ', Network: ' + machine_type['NetworkInfo']['NetworkPerformance'] \
-                                              + ', Hypervisor: ' + machine_type['Hypervisor'] if 'Hypervisor' in machine_type else 'NA'
+                try:
+                    config_block['description'] = ",".join(machine_type['ProcessorInfo']['SupportedArchitectures']) \
+                                                  + ' ' + str(machine_type['ProcessorInfo']['SustainedClockSpeedInGhz']) + 'GHz' \
+                                                  + ', Network: ' + machine_type['NetworkInfo']['NetworkPerformance'] \
+                                                  + ', Hypervisor: ' + machine_type['Hypervisor'] if 'Hypervisor' in machine_type else 'NA'
+                except KeyError:
+                    config_block['description'] = ""
                 size_list.append(config_block)
             if 'NextToken' not in instance_types:
                 break
