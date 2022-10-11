@@ -41,6 +41,7 @@ class run_manager(object):
         self.env.set_env(self.args.dev, self.args.test, self.args.prod, self.args.app, self.args.sgw, all_opt=self.args.all, standalone_opt=self.args.standalone)
         self.nm = network_manager(self.args)
         self.template_mode = True
+        self.min_node_count = parameters.min
 
     def build_env(self):
         inquire = ask()
@@ -184,11 +185,11 @@ class run_manager(object):
         if self.args.standalone:
             if inquire.ask_yn('Create node configuration', default=True):
                 print("")
-                cm.create_node_config(STD_CONFIG, self.env.env_dir)
+                cm.create_node_config(STD_CONFIG, self.env.env_dir, nodes=self.min_node_count)
         else:
             if inquire.ask_yn('Create cluster configuration', default=True):
                 print("")
-                cm.create_node_config(CLUSTER_CONFIG, self.env.env_dir)
+                cm.create_node_config(CLUSTER_CONFIG, self.env.env_dir, nodes=self.min_node_count)
 
         if self.env.app_env_dir:
             print("")
@@ -196,7 +197,7 @@ class run_manager(object):
             copyfile(var_file, destination)
             if inquire.ask_yn('Create app configuration', default=True):
                 print("")
-                cm.create_node_config(APP_CONFIG, self.env.app_env_dir)
+                cm.create_node_config(APP_CONFIG, self.env.app_env_dir, nodes=self.min_node_count)
 
         if self.env.sgw_env_dir:
             print("")
@@ -205,7 +206,7 @@ class run_manager(object):
             if inquire.ask_yn('Create SGW configuration', default=True):
                 print("")
                 self.create_sgw_var_file(self.env.sgw_env_dir)
-                cm.create_node_config(SGW_CONFIG, self.env.sgw_env_dir)
+                cm.create_node_config(SGW_CONFIG, self.env.sgw_env_dir, nodes=self.min_node_count)
 
         self.deploy_env()
 

@@ -133,13 +133,13 @@ class clustermgr(object):
 
         return node_ip_address, node_netmask, node_gateway
 
-    def create_node_config(self, mode, destination):
+    def create_node_config(self, mode, destination, nodes=3):
         inquire = ask()
         config_segments = []
         node = 1
         prefix_text = None
         services = []
-        min_nodes = 3
+        min_nodes = nodes
         output_file = None
         env_text = self.env.get_env
         env_text = env_text.replace(':', '')
