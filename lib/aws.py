@@ -180,11 +180,19 @@ class aws(object):
             config_block = {}
             config_block['name'] = zone
             aws_subnet_id = self.aws_get_subnet_id(availability_zone=zone)
+            if aws_subnet_id is None:
+                continue
             config_block['subnet'] = aws_subnet_id
             availability_zone_list.append(config_block)
+
+        if len(availability_zone_list) == 0:
+            print("Can not find a suitable subnet.")
+            print("If you have Public IP enabled, make sure you have subnets with Public IP enabled.")
+            raise AWSDriverError("No suitable subnets")
+
         return availability_zone_list
 
-    def aws_get_subnet_id(self, availability_zone=None, default=None, write=None) -> str:
+    def aws_get_subnet_id(self, availability_zone=None, default=None, write=None) -> Union[str, None]:
         """Get AWS subnet ID"""
         inquire = ask()
 
@@ -234,9 +242,7 @@ class aws(object):
             subnet_name_list.append(item_name)
 
         if len(subnet_list) == 0:
-            print("Can not find a suitable subnet.")
-            print("If you have Public IP enabled, make sure you have subnets with Public IP enabled.")
-            raise AWSDriverError("No suitable subnets")
+            return None
 
         selection = inquire.ask_list(question, subnet_list, subnet_name_list, default=default)
         self.aws_subnet_id = subnet_list[selection]
