@@ -102,3 +102,7 @@ class TFGenError(fatalError):
 class CBReleaseManagerError(fatalError):
     pass
 
+
+class EmptyResultSet(nonFatalError):
+    pass
+

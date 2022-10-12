@@ -21,3 +21,6 @@ azure.mgmt.compute>=24.0.0
 azure.mgmt.storage>=19.0.0
 azure.mgmt.subscription>=2.0.0
 ply>=3.11
+pytest>=6.2.5
+pytest-asyncio~=0.17,>=0.17.2
+pytest-rerunfailures~=10.2
