@@ -188,9 +188,65 @@ class aws(object):
         if len(availability_zone_list) == 0:
             print("Can not find a suitable subnet.")
             print("If you have Public IP enabled, make sure you have subnets with Public IP enabled.")
+            print("Also if Public IP is enabled, you need to have an Internet Gateway as the default route.")
             raise AWSDriverError("No suitable subnets")
 
         return availability_zone_list
+
+    def aws_get_route_table(self, subnet_id):
+        filter_list = []
+
+        ec2_client = boto3.client('ec2', region_name=self.aws_region)
+        rt_filter = {
+            'Name': 'association.subnet-id',
+            'Values': [
+                subnet_id,
+            ]
+        }
+        filter_list.append(rt_filter)
+        route_table = ec2_client.describe_route_tables(Filters=filter_list)
+
+        if len(route_table['RouteTables']) != 0:
+            return route_table['RouteTables'][0]
+        else:
+            return None
+
+    def aws_get_igw(self, gateway_id):
+        filter_list = []
+
+        ec2_client = boto3.client('ec2', region_name=self.aws_region)
+        igw_filter = {
+            'Name': 'internet-gateway-id',
+            'Values': [
+                gateway_id,
+            ]
+        }
+        filter_list.append(igw_filter)
+        igw = ec2_client.describe_internet_gateways(Filters=filter_list)
+
+        if len(igw['InternetGateways']) > 0:
+            return igw['InternetGateways'][0]
+        else:
+            return None
+
+    def aws_check_igw(self, subnet_id):
+        route_table = self.aws_get_route_table(subnet_id)
+
+        if route_table is None:
+            return False
+
+        try:
+            for route in route_table['Routes']:
+                if 'DestinationCidrBlock' in route:
+                    if route['DestinationCidrBlock'] == "0.0.0.0/0":
+                        if 'GatewayId' in route:
+                            if self.aws_get_igw(route['GatewayId']):
+                                return True
+        except KeyError:
+            self.logger.error(f"No routes in route table for subnet {subnet_id}")
+            return False
+
+        return False
 
     def aws_get_subnet_id(self, availability_zone=None, default=None, write=None) -> Union[str, None]:
         """Get AWS subnet ID"""
@@ -228,12 +284,15 @@ class aws(object):
         self.logger.info("AWS: Subnet: Use public IP is %s" % self.use_public_ip)
         subnets = ec2_client.describe_subnets(Filters=filter_list)
         for i in range(len(subnets['Subnets'])):
+            subnet_id = subnets['Subnets'][i]['SubnetId']
+            if self.use_public_ip and not self.aws_check_igw(subnet_id):
+                continue
             if self.use_public_ip and not subnets['Subnets'][i]['MapPublicIpOnLaunch']:
                 continue
             elif not self.use_public_ip and subnets['Subnets'][i]['MapPublicIpOnLaunch']:
                 continue
-            self.logger.info("AWS: Subnet: Found subnet %s" % subnets['Subnets'][i]['SubnetId'])
-            subnet_list.append(subnets['Subnets'][i]['SubnetId'])
+            self.logger.info("AWS: Subnet: Found subnet %s" % subnet_id)
+            subnet_list.append(subnet_id)
             item_name = ''
             if 'Tags' in subnets['Subnets'][i]:
                 item_tag = self.aws_get_tag('Name', subnets['Subnets'][i]['Tags'])
