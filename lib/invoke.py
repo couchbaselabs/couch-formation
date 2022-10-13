@@ -6,18 +6,22 @@ import subprocess
 import time
 import re
 import json
+import logging
+from logging.handlers import RotatingFileHandler
 from datetime import datetime
 from typing import Union
 from lib.exceptions import *
 from lib.output import spinner
-from lib.logfile import log_file
 
 
 class packer_run(object):
 
     def __init__(self, working_dir=None):
-        _logger = log_file(self.__class__.__name__, path=working_dir, filename='build.log')
-        self.logger = _logger.logger
+        self.log_file = working_dir + '/build.log' if working_dir else 'build.log'
+        self.logger = logging.getLogger(self.__class__.__name__)
+        self.logger.setLevel(logging.INFO)
+        handler = RotatingFileHandler(self.log_file, maxBytes=1048576, backupCount=5)
+        self.logger.addHandler(handler)
         self.working_dir = working_dir
         self.check_binary()
 
@@ -95,7 +99,7 @@ class packer_run(object):
         sp.stop()
         p.communicate()
         if p.returncode != 0:
-            raise PackerRunError(f"error: {error_string}")
+            raise PackerRunError(f"image build error (see build.log file for details): {error_string}")
 
     def init(self, packer_file: str):
         cmd = []
@@ -129,8 +133,11 @@ class packer_run(object):
 class tf_run(object):
 
     def __init__(self, working_dir=None):
-        _logger = log_file(self.__class__.__name__, path=working_dir)
-        self.logger = _logger.logger
+        self.log_file = working_dir + '/deploy.log' if working_dir else 'deploy.log'
+        self.logger = logging.getLogger(self.__class__.__name__)
+        self.logger.setLevel(logging.INFO)
+        handler = RotatingFileHandler(self.log_file, maxBytes=1048576, backupCount=5)
+        self.logger.addHandler(handler)
         self.working_dir = working_dir
         self.deployment_data = None
         self.check_binary()
@@ -139,7 +146,22 @@ class tf_run(object):
         if not distutils.spawn.find_executable("terraform"):
             raise PackerRunError("can not find terraform executable")
 
+        version = self.version()
+        version_number = float('.'.join(version['terraform_version'].split('.')[:2]))
+
+        if version_number < 1.2:
+            raise PackerRunError("terraform 1.2.0 or higher is required")
+
         return True
+
+    def parse_output(self, line: str) -> Union[dict, None]:
+        line_string = line.rstrip()
+        try:
+            message = json.loads(line_string)
+        except json.decoder.JSONDecodeError:
+            return None
+
+        return message
 
     def _terraform(self, *args: str, json_output=False, ignore_error=False):
         command_output = ''
@@ -147,9 +169,6 @@ class tf_run(object):
             'terraform',
             *args
         ]
-
-        if not json_output:
-            os.environ['TF_LOG'] = "DEBUG"
 
         p = subprocess.Popen(tf_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, cwd=self.working_dir, bufsize=1)
 
@@ -165,20 +184,16 @@ class tf_run(object):
             if json_output:
                 command_output += line_string
             else:
-                line_string = line_string.rstrip()
-                self.logger.info(line_string)
+                self.logger.info(line_string.strip())
 
         sp.stop()
         p.communicate()
-
-        if not json_output:
-            del os.environ['TF_LOG']
 
         if p.returncode != 0:
             if ignore_error:
                 return False
             else:
-                raise TerraformRunError(f"environment deployment error (see log file for details)")
+                raise TerraformRunError(f"environment deployment error (see deploy.log file for details)")
 
         if len(command_output) > 0:
             try:
@@ -258,5 +273,15 @@ class tf_run(object):
         if not quiet:
             print("Getting environment information")
         self._command(cmd, json_output=True, quiet=quiet)
+
+        return self.deployment_data
+
+    def version(self):
+        cmd = []
+
+        cmd.append('version')
+        cmd.append('-json')
+
+        self._command(cmd, json_output=True, quiet=True)
 
         return self.deployment_data

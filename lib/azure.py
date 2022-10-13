@@ -315,7 +315,13 @@ class azure(object):
         network_client = NetworkManagementClient(credential, self.azure_subscription_id)
         nsgs = network_client.network_security_groups.list(self.azure_resource_group)
         for group in list(nsgs):
+            if group.location != self.azure_location:
+                continue
             nsg_list.append(group.name)
+
+        if len(nsg_list) == 0:
+            raise AzureDriverError(f"no suitable network security groups in location {self.azure_location}")
+
         selection = inquire.ask_list('Azure Network Security Group', nsg_list, default=default)
         self.azure_nsg = nsg_list[selection]
         return self.azure_nsg
@@ -372,7 +378,13 @@ class azure(object):
         network_client = NetworkManagementClient(credential, self.azure_subscription_id)
         vnetworks = network_client.virtual_networks.list(self.azure_resource_group)
         for group in list(vnetworks):
+            if group.location != self.azure_location:
+                continue
             vnet_list.append(group.name)
+
+        if len(vnet_list) == 0:
+            raise AzureDriverError(f"no suitable virtual network in location {self.azure_location}")
+
         selection = inquire.ask_list('Azure Virtual Network', vnet_list, default=default)
         self.azure_vnet = vnet_list[selection]
         return self.azure_vnet
