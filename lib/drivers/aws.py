@@ -236,14 +236,54 @@ class CloudDriver(object):
         except Exception as err:
             raise AWSDriverError(f"error deleting key pair: {err}")
 
-    def get_subnet_list(self) -> list[dict]:
-        pass
+    def get_subnet_list(self, vpc_id: str, zone: str) -> list[dict]:
+        subnet_list = []
+        subnet_filter = [
+            {
+                'Name': 'vpc-id',
+                'Values': [
+                    vpc_id,
+                ]
+            },
+            {
+                'Name': 'availability-zone',
+                'Values': [
+                    zone,
+                ]
+            },
+        ]
 
-    def create_subnet(self, vpc_id: str, zone: str, cidr: str) -> str:
-        pass
+        try:
+            subnets = self.ec2_client.describe_subnets(Filters=subnet_filter)
+        except Exception as err:
+            raise AWSDriverError(f"error getting subnets: {err}")
+
+        for subnet in subnets['Subnets']:
+            net_block = {'cidr': subnet['CidrBlock'],
+                         'id': subnet['SubnetId'],
+                         'public': subnet['MapPublicIpOnLaunch']}
+            subnet_list.append(net_block)
+
+        if len(subnet_list) == 0:
+            raise EmptyResultSet(f"no subnets found")
+
+        return subnet_list
+
+    def create_subnet(self, name: str, vpc_id: str, zone: str, cidr: str) -> str:
+        result = None
+        subnet_tag = [AWSTagStruct.build("subnet", AWSTag("Name", name)).as_dict]
+        try:
+            result = self.ec2_client.create_subnet(VpcId=vpc_id, AvailabilityZone=zone, CidrBlock=cidr, TagSpecifications=subnet_tag)
+        except Exception as err:
+            AWSDriverError(f"error creating subnet: {err}")
+
+        return result['SubnetId']
 
     def delete_subnet(self, subnet_id: str) -> None:
-        pass
+        try:
+            self.ec2_client.delete_subnet(SubnetId=subnet_id)
+        except Exception as err:
+            raise AWSDriverError(f"error deleting subnet: {err}")
 
     def create_ami(self, name: str, instance: str, description=None, root_dev="/dev/sda", root_type="gp3", root_size=100) -> str:
         root_disk = [
