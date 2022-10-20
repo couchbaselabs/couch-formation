@@ -102,6 +102,15 @@ class Block(object):
 
     def __init__(self):
         self.logger = logging.getLogger(self.__class__.__name__)
+        self._block = None
+
+    @property
+    def block(self):
+        return self._block
+
+    @block.setter
+    def block(self, value):
+        self._block = value
 
 
 class CloudCommonB(object):
