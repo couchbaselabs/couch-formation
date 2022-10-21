@@ -5,13 +5,9 @@ import logging
 import boto3
 import os
 import attr
-from attr.validators import instance_of as io, optional
-from typing import Protocol, Iterable, List
+from attr.validators import instance_of as io
+from typing import Iterable
 from lib.exceptions import AWSDriverError, EmptyResultSet
-from typing import Union
-from lib.ask import ask
-from lib.varfile import varfile
-from lib.prereq import prereq
 
 
 @attr.s
@@ -39,6 +35,40 @@ class AWSTagStruct(object):
     def add(self, obj: AWSTag):
         self.Tags.append(obj.as_dict)
         return self
+
+    @property
+    def as_dict(self):
+        return self.__dict__
+
+
+@attr.s
+class EbsVolume(object):
+    VolumeType = attr.ib(validator=io(str))
+    VolumeSize = attr.ib(validator=io(int))
+
+    @classmethod
+    def build(cls, vol_type: str, vol_size: int):
+        return cls(
+            vol_type,
+            vol_size
+        )
+
+    @property
+    def as_dict(self):
+        return self.__dict__
+
+
+@attr.s
+class AWSEbsDisk(object):
+    DeviceName = attr.ib(validator=io(str))
+    Ebs = attr.ib(validator=io(dict))
+
+    @classmethod
+    def build(cls, device: str, obj: EbsVolume):
+        return cls(
+            device,
+            obj.as_dict
+        )
 
     @property
     def as_dict(self):
@@ -275,16 +305,7 @@ class AWSami(AWSBase):
             raise AWSDriverError(f"can not get details for instance {instance}")
 
         root_dev = instance_details['BlockDeviceMappings'][0]['DeviceName']
-
-        root_disk = [
-            {
-                'DeviceName': root_dev,
-                'Ebs': {
-                    'VolumeType': root_type,
-                    'VolumeSize': root_size,
-                },
-            },
-        ]
+        root_disk = [AWSEbsDisk.build(root_dev, EbsVolume(root_type, root_size)).as_dict]
         ami_tag = [AWSTagStruct.build("image").add(AWSTag("Name", name)).as_dict]
 
         if not description:
@@ -432,16 +453,7 @@ class AWSInstance(AWSBase):
             raise AWSDriverError(f"can not get details for AMI {ami}")
 
         root_dev = ami_details['BlockDeviceMappings'][0]['DeviceName']
-
-        root_disk = [
-            {
-                'DeviceName': root_dev,
-                'Ebs': {
-                    'VolumeType': root_type,
-                    'VolumeSize': root_size,
-                },
-            },
-        ]
+        root_disk = [AWSEbsDisk.build(root_dev, EbsVolume(root_type, root_size)).as_dict]
         instance_tag = [AWSTagStruct.build("instance").add(AWSTag("Name", name)).as_dict]
 
         try:

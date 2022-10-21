@@ -7,7 +7,6 @@ from lib.drivers.network import NetworkDriver
 
 def test_aws_driver_1():
     warnings.filterwarnings("ignore")
-    # driver = CloudDriver()
     network = NetworkDriver()
 
     for item in AWSvpc().list():
