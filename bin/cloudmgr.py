@@ -14,7 +14,7 @@ parent = os.path.dirname(current)
 sys.path.append(parent)
 
 from lib.exceptions import *
-from lib.args import params
+from lib.args import Parameters
 from lib.imagemgr import image_manager
 from lib.runmgr import run_manager
 from lib.netmgr import network_manager
@@ -82,8 +82,8 @@ class cloud_manager(object):
 
 def main():
     global logger
-    arg_parser = params()
-    parameters = arg_parser.parser.parse_args()
+    arg_parser = Parameters()
+    parameters = arg_parser.args
     signal.signal(signal.SIGINT, break_signal_handler)
 
     try:

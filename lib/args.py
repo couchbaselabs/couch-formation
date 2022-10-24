@@ -2,8 +2,10 @@
 ##
 
 import argparse
+import lib.config as config
 
-class params(object):
+
+class Parameters(object):
 
     def __init__(self):
         parser = argparse.ArgumentParser(add_help=False)
@@ -15,12 +17,14 @@ class params(object):
         parent_parser.add_argument('--app', action='store', help="Application Environment", type=int)
         parent_parser.add_argument('--sgw', action='store', help="Sync Gateway Environment", type=int)
         parent_parser.add_argument('--cloud', action='store', help="Cloud type", default='aws')
-        parent_parser.add_argument('--zone', action='store_true', help="Use One Availability Zone", default=False)
+        parent_parser.add_argument('--saz', action='store_true', help="Use One Availability Zone", default=False)
         parent_parser.add_argument('--static', action='store_true', help="Assign Static IPs", default=False)
         parent_parser.add_argument('--dns', action='store_true', help="Update DNS", default=True)
         parent_parser.add_argument('--all', action='store_true', help="List all environments", default=False)
         parent_parser.add_argument('--standalone', action='store_true', help="Build standalone machine", default=False)
         parent_parser.add_argument('--min', action='store', help="Minimum node count", type=int, default=3)
+        parent_parser.add_argument('--name', action='store', help="Environment name")
+        parent_parser.add_argument('--noop', action='store', help=argparse.SUPPRESS)
         image_parser = argparse.ArgumentParser(add_help=False)
         image_parser.add_argument('--list', action='store_true', help='List images')
         image_parser.add_argument('--build', action='store_true', help='Build image')
@@ -48,3 +52,23 @@ class params(object):
         self.remove_parser = remove_mode
         self.list_parser = list_mode
         self.net_parser = net_mode
+
+        self.parameters = parser.parse_args()
+
+    @property
+    def args(self):
+        return self.parameters
+
+    def update_config(self):
+        if self.parameters.test:
+            config.test_mode = self.parameters.test
+        if self.parameters.cloud:
+            config.cloud = self.parameters.cloud
+        if self.parameters.debug:
+            config.debug_level = self.parameters.debug
+        if self.parameters.name:
+            config.env_name = self.parameters.name
+        if self.parameters.min:
+            config.cb_node_min = self.parameters.min
+        if self.parameters.saz:
+            config.single_az = self.parameters.saz

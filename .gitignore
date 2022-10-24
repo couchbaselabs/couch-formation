@@ -51,6 +51,8 @@ dev-*/
 test-*/
 prod-*/
 setup.log
-db/*.json
+db/net/
+db/img/
+db/env/
 deploy.log
 build.log

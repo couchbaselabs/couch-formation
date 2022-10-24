@@ -1,0 +1,50 @@
+{
+  "build": {
+    "centos": [
+      {
+        "version": "7",
+        "image": "CentOS 7.9.2009 x86_64",
+        "owner": "125523088429",
+        "user": "centos",
+        "vars": "centos-7.pkrvars.hcl",
+        "hcl": "linux.pkr.hcl"
+      },
+      {
+        "version": "8",
+        "image": "CentOS Stream 8 x86_64",
+        "owner": "125523088429",
+        "user": "centos",
+        "vars": "centos-8.pkrvars.hcl",
+        "hcl": "linux.pkr.hcl"
+      }
+    ],
+    "rhel": [
+      {
+        "version": "8",
+        "image": "RHEL-8.6.0_HVM-20220503-x86_64-2-Hourly2-GP2",
+        "owner": "309956199498",
+        "user": "ec2-user",
+        "vars": "rhel-8.pkrvars.hcl",
+        "hcl": "linux.pkr.hcl"
+      }
+    ],
+    "ubuntu": [
+      {
+        "version": "bionic",
+        "image": "ubuntu/images/hvm-ssd/ubuntu-bionic-18.04-amd64-server-20211129",
+        "owner": "099720109477",
+        "user": "ubuntu",
+        "vars": "ubuntu-bionic.pkrvars.hcl",
+        "hcl": "linux.pkr.hcl"
+      },
+      {
+        "version": "focal",
+        "image": "ubuntu/images/hvm-ssd/ubuntu-focal-20.04-amd64-server-20211129",
+        "owner": "099720109477",
+        "user": "ubuntu",
+        "vars": "ubuntu-focal.pkrvars.hcl",
+        "hcl": "linux.pkr.hcl"
+      }
+    ]
+  }
+}
