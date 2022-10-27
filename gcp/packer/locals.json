@@ -20,6 +20,14 @@
     ],
     "rhel": [
       {
+        "version": "7",
+        "image": "rhel-7-v20220920",
+        "family": "rhel-7",
+        "user": "rhel",
+        "vars": "rhel-7.pkrvars.hcl",
+        "hcl": "linux.pkr.hcl"
+      },
+      {
         "version": "8",
         "image": "rhel-8-v20220719",
         "family": "rhel-8",

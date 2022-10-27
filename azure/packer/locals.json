@@ -16,9 +16,31 @@
         "type": "Linux",
         "publisher": "OpenLogic",
         "offer": "CentOS",
-        "sku": "8_4",
+        "sku": "8_5",
         "user": "centos",
         "vars": "centos-8.pkrvars.hcl",
+        "hcl": "linux.pkr.hcl"
+      }
+    ],
+    "rhel": [
+      {
+        "version": "7",
+        "type": "Linux",
+        "publisher": "RedHat",
+        "offer": "RHEL",
+        "sku": "7_9",
+        "user": "rhel",
+        "vars": "rhel-7.pkrvars.hcl",
+        "hcl": "linux.pkr.hcl"
+      },
+      {
+        "version": "8",
+        "type": "Linux",
+        "publisher": "RedHat",
+        "offer": "RHEL",
+        "sku": "8_6",
+        "user": "rhel",
+        "vars": "rhel-8.pkrvars.hcl",
         "hcl": "linux.pkr.hcl"
       }
     ],

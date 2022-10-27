@@ -1,25 +1,20 @@
-#!/usr/bin/env -S python3 -W ignore
+#!/usr/bin/env python3
 
 '''
 Couchbase Cluster Manager
 '''
 
 import signal
-import sys
-import os
+import warnings
 import logging
-
-current = os.path.dirname(os.path.realpath(__file__))
-parent = os.path.dirname(current)
-sys.path.append(parent)
-
 from lib.exceptions import *
 from lib.args import Parameters
 from lib.imagemgr import image_manager
 from lib.runmgr import run_manager
 from lib.netmgr import network_manager
 
-VERSION = '3.0-alpha-1'
+VERSION = '3.0a'
+warnings.filterwarnings("ignore")
 logger = logging.getLogger()
 
 
@@ -29,12 +24,16 @@ def break_signal_handler(signum, frame):
     sys.exit(1)
 
 
-class cloud_manager(object):
+class CloudManager(object):
 
     def __init__(self, parameters):
         print("CB Environment Manager - version %s" % VERSION)
         self.args = parameters
         self.verb = self.args.command
+
+    def run_v3(self):
+        if self.verb == 'image':
+            pass
 
     def run(self):
         if self.verb == 'image':
@@ -100,7 +99,7 @@ def main():
     except (ValueError, KeyError):
         pass
 
-    session = cloud_manager(parameters)
+    session = CloudManager(parameters)
     session.run()
 
 

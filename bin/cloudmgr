@@ -8,4 +8,6 @@ if [ ! -d $PKGDIR/venv ]; then
 fi
 
 . $PKGDIR/venv/bin/activate
+export PYTHONPATH=$PYTHONPATH:$PKGDIR
+cd $PKGDIR
 $SCRIPTDIR/cloudmgr.py $@

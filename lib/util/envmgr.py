@@ -3,6 +3,9 @@
 
 import os
 import logging
+import attr
+from attr.validators import instance_of as io
+from typing import Iterable
 from lib.util.generator import Generator
 import lib.util.namegen
 import lib.config as config
@@ -29,6 +32,7 @@ class DatabaseDirectory(object):
 
     def path_check(self, path):
         if not os.path.exists(path):
+            self.logger.info(f"creating directory {path}")
             try:
                 self.logger.info(f"creating directory {path}")
                 os.mkdir(path)
@@ -40,13 +44,30 @@ class DatabaseDirectory(object):
         uuid = Generator.get_uuid(dir_key)
         img_dir = f"{self.image_dir}/{uuid}"
         self.path_check(img_dir)
+        self.logger.info(f"using image repository {img_dir} for cloud {config.cloud}")
         return img_dir
 
     def env_dir(self, name):
         uuid = Generator.get_uuid(name)
         env_dir = f"{self.environment_dir}/{uuid}"
         self.path_check(env_dir)
+        self.logger.info(f"using environment repository {env_dir} for {name}")
         return env_dir
+
+
+@attr.s
+class CloudEnv(object):
+    name = attr.ib(validator=io(str))
+    repo = attr.ib(validator=io(str))
+    db_dir = attr.ib(validator=io(str))
+
+    @classmethod
+    def from_config(cls, name: str, repo: str, db_dir: str):
+        return cls(
+            name,
+            repo,
+            db_dir,
+            )
 
 
 class EnvironmentManager(object):
@@ -60,4 +81,9 @@ class EnvironmentManager(object):
         else:
             env_name = lib.util.namegen.get_random_name()
 
+        self.logger.info(f"operating on environment {env_name}")
 
+        db = DatabaseDirectory()
+        env_dir = db.env_dir(env_name)
+
+        return CloudEnv(env_name, env_dir, db.location)

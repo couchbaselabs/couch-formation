@@ -26,7 +26,7 @@ class clustermgr(object):
         self.subnet_netmask = None
         self.default_gateway = None
         self.omit_range = None
-        self.use_single_zone = False
+        self.use_single_zone = self.args.zone
         self.availability_zone_cycle = None
         self.static_ip = self.args.static
         self.update_dns = self.args.dns

@@ -20,6 +20,14 @@
     ],
     "rhel": [
       {
+        "version": "7",
+        "image": "RHEL-7.9_HVM-20220512-x86_64-1-Hourly2-GP2",
+        "owner": "309956199498",
+        "user": "ec2-user",
+        "vars": "rhel-7.pkrvars.hcl",
+        "hcl": "linux.pkr.hcl"
+      },
+      {
         "version": "8",
         "image": "RHEL-8.6.0_HVM-20220503-x86_64-2-Hourly2-GP2",
         "owner": "309956199498",
