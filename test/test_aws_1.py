@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import warnings
-from lib.drivers.aws import AWSInstance, AWSami, AWSSubnet, AWSkey, AWSvpc, AWSSecurityGroup, AWSBase
+from lib.drivers.aws import AWSInstance, AWSami, AWSSubnet, AWSkey, AWSvpc, AWSSecurityGroup, AWSMachineType, AWSBase
 from lib.drivers.network import NetworkDriver
 
 
@@ -16,6 +16,14 @@ def test_aws_driver_1():
     subnet_list = list(network.get_next_subnet())
     zone_list = AWSBase().zones()
 
+    instance_type_list = AWSMachineType().list()
+    assert any(i['name'] == 'm5.large' for i in instance_type_list) is True
+
+    instance_details = AWSMachineType().details('m5.large')
+    assert instance_details['name'] == "m5.large"
+    assert instance_details['cpu'] == 2
+    assert instance_details['memory'] == 8192
+
     vpc_id = AWSvpc().create("pytest-vpc", vpc_cidr)
     sg_id = AWSSecurityGroup().create("pytest-sg", "TestSG", vpc_id)
     ssh_key = AWSkey().create("pytest-key")
@@ -28,26 +36,11 @@ def test_aws_driver_1():
     ami_list = AWSami().list()
     new_vpc_list = AWSvpc().list()
 
-    found = False
-    for vpc in new_vpc_list:
-        if vpc['id'] == vpc_id:
-            found = True
-            break
-    assert found is True
+    assert any(i['id'] == vpc_id for i in new_vpc_list) is True
 
-    found = False
-    for sg in sg_list:
-        if sg['id'] == sg_id:
-            found = True
-            break
-    assert found is True
+    assert any(i['id'] == sg_id for i in sg_list) is True
 
-    found = False
-    for ami in ami_list:
-        if ami['name'] == ami_id:
-            found = True
-            break
-    assert found is True
+    assert any(i['name'] == ami_id for i in ami_list) is True
 
     AWSInstance().terminate(instance)
     AWSami().delete(ami_id)

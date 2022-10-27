@@ -29,6 +29,13 @@ resource "aws_instance" "couchbase_nodes" {
     iops        = var.root_volume_iops
   }
 
+  ebs_block_device {
+    device_name = "/dev/xvdb"
+    volume_size = "32"
+    volume_type = var.root_volume_type
+    iops        = var.root_volume_iops
+  }
+
   tags = {
     Name = "${each.key}"
     Services = "${each.value.node_services}"

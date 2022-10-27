@@ -402,7 +402,7 @@ class AWSSubnet(AWSBase):
 
         try:
             while True:
-                result = self.ec2_client.describe_subnets(Filters=subnet_filter)
+                result = self.ec2_client.describe_subnets(**extra_args, Filters=subnet_filter)
                 subnets.extend(result['Subnets'])
                 if 'NextToken' not in result:
                     break
@@ -491,3 +491,58 @@ class AWSInstance(AWSBase):
 
         waiter = self.ec2_client.get_waiter('instance_terminated')
         waiter.wait(InstanceIds=[instance_id])
+
+
+class AWSMachineType(AWSBase):
+
+    def __init__(self):
+        super().__init__()
+        self.logger = logging.getLogger(self.__class__.__name__)
+
+    def list(self) -> list:
+        type_list = []
+        types = []
+        extra_args = {}
+        try:
+            while True:
+                result = self.ec2_client.describe_instance_types(**extra_args)
+                types.extend(result['InstanceTypes'])
+                if 'NextToken' not in result:
+                    break
+                extra_args['NextToken'] = result['NextToken']
+        except Exception as err:
+            raise AWSDriverError(f"error getting instance types: {err}")
+
+        for machine in types:
+            key_block = {'name': machine['InstanceType'],
+                         'cpu': int(machine['VCpuInfo']['DefaultVCpus']),
+                         'memory': int(machine['MemoryInfo']['SizeInMiB']),
+                         'arch': machine.get('ProcessorInfo', {}).get('SupportedArchitectures'),
+                         'clock': machine.get('ProcessorInfo', {}).get('SustainedClockSpeedInGhz'),
+                         'network': machine.get('NetworkInfo', {}).get('NetworkPerformance'),
+                         'hypervisor': machine.get('Hypervisor')}
+            type_list.append(key_block)
+
+        if len(type_list) == 0:
+            raise EmptyResultSet(f"no instance types found")
+
+        return type_list
+
+    def details(self, instance_type: str) -> dict:
+        try:
+            result = self.ec2_client.describe_instance_types(InstanceTypes=[instance_type])
+        except Exception as err:
+            raise AWSDriverError(f"error getting instance type details: {err}")
+
+        if len(result['InstanceTypes']) == 0:
+            raise EmptyResultSet(f"can not find instance type {instance_type}")
+
+        machine = result['InstanceTypes'][0]
+
+        return {'name': machine['InstanceType'],
+                'cpu': int(machine['VCpuInfo']['DefaultVCpus']),
+                'memory': int(machine['MemoryInfo']['SizeInMiB']),
+                'arch': machine.get('ProcessorInfo', {}).get('SupportedArchitectures'),
+                'clock': machine.get('ProcessorInfo', {}).get('SustainedClockSpeedInGhz'),
+                'network': machine.get('NetworkInfo', {}).get('NetworkPerformance'),
+                'hypervisor': machine.get('Hypervisor')}
