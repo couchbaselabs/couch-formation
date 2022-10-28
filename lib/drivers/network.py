@@ -14,16 +14,9 @@ class NetworkDriver(object):
         self.ip_space = []
         self.active_network: IPv4Network = ipaddress.ip_network("10.1.0.0/16")
         self.super_net: IPv4Network = ipaddress.ip_network("10.0.0.0/8")
-        self.ip_space.append(self.active_network)
 
     def add_network(self, cidr: str) -> None:
         cidr_net = ipaddress.ip_network(cidr)
-        for subnet in self.ip_space:
-            try:
-                result = list(subnet.address_exclude(cidr_net))
-                return
-            except ValueError:
-                pass
         self.ip_space.append(cidr_net)
 
     def get_next_subnet(self, prefix=24) -> str:
@@ -32,13 +25,18 @@ class NetworkDriver(object):
 
     def get_next_network(self) -> Union[str, None]:
         candidates = list(self.super_net.subnets(new_prefix=16))
-        for n, candidate in enumerate(candidates):
-            for network in self.ip_space:
+
+        for network in self.ip_space:
+            available = []
+            for n, candidate in enumerate(candidates):
                 try:
-                    result = list(candidate.address_exclude(network))
-                    del candidates[n]
+                    if network.prefixlen < 16:
+                        result = list(network.address_exclude(candidate))
+                    else:
+                        result = list(candidate.address_exclude(network))
                 except ValueError:
-                    continue
+                    available.append(candidate)
+            candidates = available
 
         if len(candidates) == 0:
             return None
