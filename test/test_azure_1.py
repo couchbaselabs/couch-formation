@@ -1,26 +1,27 @@
 #!/usr/bin/env python3
 
 import warnings
-from lib.drivers.gcp import GCPBase, GCPNetwork, GCPMachineType, GCPSubnet
+from lib.drivers.azure import AZBase, AZNetwork, AZSubnet, AZMachineType
 from lib.drivers.network import NetworkDriver
 
 
-def test_gcp_driver_1():
+def test_azure_driver_1():
     warnings.filterwarnings("ignore")
     network = NetworkDriver()
 
-    for item in GCPSubnet().list():
-        network.add_network(item['cidr'])
+    for item in AZNetwork().list():
+        for net in item['cidr']:
+            network.add_network(net)
 
     vpc_cidr = network.get_next_network()
     subnet_list = list(network.get_next_subnet())
-    zone_list = GCPBase().zones()
+    zone_list = AZBase().zones()
 
-    instance_type_list = GCPMachineType().list()
-    assert any(i['name'] == 'n2-standard-2' for i in instance_type_list) is True
+    instance_type_list = AZMachineType().list()
+    assert any(i['name'] == 'Standard_D2_v4' for i in instance_type_list) is True
 
-    instance_details = GCPMachineType().details('n2-standard-2')
-    assert instance_details['name'] == "n2-standard-2"
+    instance_details = AZMachineType().details('Standard_D2_v4')
+    assert instance_details['name'] == "Standard_D2_v4"
     assert instance_details['cpu'] == 2
     assert instance_details['memory'] == 8192
 
