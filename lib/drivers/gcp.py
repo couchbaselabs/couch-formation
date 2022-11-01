@@ -10,7 +10,8 @@ from google.oauth2 import service_account
 from lib.exceptions import GCPDriverError
 
 
-class GCPBase(object):
+class CloudBase(object):
+    NETWORK_SUPER_NET = False
 
     def __init__(self):
         self.logger = logging.getLogger(self.__class__.__name__)
@@ -98,7 +99,7 @@ class GCPBase(object):
         return self.gcp_zone_list
 
 
-class GCPNetwork(GCPBase):
+class Network(CloudBase):
 
     def __init__(self):
         super().__init__()
@@ -128,8 +129,13 @@ class GCPNetwork(GCPBase):
         else:
             return network_list
 
+    @property
+    def cidr_list(self):
+        for item in Subnet().list():
+            yield item['cidr']
 
-class GCPSubnet(GCPBase):
+
+class Subnet(CloudBase):
 
     def __init__(self):
         super().__init__()
@@ -160,7 +166,7 @@ class GCPSubnet(GCPBase):
             return subnet_list
 
 
-class GCPMachineType(GCPBase):
+class MachineType(CloudBase):
 
     def __init__(self):
         super().__init__()

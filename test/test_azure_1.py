@@ -1,29 +1,41 @@
 #!/usr/bin/env python3
 
 import warnings
-from lib.drivers.azure import AZBase, AZNetwork, AZSubnet, AZMachineType
 from lib.drivers.network import NetworkDriver
 
 
 def test_azure_driver_1():
     warnings.filterwarnings("ignore")
-    network = NetworkDriver()
+    cidr_util = NetworkDriver()
+    module = __import__('lib.drivers.azure')
+    driver = module.drivers.azure
+    base = getattr(driver, 'CloudBase')
+    network = getattr(driver, 'Network')
+    subnet = getattr(driver, 'Subnet')
+    # security_group = getattr(driver, 'SecurityGroup')
+    machine_type = getattr(driver, 'MachineType')
+    # instance = getattr(driver, 'Instance')
+    # ssh_key = getattr(driver, 'SSHKey')
+    # image = getattr(driver, 'Image')
 
-    for item in AZNetwork().list():
-        for net in item['cidr']:
-            network.add_network(net)
+    for net in network().cidr_list:
+        cidr_util.add_network(net)
 
-    vpc_cidr = network.get_next_network()
-    subnet_list = list(network.get_next_subnet())
-    zone_list = AZBase().zones()
+    vpc_cidr = cidr_util.get_next_network()
+    subnet_list = list(cidr_util.get_next_subnet())
+    zone_list = base().zones()
 
-    instance_type_list = AZMachineType().list()
+    instance_type_list = machine_type().list()
     assert any(i['name'] == 'Standard_D2_v4' for i in instance_type_list) is True
 
-    instance_details = AZMachineType().details('Standard_D2_v4')
+    instance_details = machine_type().details('Standard_D2_v4')
     assert instance_details['name'] == "Standard_D2_v4"
     assert instance_details['cpu'] == 2
     assert instance_details['memory'] == 8192
+
+    print(f"Network: {vpc_cidr}")
+    print(f"Subnet : {subnet_list[1]}")
+    print(f"Zone   : {zone_list[0]}")
 
     # vpc_id = AWSvpc().create("pytest-vpc", vpc_cidr)
     # sg_id = AWSSecurityGroup().create("pytest-sg", "TestSG", vpc_id)

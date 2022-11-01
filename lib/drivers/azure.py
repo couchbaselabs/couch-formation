@@ -13,7 +13,8 @@ from azure.mgmt.resource.subscriptions import SubscriptionClient
 from lib.exceptions import AzureDriverError
 
 
-class AZBase(object):
+class CloudBase(object):
+    NETWORK_SUPER_NET = True
 
     def __init__(self):
         self.logger = logging.getLogger(self.__class__.__name__)
@@ -123,7 +124,7 @@ class AZBase(object):
         return self.azure_availability_zones
 
 
-class AZNetwork(AZBase):
+class Network(CloudBase):
 
     def __init__(self):
         super().__init__()
@@ -151,8 +152,14 @@ class AZNetwork(AZBase):
 
         return vnet_list
 
+    @property
+    def cidr_list(self):
+        for item in self.list():
+            for net in item['cidr']:
+                yield net
 
-class AZSubnet(AZBase):
+
+class Subnet(CloudBase):
 
     def __init__(self):
         super().__init__()
@@ -180,7 +187,7 @@ class AZSubnet(AZBase):
         return subnet_list
 
 
-class AZMachineType(AZBase):
+class MachineType(CloudBase):
 
     def __init__(self):
         super().__init__()

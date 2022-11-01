@@ -80,7 +80,8 @@ class AWSebsDiskTypes(object):
     ebs_type_list = ['standard', 'io1', 'io2', 'gp2', 'sc1', 'st1', 'gp3']
 
 
-class AWSBase(object):
+class CloudBase(object):
+    NETWORK_SUPER_NET = True
 
     def __init__(self):
         self.logger = logging.getLogger(self.__class__.__name__)
@@ -146,7 +147,7 @@ class AWSBase(object):
         return aws_availability_zones
 
 
-class AWSSecurityGroup(AWSBase):
+class SecurityGroup(CloudBase):
 
     def __init__(self):
         super().__init__()
@@ -201,7 +202,7 @@ class AWSSecurityGroup(AWSBase):
             raise AWSDriverError(f"error deleting security group: {err}")
 
 
-class AWSvpc(AWSBase):
+class Network(CloudBase):
 
     def __init__(self):
         super().__init__()
@@ -233,6 +234,11 @@ class AWSvpc(AWSBase):
         else:
             return vpc_list
 
+    @property
+    def cidr_list(self):
+        for item in self.list():
+            yield item['cidr']
+
     def create(self, name: str, cidr: str) -> str:
         vpc_tag = [AWSTagStruct.build("vpc").add(AWSTag("Name", name)).as_dict]
         try:
@@ -249,7 +255,7 @@ class AWSvpc(AWSBase):
             raise AWSDriverError(f"error deleting VPC: {err}")
 
 
-class AWSami(AWSBase):
+class Image(CloudBase):
 
     def __init__(self):
         super().__init__()
@@ -298,7 +304,7 @@ class AWSami(AWSBase):
 
     def create(self, name: str, instance: str, description=None, root_type="gp3", root_size=100) -> str:
         try:
-            instance_details = AWSInstance().details(instance)
+            instance_details = Instance().details(instance)
         except Exception as err:
             raise AWSDriverError(f"error getting instance {instance} details: {err}")
         if 'BlockDeviceMappings' not in instance_details:
@@ -333,7 +339,7 @@ class AWSami(AWSBase):
             raise AWSDriverError(f"error deleting AMI: {err}")
 
 
-class AWSkey(AWSBase):
+class SSHKey(CloudBase):
 
     def __init__(self):
         super().__init__()
@@ -375,7 +381,7 @@ class AWSkey(AWSBase):
             raise AWSDriverError(f"error deleting key pair: {err}")
 
 
-class AWSSubnet(AWSBase):
+class Subnet(CloudBase):
 
     def __init__(self):
         super().__init__()
@@ -438,7 +444,7 @@ class AWSSubnet(AWSBase):
             raise AWSDriverError(f"error deleting subnet: {err}")
 
 
-class AWSInstance(AWSBase):
+class Instance(CloudBase):
 
     def __init__(self):
         super().__init__()
@@ -446,7 +452,7 @@ class AWSInstance(AWSBase):
 
     def run(self, name: str, ami: str, ssh_key: str, sg_id: str, subnet: str, root_type="gp3", root_size=100, instance_type="t2.micro"):
         try:
-            ami_details = AWSami().details(ami)
+            ami_details = Image().details(ami)
         except Exception as err:
             raise AWSDriverError(f"error getting AMI {ami} details: {err}")
         if 'BlockDeviceMappings' not in ami_details:
@@ -493,7 +499,7 @@ class AWSInstance(AWSBase):
         waiter.wait(InstanceIds=[instance_id])
 
 
-class AWSMachineType(AWSBase):
+class MachineType(CloudBase):
 
     def __init__(self):
         super().__init__()
