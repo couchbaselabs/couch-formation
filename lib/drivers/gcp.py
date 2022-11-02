@@ -11,6 +11,7 @@ from lib.exceptions import GCPDriverError
 
 
 class CloudBase(object):
+    VERSION = '3.0.0'
     NETWORK_SUPER_NET = False
 
     def __init__(self):

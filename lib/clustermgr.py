@@ -12,6 +12,7 @@ from lib.dns import dynamicDNS
 from lib.constants import CB_CFG_HEAD, CB_CFG_NODE, CB_CFG_TAIL, APP_CFG_HEAD, CLUSTER_CONFIG, APP_CONFIG, SGW_CFG_HEAD, SGW_CONFIG, STD_CFG_HEAD, STD_CONFIG
 from lib.location import location
 from lib.toolbox import toolbox
+import lib.config as config
 
 
 class clustermgr(object):

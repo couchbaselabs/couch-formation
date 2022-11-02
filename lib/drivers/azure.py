@@ -14,6 +14,7 @@ from lib.exceptions import AzureDriverError
 
 
 class CloudBase(object):
+    VERSION = '3.0.0'
     NETWORK_SUPER_NET = True
 
     def __init__(self):

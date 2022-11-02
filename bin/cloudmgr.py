@@ -12,8 +12,9 @@ from lib.args import Parameters
 from lib.imagemgr import image_manager
 from lib.runmgr import run_manager
 from lib.netmgr import network_manager
+import lib.config as config
 
-VERSION = '3.0a'
+VERSION = '3.0a1'
 warnings.filterwarnings("ignore")
 logger = logging.getLogger()
 
@@ -27,9 +28,10 @@ def break_signal_handler(signum, frame):
 class CloudManager(object):
 
     def __init__(self, parameters):
-        print("CB Environment Manager - version %s" % VERSION)
+        print(f"Couch Formation ({VERSION})")
         self.args = parameters
         self.verb = self.args.command
+        config.enable_cloud(self.args.cloud)
 
     def run_v3(self):
         if self.verb == 'image':
