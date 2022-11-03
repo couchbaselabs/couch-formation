@@ -31,7 +31,7 @@ resource "aws_instance" "couchbase_nodes" {
 
   ebs_block_device {
     device_name = "/dev/xvdb"
-    volume_size = "32"
+    volume_size = each.value.node_ram
     volume_type = var.root_volume_type
     iops        = var.root_volume_iops
   }
@@ -44,6 +44,7 @@ resource "aws_instance" "couchbase_nodes" {
   provisioner "remote-exec" {
     inline = [
       "sudo /usr/local/hostprep/bin/refresh.sh",
+      "sudo /usr/local/hostprep/bin/configure-swap.sh -o ${each.value.node_swap} -d /dev/xvdb",
       "sudo /usr/local/hostprep/bin/clusterinit.sh -m write -i ${self.private_ip} -e ${var.use_public_ip ? self.public_ip : "none"} -s ${each.value.node_services} -o ${var.index_memory} -g ${each.value.node_zone}",
     ]
     connection {

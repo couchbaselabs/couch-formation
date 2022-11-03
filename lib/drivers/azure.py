@@ -10,11 +10,15 @@ from azure.mgmt.compute import ComputeManagementClient
 from azure.mgmt.network import NetworkManagementClient
 from azure.mgmt.resource.resources import ResourceManagementClient
 from azure.mgmt.resource.subscriptions import SubscriptionClient
+from itertools import cycle
 from lib.exceptions import AzureDriverError
+import lib.config as config
 
 
 class CloudBase(object):
     VERSION = '3.0.0'
+    PUBLIC_CLOUD = True
+    SAAS_CLOUD = False
     NETWORK_SUPER_NET = True
 
     def __init__(self):
@@ -80,6 +84,8 @@ class CloudBase(object):
         if not self.azure_location:
             raise AzureDriverError("can not determine location, set AZURE_LOCATION")
 
+        self.set_zone()
+
     def read_config(self):
         if os.path.exists(self.config_main):
             config = configparser.ConfigParser()
@@ -123,6 +129,11 @@ class CloudBase(object):
 
         self.azure_zone = self.azure_availability_zones[0]
         return self.azure_availability_zones
+
+    def set_zone(self) -> None:
+        zone_list = self.zones()
+        config.cloud_zone_cycle = cycle(zone_list)
+        config.cloud_zone = zone_list[0]
 
 
 class Network(CloudBase):
@@ -188,6 +199,13 @@ class Subnet(CloudBase):
         return subnet_list
 
 
+class SecurityGroup(CloudBase):
+
+    def __init__(self):
+        super().__init__()
+        self.logger = logging.getLogger(self.__class__.__name__)
+
+
 class MachineType(CloudBase):
 
     def __init__(self):
@@ -227,3 +245,24 @@ class MachineType(CloudBase):
                         'memory': int(group.memory_in_mb),
                         'disk': int(group.resource_disk_size_in_mb)}
         return None
+
+
+class Instance(CloudBase):
+
+    def __init__(self):
+        super().__init__()
+        self.logger = logging.getLogger(self.__class__.__name__)
+
+
+class SSHKey(CloudBase):
+
+    def __init__(self):
+        super().__init__()
+        self.logger = logging.getLogger(self.__class__.__name__)
+
+
+class Image(CloudBase):
+
+    def __init__(self):
+        super().__init__()
+        self.logger = logging.getLogger(self.__class__.__name__)

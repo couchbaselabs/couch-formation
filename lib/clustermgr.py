@@ -171,12 +171,15 @@ class clustermgr(object):
 
         self.set_availability_zone_cycle()
 
+        node_swap = inquire.ask_bool('Configure swap', recommendation='false')
+
         print(f"Building {prefix_text} node configuration")
         while True:
             selected_services = []
             node_ip_address = None
             node_netmask = None
             node_gateway = None
+            node_ram = 16
             node_name = f"{prefix_text}-{env_text}-n{node:02d}"
             if self.availability_zone_cycle:
                 zone_data = self.get_next_availability_zone
@@ -212,6 +215,8 @@ class clustermgr(object):
                 NODE_ENV=node_env,
                 NODE_ZONE=availability_zone,
                 NODE_SUBNET=node_subnet,
+                NODE_RAM=node_ram,
+                NODE_SWAP=str(node_swap).lower(),
                 NODE_IP_ADDRESS=node_ip_address,
                 NODE_NETMASK=node_netmask,
                 NODE_GATEWAY=node_gateway,

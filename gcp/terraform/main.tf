@@ -1,6 +1,6 @@
 terraform {
   required_providers {
-    aws = {
+    google = {
       source  = "hashicorp/google"
     }
   }
@@ -21,6 +21,15 @@ data "google_compute_image" "cb_image" {
   project = var.gcp_project
 }
 
+resource "google_compute_disk" "swap_disk" {
+  for_each     = var.cluster_spec
+  name         = "${each.key}-swap"
+  type         = var.gcp_disk_type
+  size         = each.value.node_ram
+  project      = var.gcp_project
+  zone         = each.value.node_zone
+}
+
 resource "google_compute_instance" "couchbase_nodes" {
   for_each     = var.cluster_spec
   name         = each.key
@@ -34,6 +43,10 @@ resource "google_compute_instance" "couchbase_nodes" {
      type = var.gcp_disk_type
      image = data.google_compute_image.cb_image.self_link
    }
+  }
+
+  attached_disk {
+    source = google_compute_disk.swap_disk[each.key].self_link
   }
 
   network_interface {
@@ -57,6 +70,7 @@ resource "google_compute_instance" "couchbase_nodes" {
   provisioner "remote-exec" {
     inline = [
       "sudo /usr/local/hostprep/bin/refresh.sh",
+      "sudo /usr/local/hostprep/bin/configure-swap.sh -o ${each.value.node_swap} -d /dev/sdb",
       "sudo /usr/local/hostprep/bin/clusterinit.sh -m write -i ${self.network_interface.0.network_ip} -e ${var.use_public_ip ? self.network_interface.0.access_config.0.nat_ip : "none"} -s ${each.value.node_services} -o ${var.index_memory} -g ${each.value.node_zone}",
     ]
     connection {

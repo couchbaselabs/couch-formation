@@ -8,10 +8,14 @@ import configparser
 import googleapiclient.discovery
 from google.oauth2 import service_account
 from lib.exceptions import GCPDriverError
+from itertools import cycle
+import lib.config as config
 
 
 class CloudBase(object):
     VERSION = '3.0.0'
+    PUBLIC_CLOUD = True
+    SAAS_CLOUD = False
     NETWORK_SUPER_NET = False
 
     def __init__(self):
@@ -65,6 +69,7 @@ class CloudBase(object):
             raise GCPDriverError(f"error connecting to GCP: {err}")
 
         self.zones()
+        self.set_zone()
 
     def read_config(self):
         if os.path.exists(self.config_default):
@@ -98,6 +103,11 @@ class CloudBase(object):
 
         self.gcp_zone = self.gcp_zone_list[0]
         return self.gcp_zone_list
+
+    def set_zone(self) -> None:
+        zone_list = self.zones()
+        config.cloud_zone_cycle = cycle(zone_list)
+        config.cloud_zone = zone_list[0]
 
 
 class Network(CloudBase):
@@ -167,6 +177,13 @@ class Subnet(CloudBase):
             return subnet_list
 
 
+class SecurityGroup(CloudBase):
+
+    def __init__(self):
+        super().__init__()
+        self.logger = logging.getLogger(self.__class__.__name__)
+
+
 class MachineType(CloudBase):
 
     def __init__(self):
@@ -204,3 +221,24 @@ class MachineType(CloudBase):
                     'description': response['description']}
         except Exception as err:
             GCPDriverError(f"error getting machine type details: {err}")
+
+
+class Instance(CloudBase):
+
+    def __init__(self):
+        super().__init__()
+        self.logger = logging.getLogger(self.__class__.__name__)
+
+
+class SSHKey(CloudBase):
+
+    def __init__(self):
+        super().__init__()
+        self.logger = logging.getLogger(self.__class__.__name__)
+
+
+class Image(CloudBase):
+
+    def __init__(self):
+        super().__init__()
+        self.logger = logging.getLogger(self.__class__.__name__)

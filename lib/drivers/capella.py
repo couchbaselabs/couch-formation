@@ -6,6 +6,8 @@ import logging
 
 class CloudBase(object):
     VERSION = '3.0.0'
+    PUBLIC_CLOUD = True
+    SAAS_CLOUD = True
     NETWORK_SUPER_NET = False
 
     def __init__(self):

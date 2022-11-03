@@ -7,7 +7,9 @@ import os
 import attr
 from attr.validators import instance_of as io
 from typing import Iterable
+from itertools import cycle
 from lib.exceptions import AWSDriverError, EmptyResultSet
+import lib.config as config
 
 
 @attr.s
@@ -82,6 +84,8 @@ class AWSebsDiskTypes(object):
 
 class CloudBase(object):
     VERSION = '3.0.0'
+    PUBLIC_CLOUD = True
+    SAAS_CLOUD = False
     NETWORK_SUPER_NET = True
 
     def __init__(self):
@@ -103,6 +107,8 @@ class CloudBase(object):
             self.ec2_client = boto3.client('ec2', region_name=self.aws_region)
         except Exception as err:
             raise AWSDriverError(f"can not initialize AWS driver: {err}")
+
+        self.set_zone()
 
     @property
     def client(self):
@@ -146,6 +152,11 @@ class CloudBase(object):
             self.logger.info("Found availability zone %s" % availability_zone['ZoneName'])
             aws_availability_zones.append(availability_zone['ZoneName'])
         return aws_availability_zones
+
+    def set_zone(self) -> None:
+        zone_list = self.zones()
+        config.cloud_zone_cycle = cycle(zone_list)
+        config.cloud_zone = zone_list[0]
 
 
 class SecurityGroup(CloudBase):

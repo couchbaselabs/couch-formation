@@ -64,6 +64,25 @@ data "azurerm_image" "cb_image" {
   resource_group_name = var.azure_resource_group
 }
 
+resource "azurerm_managed_disk" "swap_disk" {
+  for_each             = var.cluster_spec
+  name                 = "${each.key}-swap"
+  location             = var.azure_location
+  zone                 = each.value.node_zone
+  resource_group_name  = var.azure_resource_group
+  storage_account_type = var.azure_disk_type
+  create_option        = "Empty"
+  disk_size_gb         = each.value.node_ram
+}
+
+resource "azurerm_virtual_machine_data_disk_attachment" "swap_disk" {
+  for_each           = var.cluster_spec
+  managed_disk_id    = azurerm_managed_disk.swap_disk[each.key].id
+  virtual_machine_id = azurerm_linux_virtual_machine.couchbase_nodes[each.key].id
+  lun                = "0"
+  caching            = "ReadWrite"
+}
+
 resource "azurerm_linux_virtual_machine" "couchbase_nodes" {
   for_each              = var.cluster_spec
   name                  = each.key
@@ -91,6 +110,7 @@ resource "azurerm_linux_virtual_machine" "couchbase_nodes" {
   provisioner "remote-exec" {
     inline = [
       "sudo /usr/local/hostprep/bin/refresh.sh",
+      "sudo /usr/local/hostprep/bin/configure-swap.sh -o ${each.value.node_swap} -d /dev/sdb",
       "sudo /usr/local/hostprep/bin/clusterinit.sh -m write -i ${self.private_ip_address} -e ${var.use_public_ip ? self.public_ip_address : "none"} -s ${each.value.node_services} -o ${var.index_memory} -g zone${each.value.node_zone}",
     ]
     connection {
