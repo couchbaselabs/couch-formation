@@ -2,6 +2,7 @@
 ##
 
 from datetime import datetime
+import json
 from lib.exceptions import *
 from lib.ask import ask
 from lib.aws import aws
@@ -22,6 +23,10 @@ class image_manager(object):
     def __init__(self, parameters):
         self.cloud = parameters.cloud
         self.args = parameters
+        if self.args.json:
+            self.json_output = self.args.json
+        else:
+            self.json_output = False
         self.lc = location()
         self.packer_template_file = 'linux.pkrvars.template'
         self.lc.set_cloud(self.cloud)
@@ -144,7 +149,13 @@ class image_manager(object):
         inquire = ask()
 
         image_list = self._aws_list()
-        inquire.ask_list('AMI List', image_list, list_only=True)
+        if self.json_output:
+            for item in image_list:
+                if 'datetime' in item:
+                    item['datetime'] = item['datetime'].strftime('%D %r')
+            print(json.dumps(image_list, indent=2))
+        else:
+            inquire.ask_list('AMI List', image_list, list_only=True)
 
     def aws_delete(self, image=None):
         inquire = ask()
@@ -179,7 +190,13 @@ class image_manager(object):
         inquire = ask()
 
         image_list = self._gcp_list()
-        inquire.ask_list('GCP Image List', image_list, list_only=True)
+        if self.json_output:
+            for item in image_list:
+                if 'datetime' in item:
+                    item['datetime'] = item['datetime'].strftime('%D %r')
+            print(json.dumps(image_list, indent=2))
+        else:
+            inquire.ask_list('GCP Image List', image_list, list_only=True)
 
     def gcp_delete(self, image=None):
         inquire = ask()
@@ -213,7 +230,13 @@ class image_manager(object):
         inquire = ask()
 
         image_list = self._azure_list()
-        inquire.ask_list('Azure Image List', image_list, list_only=True)
+        if self.json_output:
+            for item in image_list:
+                if 'datetime' in item:
+                    item['datetime'] = item['datetime'].strftime('%D %r')
+            print(json.dumps(image_list, indent=2))
+        else:
+            inquire.ask_list('Azure Image List', image_list, list_only=True)
 
     def azure_delete(self, image=None):
         inquire = ask()

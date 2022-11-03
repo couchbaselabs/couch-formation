@@ -110,7 +110,7 @@ resource "azurerm_linux_virtual_machine" "couchbase_nodes" {
   provisioner "remote-exec" {
     inline = [
       "sudo /usr/local/hostprep/bin/refresh.sh",
-      "sudo /usr/local/hostprep/bin/configure-swap.sh -o ${each.value.node_swap} -d /dev/sdb",
+      "sudo /usr/local/hostprep/bin/configure-swap.sh -o ${each.value.node_swap} -d /dev/sdc -w",
       "sudo /usr/local/hostprep/bin/clusterinit.sh -m write -i ${self.private_ip_address} -e ${var.use_public_ip ? self.public_ip_address : "none"} -s ${each.value.node_services} -o ${var.index_memory} -g zone${each.value.node_zone}",
     ]
     connection {
@@ -146,6 +146,7 @@ resource "null_resource" "couchbase-init" {
   }
   provisioner "remote-exec" {
     inline = [
+      "sudo /usr/local/hostprep/bin/configure-swap.sh -r",
       "sudo /usr/local/hostprep/bin/clusterinit.sh -m config -r ${local.rally_node} -n ${local.cluster_init_name}",
     ]
   }

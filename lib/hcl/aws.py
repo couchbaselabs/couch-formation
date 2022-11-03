@@ -86,5 +86,8 @@ class CloudDriver(object):
 
         self.ask.ask_list(os_choice)
 
+    def create_nodes(self):
+        pass
+
     def create_env(self):
         pass

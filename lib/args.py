@@ -31,6 +31,7 @@ class Parameters(object):
         image_parser.add_argument('--build', action='store_true', help='Build image')
         image_parser.add_argument('--delete', action='store_true', help='Delete image')
         image_parser.add_argument('--image', action='store', help='Image name')
+        image_parser.add_argument('--json', action='store_true', help='Output in JSON format', default=False)
         image_parser.add_argument('-h', '--help', action='help', default=argparse.SUPPRESS, help='Show help message')
         net_parser = argparse.ArgumentParser(add_help=False)
         net_parser.add_argument('--list', action='store_true', help='List network database')

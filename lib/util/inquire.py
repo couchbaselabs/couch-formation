@@ -6,6 +6,7 @@ import sys
 import ipaddress
 import getpass
 import re
+from typing import Union, Iterable
 from distutils.util import strtobool
 
 
@@ -16,9 +17,53 @@ class Inquire(object):
     def __init__(self):
         self.logger = logging.getLogger(self.__class__.__name__)
 
-    def divide_list(self, array, n):
+    @staticmethod
+    def divide_list(array: list, n: int) -> Iterable:
         for i in range(0, len(array), n):
             yield array[i:i + n]
+
+    @staticmethod
+    def field_lengths(table: list[dict]) -> tuple[int]:
+        vector = []
+        row_len = 0
+        for item in table:
+            columns = ()
+            for n, key in enumerate(item.keys()):
+                lk = len(key)
+                lv = len(item[key])
+                lt = lk if lk > lv else lv
+                columns = columns + (lt,)
+            row_len = len(columns)
+            vector.append(columns)
+
+        final = ()
+        for x in range(row_len):
+            max_value = max(vector, key=lambda t: t[x])
+            final = final + (max_value[x],)
+
+        return final
+
+    @staticmethod
+    def print_header(t: tuple, row: dict, pad: int = 5) -> None:
+        print("#".ljust(pad+2), end='')
+        for n, key in enumerate(row.keys()):
+            print(key.capitalize().ljust(t[n]), end='')
+            print(" ", end='')
+        print("")
+        print("-" * (pad+1), end='')
+        print(" ", end='')
+        for n, value in enumerate(t):
+            print("-" * value, end='')
+            print(" ", end='')
+        print("")
+
+    @staticmethod
+    def print_line(t: tuple, row: dict, item: int, pad: int = 5) -> None:
+        print(f"{str(item).rjust(pad)}) ", end='')
+        for n, key in enumerate(row.keys()):
+            print(str(row[key]).ljust(t[n]), end='')
+            print(" ", end='')
+        print("")
 
     def get_option_struct_type(self, options):
         if options:
@@ -38,6 +83,86 @@ class Inquire(object):
             return options[index]['name']
         else:
             return options[index]
+
+    def ask_list_basic(self, question: str, options: list[str], page_length: int = 20) -> str:
+        print("%s:" % question)
+        divided_list = list(self.divide_list(options, page_length))
+        while True:
+            last_group = False
+            answer = ''
+            for count, sub_list in enumerate(divided_list):
+                page_incr = count * page_length
+                for n, item in enumerate(sub_list):
+                    item_number = n + 1 + page_incr
+                    print(f"{str(item_number).rjust(5)}) {item}")
+
+                if count == len(divided_list) - 1:
+                    answer = input("Selection [q=quit]: ")
+                    last_group = True
+                else:
+                    answer = input("Selection [n=next, q=quit]: ")
+
+                answer = answer.rstrip("\n")
+
+                if (answer == 'n' or answer == '') and not last_group:
+                    continue
+                elif answer == 'q':
+                    sys.exit(0)
+                else:
+                    break
+
+            try:
+                response = int(answer)
+                if 0 < response <= len(options):
+                    return options[response - 1]
+                else:
+                    raise ValueError
+            except ValueError:
+                print("Please select the number corresponding to your selection.")
+                continue
+
+    def ask_list_dict(self, question: str, options: list[dict], sort_key: Union[str, None] = None, page_length: int = 20) -> dict:
+        if sort_key:
+            options = sorted(options, key=lambda i: i[sort_key] if i[sort_key] else "")
+
+        print("%s:" % question)
+
+        divided_list = list(self.divide_list(options, page_length))
+        field_length = self.field_lengths(options)
+        while True:
+            last_group = False
+            answer = ''
+            for count, sub_list in enumerate(divided_list):
+                page_incr = count * page_length
+                self.print_header(field_length, sub_list[0])
+                for n, item in enumerate(sub_list):
+                    item_number = n + 1 + page_incr
+                    self.print_line(field_length, item, item_number)
+
+                if count == len(divided_list) - 1:
+                    answer = input("Selection [q=quit]: ")
+                    last_group = True
+                else:
+                    answer = input("Selection [n=next, q=quit]: ")
+
+                answer = answer.rstrip("\n")
+
+                if (answer == 'n' or answer == '') and not last_group:
+                    continue
+                elif answer == 'q':
+                    sys.exit(0)
+                else:
+                    break
+
+            try:
+                response = int(answer)
+                if 0 < response <= len(options):
+                    return options[response - 1]
+                else:
+                    raise ValueError
+            except ValueError:
+                print("Please select the number corresponding to your selection.")
+                continue
 
     def ask_list(self, question, options=[], descriptions=[], list_only=False, page_len=20, default=None):
         """Get selection from list"""
@@ -345,15 +470,17 @@ class Inquire(object):
                 print("Invalid input, please try again...")
                 continue
 
-    def ask_bool(self, question, recommendation='true', default=None):
-        """Get true or false response"""
+    @staticmethod
+    def ask_bool(question, recommendation='true') -> bool:
+        if bool(strtobool(recommendation)):
+            default_answer = 'y'
+        else:
+            default_answer = 'n'
+
         print("%s:" % question)
-        if default:
-            if self.ask_yn("Use previous value: \"%s\"" % default, default=True):
-                return bool(strtobool(default))
         while True:
             if recommendation:
-                suffix = ' [q=quit enter="' + recommendation + '"]'
+                suffix = ' (y/n) [q=quit enter="' + default_answer + '"]'
             else:
                 suffix = ' [q=quit]'
             prompt = 'Selection' + suffix + ': '
@@ -362,12 +489,9 @@ class Inquire(object):
             if answer == 'q':
                 sys.exit(0)
             if len(answer) == 0:
-                answer = recommendation
+                answer = default_answer
             try:
-                if answer == 'true' or answer == 'false':
-                    return bool(strtobool(answer))
-                else:
-                    raise Exception("please answer true or false")
+                return bool(strtobool(answer))
             except Exception as e:
                 print("Invalid input: %s, please try again..." % str(e))
                 continue
