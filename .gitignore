@@ -54,5 +54,6 @@ setup.log
 db/net/
 db/img/
 db/env/
+db/*-*-*-*/
 deploy.log
 build.log

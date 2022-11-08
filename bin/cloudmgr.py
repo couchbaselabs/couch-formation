@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 
-'''
-Couchbase Cluster Manager
-'''
+#
+# Couchbase Cluster Manager
+#
 
 import signal
 import warnings
@@ -13,8 +13,9 @@ from lib.imagemgr import image_manager
 from lib.runmgr import run_manager
 from lib.netmgr import network_manager
 import lib.config as config
+from lib.config import OperatingMode
 
-VERSION = '3.0a1'
+VERSION = '3.0a2'
 warnings.filterwarnings("ignore")
 logger = logging.getLogger()
 
@@ -31,11 +32,33 @@ class CloudManager(object):
         print(f"Couch Formation ({VERSION})")
         self.args = parameters
         self.verb = self.args.command
+        config.process_params(parameters)
         config.enable_cloud(self.args.cloud)
 
     def run_v3(self):
         if self.verb == 'image':
-            pass
+            print("Not implemented")
+        elif self.verb == 'create':
+            print("Not implemented")
+        elif self.verb == 'deploy':
+            print("Not implemented")
+        elif self.verb == 'destroy':
+            print("Not implemented")
+        elif self.verb == 'remove':
+            print("Not implemented")
+        elif self.verb == 'remove':
+            print("Not implemented")
+        elif self.verb == 'list':
+            print("Not implemented")
+        elif self.verb == 'net':
+            print("Not implemented")
+        elif self.verb == 'vpc':
+            if config.operating_mode == OperatingMode.CREATE.value:
+                config.cloud_operator().create_net()
+            elif config.operating_mode == OperatingMode.DESTROY.value:
+                config.cloud_operator().destroy_net()
+        elif self.verb == 'ssh':
+            print("Not implemented")
 
     def run(self):
         if self.verb == 'image':
@@ -79,6 +102,10 @@ class CloudManager(object):
             elif self.args.cidr:
                 task.add_network()
             sys.exit(0)
+        elif self.verb == 'vpc':
+            print("Not implemented")
+        elif self.verb == 'ssh':
+            print("Not implemented")
 
 
 def main():
@@ -102,7 +129,10 @@ def main():
         pass
 
     session = CloudManager(parameters)
-    session.run()
+    if config.env_name:
+        session.run_v3()
+    else:
+        session.run()
 
 
 if __name__ == '__main__':

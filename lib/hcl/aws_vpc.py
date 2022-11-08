@@ -219,7 +219,7 @@ class Route(object):
 
     @property
     def as_dict(self):
-        return self.__dict__
+        return self.__dict__['route']
 
 
 @attr.s

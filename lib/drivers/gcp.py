@@ -107,7 +107,10 @@ class CloudBase(object):
     def set_zone(self) -> None:
         zone_list = self.zones()
         config.cloud_zone_cycle = cycle(zone_list)
-        config.cloud_zone = zone_list[0]
+
+    @property
+    def region(self):
+        return self.gcp_region
 
 
 class Network(CloudBase):

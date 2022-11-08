@@ -156,7 +156,6 @@ class CloudBase(object):
     def set_zone(self) -> None:
         zone_list = self.zones()
         config.cloud_zone_cycle = cycle(zone_list)
-        config.cloud_zone = zone_list[0]
 
 
 class SecurityGroup(CloudBase):

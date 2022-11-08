@@ -3,18 +3,22 @@
 
 import os
 import warnings
+import argparse
 from enum import Enum
 from lib.drivers.network import NetworkDriver
 
 
-class RunMode(Enum):
-    Image = 0
-    Node = 1
+class OperatingMode(Enum):
+    CREATE = 0
+    DESTROY = 1
+    SHOW = 2
+    LOG = 3
 
 
 warnings.filterwarnings("ignore")
 cloud = "aws"
 debug_level = 3
+enable_debug: False
 env_name = None
 sync_gateway = False
 sgw_node_count = 1
@@ -23,6 +27,7 @@ app_node_count = 1
 static_ip = False
 public_ip = True
 update_dns = False
+domain_name: None
 generic_mode = False
 cb_node_min = 3
 dns_domain = None
@@ -30,7 +35,7 @@ single_az = False
 cloud_zone = None
 cloud_zone_cycle = None
 test_mode = False
-run_mode = RunMode.Node.value
+operating_mode = OperatingMode.CREATE.value
 cidr_util = NetworkDriver()
 cloud_base = None
 cloud_network = None
@@ -40,13 +45,49 @@ cloud_machine_type = None
 cloud_instance = None
 ssh_key = None
 cloud_image = None
+cloud_operator = None
 
 lib_dir = os.path.dirname(os.path.realpath(__file__))
 package_dir = os.path.dirname(lib_dir)
 
 
+def process_params(parameters: argparse.Namespace) -> None:
+    global enable_debug, \
+        env_name, \
+        cloud, \
+        cloud_zone, \
+        static_ip, \
+        cb_node_min, \
+        app_node_count, \
+        sgw_node_count, \
+        update_dns, \
+        domain_name, \
+        operating_mode
+    if parameters.debug:
+        enable_debug = parameters.debug
+    if parameters.name:
+        env_name = parameters.name
+    if parameters.cloud:
+        cloud = parameters.cloud
+    if parameters.zone:
+        cloud_zone = parameters.zone
+    if parameters.static:
+        static_ip = parameters.static
+    if parameters.min:
+        cb_node_min = app_node_count = sgw_node_count = parameters.min
+    if parameters.dns:
+        update_dns = parameters.dns
+    if 'create' in parameters:
+        if parameters.create:
+            operating_mode = OperatingMode.CREATE.value
+    if 'destroy' in parameters:
+        if parameters.destroy:
+            operating_mode = OperatingMode.DESTROY.value
+
+
 def enable_cloud(name: str) -> None:
     driver = None
+    operator = None
     global cloud_base, \
         cloud_network, \
         cloud_subnet, \
@@ -54,23 +95,34 @@ def enable_cloud(name: str) -> None:
         cloud_machine_type, \
         cloud_instance, \
         ssh_key, \
-        cloud_image
+        cloud_image, \
+        cloud_operator
 
     if name == 'aws':
         module = __import__('lib.drivers.aws')
         driver = module.drivers.aws
+        module = __import__('lib.hcl.aws')
+        operator = module.hcl.aws
     elif name == 'gcp':
         module = __import__('lib.drivers.gcp')
         driver = module.drivers.gcp
+        module = __import__('lib.hcl.gcp')
+        operator = module.hcl.gcp
     elif name == 'azure':
         module = __import__('lib.drivers.azure')
         driver = module.drivers.azure
+        module = __import__('lib.hcl.azure')
+        operator = module.hcl.azure
     elif name == 'vmware':
         module = __import__('lib.drivers.vmware')
         driver = module.drivers.vmware
+        module = __import__('lib.hcl.vmware')
+        operator = module.hcl.vmware
     elif name == 'capella':
         module = __import__('lib.drivers.capella')
         driver = module.drivers.capella
+        module = __import__('lib.hcl.capella')
+        operator = module.hcl.capella
     cloud_base = getattr(driver, 'CloudBase')
     cloud_network = getattr(driver, 'Network')
     cloud_subnet = getattr(driver, 'Subnet')
@@ -79,5 +131,7 @@ def enable_cloud(name: str) -> None:
     cloud_instance = getattr(driver, 'Instance')
     ssh_key = getattr(driver, 'SSHKey')
     cloud_image = getattr(driver, 'Image')
+    cloud_operator = getattr(operator, 'CloudDriver')
 
     print(f"Loaded Cloud Driver {name.upper()} version {cloud_base.VERSION}")
+    print(f"Loaded Cloud Operator {name.upper()} version {cloud_operator.VERSION}")

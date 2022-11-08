@@ -5,12 +5,24 @@ import os
 import logging
 import attr
 from attr.validators import instance_of as io
-from typing import Iterable
+from enum import Enum
+from typing import Union
 from lib.util.generator import Generator
 import lib.util.namegen
 import lib.config as config
-from lib.config import RunMode
 from lib.exceptions import DirectoryStructureError
+
+logger = logging.getLogger(__name__)
+
+
+class PathType(Enum):
+    IMAGE = 0
+    NETWORK = 1
+    CLUSTER = 2
+    APP = 3
+    SGW = 4
+    CONFIG = 5
+    OTHER = 6
 
 
 class DatabaseDirectory(object):
@@ -68,6 +80,83 @@ class CloudEnv(object):
             repo,
             db_dir,
             )
+
+
+class PathMap(object):
+
+    def __init__(self):
+        self.path = {}
+        if 'CLOUD_MANAGER_DATABASE_LOCATION' in os.environ:
+            self.root = os.environ['CLOUD_MANAGER_DATABASE_LOCATION']
+        else:
+            self.root = f"{config.package_dir}/db"
+
+    def map(self, name: str, mode: Enum) -> None:
+        suffix = self.map_suffix(mode.value)
+        uuid = Generator.get_uuid(name + suffix)
+        path_dir = f"{self.root}/{uuid}"
+        self.path_check(path_dir)
+        self.path[mode.name.lower()] = {
+            'path': path_dir,
+            'file': None
+        }
+        logger.debug(f"mapping path {path_dir} for {name}")
+
+    @staticmethod
+    def map_suffix(mode) -> str:
+        if mode == 0:
+            return "-image"
+        elif mode == 1:
+            return "-network"
+        elif mode == 2:
+            return "-cluster"
+        elif mode == 3:
+            return "-app"
+        elif mode == 4:
+            return "-sgw"
+        elif mode == 5:
+            return "-config"
+        elif mode == 6:
+            return "-other"
+
+    @staticmethod
+    def path_check(path):
+        if not os.path.exists(path):
+            logger.debug(f"creating directory {path}")
+            try:
+                os.mkdir(path)
+            except Exception as err:
+                raise DirectoryStructureError(f"can not create path {path}: {err}")
+
+    def use(self, file: str, mode: Enum) -> tuple[str, str]:
+        self.path[mode.name.lower()]['file'] = self.path_prefix(mode) + file
+        return self.path[mode.name.lower()]['path'], self.path[mode.name.lower()]['file']
+
+    def file(self, mode: Enum) -> Union[str, None]:
+        return self.path.get(mode.name.lower(), None).get('file', None)
+
+    def exists(self, mode: Enum) -> Union[str, bool]:
+        file_name = self.path.get(mode.name.lower(), False).get('file', False)
+        if file_name:
+            return os.path.exists(file_name)
+        else:
+            return False
+
+    def get_path(self, mode: Enum) -> str:
+        try:
+            return self.path[mode.name.lower()]['path']
+        except KeyError:
+            raise ValueError(f"path not mapped for {mode.name.lower()}")
+
+    def path_prefix(self, mode: Enum) -> str:
+        try:
+            return self.path[mode.name.lower()]['path'] + '/'
+        except KeyError:
+            raise ValueError(f"path not mapped for {mode.name.lower()}")
+
+    @property
+    def as_dict(self):
+        return self.__dict__
 
 
 class EnvironmentManager(object):
