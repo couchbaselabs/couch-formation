@@ -57,3 +57,5 @@ db/env/
 db/*-*-*-*/
 deploy.log
 build.log
+catalog.backup
+catalog.json

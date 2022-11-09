@@ -6,7 +6,7 @@ import attr
 import json
 from attr.validators import instance_of as io
 from typing import Iterable
-from lib.util.envmgr import PathMap, PathType
+from lib.util.envmgr import PathMap, PathType, ConfigFile
 from lib.exceptions import AWSDriverError
 from lib.drivers.cbrelease import CBRelease
 from lib.drivers.network import NetworkDriver
@@ -68,15 +68,15 @@ class CloudDriver(object):
     def __init__(self):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.config = None
-        self.path_map = PathMap()
         self.ask = Inquire()
 
         if not config.env_name:
             raise AWSDriverError("no environment specified")
 
-        self.path_map.map(config.env_name, PathType.IMAGE)
-        self.path_map.map(config.env_name, PathType.CLUSTER)
-        self.path_map.map(config.env_name, PathType.NETWORK)
+        self.path_map = PathMap(config.env_name, config.cloud)
+        self.path_map.map(PathType.IMAGE)
+        self.path_map.map(PathType.CLUSTER)
+        self.path_map.map(PathType.NETWORK)
 
         self.driver_config = self.path_map.root + "/" + CloudDriver.DRIVER_CONFIG
         try:
@@ -144,7 +144,7 @@ class CloudDriver(object):
                     (f"cf_subnet_cidr_{n+1}", subnet_list[n+1], "Subnet CIDR", "string")
                 )
 
-        provider_block = AWSProvider.for_region("region_name").as_dict
+        provider_block = AWSProvider.for_region("region_name")
 
         cf_vpc = VPCResource.construct("cf_vpc_cidr", "cf_env_name").as_dict
 
@@ -186,19 +186,23 @@ class CloudDriver(object):
         for item in var_list:
             var_struct.add(Variable.construct(item[0], item[1], item[2], item[3]).as_dict)
 
-        vpc_config = VPCConfig.build().add(provider_block).add(resource_block.as_dict).add(var_struct.as_dict).as_dict
+        vpc_config = VPCConfig.build()\
+            .add(provider_block.as_dict)\
+            .add(resource_block.as_dict)\
+            .add(var_struct.as_dict).as_dict
 
-        cfg_file_prefix, net_cfg_file = self.path_map.use(CloudDriver.NETWORK_CONFIG, PathType.NETWORK)
+        cfg_file: ConfigFile
+        cfg_file = self.path_map.use(CloudDriver.NETWORK_CONFIG, PathType.NETWORK)
         try:
-            with open(net_cfg_file, 'w') as cfg_file:
-                json.dump(vpc_config, cfg_file, indent=2)
+            with open(cfg_file.file_name, 'w') as cfg_file_h:
+                json.dump(vpc_config, cfg_file_h, indent=2)
         except Exception as err:
-            raise AWSDriverError(f"can not write to network config file {net_cfg_file}: {err}")
+            raise AWSDriverError(f"can not write to network config file {cfg_file.file_name}: {err}")
 
         try:
             print("")
             print(f"Creating VPC ...")
-            tf = tf_run(working_dir=cfg_file_prefix)
+            tf = tf_run(working_dir=cfg_file.file_path)
             tf.init()
             if not tf.validate():
                 raise AWSDriverError("Environment is not configured properly, please check the log and try again.")
@@ -207,10 +211,11 @@ class CloudDriver(object):
             raise AWSDriverError(f"can not create VPC: {err}")
 
     def destroy_net(self):
-        cfg_file_prefix, net_cfg_file = self.path_map.use(CloudDriver.NETWORK_CONFIG, PathType.NETWORK)
+        cfg_file: ConfigFile
+        cfg_file = self.path_map.use(CloudDriver.NETWORK_CONFIG, PathType.NETWORK)
         try:
             if Inquire().ask_yn(f"Remove VPC for {config.env_name}", default=False):
-                tf = tf_run(working_dir=cfg_file_prefix)
+                tf = tf_run(working_dir=cfg_file.file_path)
                 if not tf.validate():
                     tf.init()
                 tf.destroy()
