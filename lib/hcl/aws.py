@@ -172,6 +172,7 @@ class CloudDriver(object):
         sg_entry.add_ingress("0.0.0.0/0", 11280, "tcp", 11280)
         sg_entry.add_ingress("0.0.0.0/0", 11207, "tcp", 11207)
         sg_entry.add_ingress("0.0.0.0/0", 18091, "tcp", 18097)
+        sg_entry.add_ingress("0.0.0.0/0", 4984, "tcp", 4986)
         cf_sg = SGResource.construct(sg_entry.as_dict).as_dict
 
         resource_block = Resources.build()

@@ -112,6 +112,14 @@ class CloudBase(object):
     def region(self):
         return self.gcp_region
 
+    @property
+    def account_file(self):
+        return self.gcp_account_file
+
+    @property
+    def project(self):
+        return self.gcp_project
+
 
 class Network(CloudBase):
 

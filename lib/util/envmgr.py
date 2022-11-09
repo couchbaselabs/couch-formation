@@ -56,6 +56,7 @@ class PathMap(object):
         suffix = self.map_suffix(mode.value)
         if mode.value == PathType.IMAGE.value:
             name_prefix = self.cloud
+            self.path['internal'] = True
         else:
             name_prefix = self.name
         uuid = Generator.get_uuid(name_prefix + suffix)
@@ -140,7 +141,12 @@ class CatalogManager(object):
         self._catalog_backup = location + '/catalog.backup'
         if not os.path.exists(self._catalog):
             logger.debug(f"initializing new catalog file at {self._catalog}")
-            empty = {}
+            empty = {
+                "config": {
+                    "version": 1,
+                    "internal": True
+                }
+            }
             try:
                 with open(self._catalog, 'w') as catalog_file:
                     json.dump(empty, catalog_file)
