@@ -1,0 +1,137 @@
+{
+    "provider": {
+        "azurerm": [
+            {
+                "features": [
+                    {}
+                ]
+            }
+        ]
+    },
+    "resource": {
+        "azurerm_network_security_group": {
+            "cf_nsg": [
+                {
+                    "location": "${azurerm_resource_group.cf_rg.location}",
+                    "name": "${var.cf_env_name}-nsg",
+                    "resource_group_name": "${azurerm_resource_group.cf_rg.name}",
+                    "security_rule": [
+                        {
+                            "description": "Cloud Formation Managed",
+                            "access": "Allow",
+                            "destination_address_prefix": "*",
+                            "destination_port_ranges": [
+                                "22"
+                            ],
+                            "direction": "Inbound",
+                            "name": "AllowSSH",
+                            "priority": 100,
+                            "protocol": "Tcp",
+                            "source_address_prefix": "*",
+                            "source_port_range": "*",
+                            "destination_application_security_group_ids": null,
+                            "source_application_security_group_ids": null,
+                            "destination_address_prefixes": null,
+                            "destination_port_range": null,
+                            "source_address_prefixes": null,
+                            "source_port_ranges": null
+                        },
+                        {
+                            "description": "Cloud Formation Managed",
+                            "access": "Allow",
+                            "destination_address_prefix": "*",
+                            "destination_port_ranges": [
+                                "8091-8097",
+                                "9123",
+                                "9140",
+                                "11210",
+                                "11280",
+                                "11207",
+                                "18091-18097",
+                                "4984-4986"
+                            ],
+                            "direction": "Inbound",
+                            "name": "AllowCB",
+                            "priority": 101,
+                            "protocol": "Tcp",
+                            "source_address_prefix": "*",
+                            "source_port_range": "*",
+                            "destination_application_security_group_ids": null,
+                            "source_application_security_group_ids": null,
+                            "destination_address_prefixes": null,
+                            "destination_port_range": null,
+                            "source_address_prefixes": null,
+                            "source_port_ranges": null
+                        }
+                    ],
+                    "tags": {
+                        "environment": "${var.cf_env_name}",
+                        "name": "${var.cf_env_name}-nsg"
+                    }
+                }
+            ]
+        },
+        "azurerm_resource_group": {
+            "cf_rg": [
+                {
+                    "location": "${var.region_name}",
+                    "name": "${var.cf_env_name}-rg"
+                }
+            ]
+        },
+        "azurerm_virtual_network": {
+            "cf_vpc": [
+                {
+                    "address_space": [
+                        "${var.cf_vpc_cidr}"
+                    ],
+                    "location": "${azurerm_resource_group.cf_rg.location}",
+                    "name": "${var.cf_env_name}-vpc",
+                    "resource_group_name": "${azurerm_resource_group.cf_rg.name}",
+                    "subnet": [
+                        {
+                            "id": null,
+                            "address_prefix": "${var.cf_subnet_cidr_1}",
+                            "name": "${var.cf_env_name}-subnet-1",
+                            "security_group": "${azurerm_network_security_group.cf_nsg.id}"
+                        }
+                    ],
+                    "tags": {
+                        "environment": "${var.cf_env_name}",
+                        "name": "${var.cf_env_name}-vpc"
+                    }
+                }
+            ]
+        }
+    },
+    "variable": {
+        "cf_env_name": [
+            {
+                "default": "dev10db",
+                "description": "Environment Name",
+                "type": "string"
+            }
+        ],
+        "cf_subnet_cidr_1": [
+            {
+                "default": "10.99.1.0/24",
+                "description": "Azure Subnet",
+                "type": "string"
+            }
+        ],
+        "cf_vpc_cidr": [
+            {
+                "default": "10.99.0.0/16",
+                "description": "Azure Virtual Network",
+                "type": "string"
+            }
+        ],
+        "region_name": [
+            {
+                "default": "centralus",
+                "description": "Azure Location",
+                "type": "string"
+            }
+        ]
+    }
+}

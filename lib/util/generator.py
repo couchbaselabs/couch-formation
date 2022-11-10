@@ -50,3 +50,7 @@ class Generator(object):
     @staticmethod
     def get_uuid(name: str) -> str:
         return str(uuid.uuid5(uuid.NAMESPACE_OID, name))
+
+    @staticmethod
+    def get_host_id() -> str:
+        return str(uuid.getnode())

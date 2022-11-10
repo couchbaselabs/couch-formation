@@ -39,10 +39,48 @@ class ConfigFile(object):
             )
 
 
+@attr.s
+class DatastoreEntry(object):
+    cloud = attr.ib(validator=io(str))
+    name = attr.ib(validator=io(str))
+    mode = attr.ib(validator=io(str))
+
+    @classmethod
+    def build(cls, cloud: str, name: str, mode: str):
+        return cls(
+            cloud,
+            name,
+            mode
+            )
+
+    @property
+    def as_str(self):
+        return json.dumps(self.__dict__)
+
+
+@attr.s
+class CatalogEntry(object):
+    entry = attr.ib(validator=io(dict))
+
+    @classmethod
+    def create(cls, name: str, mode: str, path: str):
+        return cls(
+            {
+                name: {
+                    mode: path
+                }
+            }
+            )
+
+    @property
+    def as_dict(self):
+        return self.__dict__['entry']
+
+
 class PathMap(object):
 
     def __init__(self, name: str, cloud: str):
-        self.path = {'cloud': cloud}
+        self.path = {}
         self.cloud = cloud
         self.name = name
         if 'CLOUD_MANAGER_DATABASE_LOCATION' in os.environ:
@@ -53,21 +91,22 @@ class PathMap(object):
         self.cm = CatalogManager(self.root)
 
     def map(self, mode: Enum) -> None:
-        suffix = self.map_suffix(mode.value)
         if mode.value == PathType.IMAGE.value:
-            name_prefix = self.cloud
-            self.path['internal'] = True
+            path_name = Generator.get_host_id()
         else:
-            name_prefix = self.name
-        uuid = Generator.get_uuid(name_prefix + suffix)
+            path_name = self.name
+        uuid = Generator.get_uuid(DatastoreEntry.build(self.cloud, path_name, mode.name.lower()).as_str)
         path_dir = f"{self.root}/{uuid}"
         self.path_check(path_dir)
         self.path[mode.name.lower()] = {
             'path': path_dir,
             'file': None
         }
-        self.cm.update(name_prefix, self.as_dict)
-        logger.debug(f"mapping path {path_dir} for {name_prefix}")
+        if mode.value == PathType.IMAGE.value:
+            self.cm.update('images', CatalogEntry.create(self.cloud, mode.name.lower(), path_dir).as_dict)
+        else:
+            self.cm.update('inventory', CatalogEntry.create(self.name, mode.name.lower(), path_dir).as_dict)
+        logger.debug(f"mapping path {path_dir} for {self.name}")
 
     @staticmethod
     def map_suffix(mode) -> str:
@@ -96,12 +135,7 @@ class PathMap(object):
                 raise DirectoryStructureError(f"can not create path {path}: {err}")
 
     def use(self, file: str, mode: Enum) -> ConfigFile:
-        if mode.value == PathType.IMAGE.value:
-            name_prefix = self.cloud
-        else:
-            name_prefix = self.name
         self.path[mode.name.lower()]['file'] = self.path_prefix(mode) + file
-        self.cm.update(name_prefix, self.as_dict)
         return ConfigFile.from_catalog(self.path[mode.name.lower()])
 
     def file(self, mode: Enum) -> Union[str, None]:
@@ -143,8 +177,7 @@ class CatalogManager(object):
             logger.debug(f"initializing new catalog file at {self._catalog}")
             empty = {
                 "config": {
-                    "version": 1,
-                    "internal": True
+                    "version": 1
                 }
             }
             try:
