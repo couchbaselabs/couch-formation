@@ -59,22 +59,33 @@ class DatastoreEntry(object):
 
 
 @attr.s
-class CatalogEntry(object):
+class BaseCatalogEntry(object):
     entry = attr.ib(validator=io(dict))
 
     @classmethod
-    def create(cls, name: str, mode: str, path: str):
+    def create(cls, mode: str, path: str):
         return cls(
-            {
-                name: {
-                    mode: path
-                }
-            }
+            {mode: path}
             )
 
-    @property
-    def as_dict(self):
-        return self.__dict__['entry']
+    def as_key(self, key):
+        response = {key: self.__dict__['entry']}
+        return response
+
+
+@attr.s
+class NodeCatalogEntry(object):
+    entry = attr.ib(validator=io(dict))
+
+    @classmethod
+    def create(cls, cloud: str, mode: str, path: str):
+        return cls(
+            BaseCatalogEntry.create(mode, path).as_key(cloud)
+            )
+
+    def as_key(self, key):
+        response = {key: self.__dict__['entry']}
+        return response
 
 
 class PathMap(object):
@@ -103,9 +114,9 @@ class PathMap(object):
             'file': None
         }
         if mode.value == PathType.IMAGE.value:
-            self.cm.update('images', CatalogEntry.create(self.cloud, mode.name.lower(), path_dir).as_dict)
+            self.cm.update('images', BaseCatalogEntry.create(mode.name.lower(), path_dir).as_key(self.cloud))
         else:
-            self.cm.update('inventory', CatalogEntry.create(self.name, mode.name.lower(), path_dir).as_dict)
+            self.cm.update('inventory', NodeCatalogEntry.create(self.cloud, mode.name.lower(), path_dir).as_key(self.name))
         logger.debug(f"mapping path {path_dir} for {self.name}")
 
     @staticmethod
