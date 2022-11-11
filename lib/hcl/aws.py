@@ -11,11 +11,12 @@ from lib.exceptions import AWSDriverError
 from lib.drivers.cbrelease import CBRelease
 from lib.drivers.network import NetworkDriver
 from lib.util.inquire import Inquire
-from lib.invoke import tf_run
+from lib.invoke import tf_run, packer_run
 import lib.config as config
 from lib.hcl.aws_vpc import AWSProvider, VPCResource, InternetGatewayResource, RouteEntry, RouteResource, SubnetResource, RTAssociationResource, SecurityGroupEntry, \
     SGResource, Resources, Variables, Variable, VPCConfig
-from lib.hcl.aws_image import Packer, PackerElement, RequiredPlugins, AmazonPlugin, AmazonPluginSettings, ImageMain, Locals, LocalVar
+from lib.hcl.aws_image import Packer, PackerElement, RequiredPlugins, AmazonPlugin, AmazonPluginSettings, ImageMain, Locals, LocalVar, Source, SourceType, NodeType, NodeElements, \
+    ImageBuild, BuildConfig, BuildElements, Shell, ShellElements
 
 
 @attr.s
@@ -62,6 +63,7 @@ class CloudDriver(object):
     HOST_PREP_REPO = "couchbaselabs/couchbase-hostprep"
     DRIVER_CONFIG = "aws.json"
     NETWORK_CONFIG = "main.tf.json"
+    IMAGE_CONFIG = "main.pkr.json"
 
     def __init__(self):
         self.logger = logging.getLogger(self.__class__.__name__)
@@ -131,13 +133,65 @@ class CloudDriver(object):
                 .as_dict)
             .as_dict)
 
-        locals_block = Locals.construct(LocalVar.construct("timestamp", "${formatdate(\"YYYY-MM-DD-hhmm\", timestamp())}").as_dict)
+        locals_block = Locals.construct(LocalVar.construct("timestamp", "${formatdate(\"MMDDYY-hhmm\", timestamp())}").as_dict)
+
+        source_block = Source.construct(
+            SourceType.construct(
+                NodeType.construct(
+                    NodeElements.construct('os_linux_type', "os_linux_release", "c5.xlarge", "region_name", "os_image_name", "os_image_owner", "os_image_user", "cb_version")
+                    .as_dict)
+                .as_key("cb-node"))
+            .as_key("amazon-ebs"))
+
+        build_block = ImageBuild.construct(
+            BuildConfig.construct(
+                BuildElements.construct(os_choice,
+                                        distro_table.version,
+                                        Shell.construct(
+                                            ShellElements.construct([
+                                                "SW_VERSION=${var.cb_version}"
+                                            ],
+                                                    [
+                                                        "echo Installing Couchbase",
+                                                        "sleep 30",
+                                                        "curl -sfL https://raw.githubusercontent.com/${var.host_prep_repo}/main/bin/bootstrap.sh | sudo -E bash -",
+                                                        "sudo git clone https://github.com/${var.host_prep_repo} /usr/local/hostprep",
+                                                        "sudo /usr/local/hostprep/bin/hostprep.sh -t couchbase -v ${var.cb_version}"
+                                                    ])
+                                            .as_dict)
+                                        .as_dict,
+                                        "amazon-ebs",
+                                        "cb-node")
+                .as_dict)
+            .as_dict)
+
+        var_block = Variables.build()
+        for item in var_list:
+            var_block.add(Variable.construct(item[0], item[1], item[2], item[3]).as_dict)
 
         packer_config = ImageMain.build()\
             .add(packer_block.as_dict)\
-            .add(locals_block.as_dict).as_dict
+            .add(locals_block.as_dict)\
+            .add(source_block.as_dict)\
+            .add(build_block.as_dict)\
+            .add(var_block.as_dict).as_dict
 
-        print(json.dumps(packer_config, indent=2))
+        cfg_file: ConfigFile
+        cfg_file = self.path_map.use(CloudDriver.IMAGE_CONFIG, PathType.IMAGE)
+        try:
+            with open(cfg_file.file_name, 'w') as cfg_file_h:
+                json.dump(packer_config, cfg_file_h, indent=2)
+        except Exception as err:
+            raise AWSDriverError(f"can not write to image config file {cfg_file.file_name}: {err}")
+
+        try:
+            print("")
+            print(f"Building {os_choice} {distro_table.version} {cb_release_choice} image in {config.cloud}")
+            pr = packer_run(working_dir=cfg_file.file_path)
+            pr.init(cfg_file.file_name)
+            pr.build_gen(cfg_file.file_name)
+        except Exception as err:
+            AWSDriverError(f"can not build image: {err}")
 
     def create_nodes(self):
         pass

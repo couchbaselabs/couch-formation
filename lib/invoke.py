@@ -107,7 +107,7 @@ class packer_run(object):
         cmd.append('init')
         cmd.append(packer_file)
 
-        print("Beginning packer init")
+        print("Initializing image build environment")
         start_time = time.perf_counter()
         self._packer(*cmd, no_output=True)
         end_time = time.perf_counter()
@@ -123,6 +123,16 @@ class packer_run(object):
         cmd.append(packer_file)
 
         print("Beginning packer build (this can take several minutes)")
+        start_time = time.perf_counter()
+        self._packer(*cmd)
+        end_time = time.perf_counter()
+        run_time = time.strftime("%H hours %M minutes %S seconds.", time.gmtime(end_time - start_time))
+        print(f"Image creation complete in {run_time}.")
+
+    def build_gen(self, packer_file: str):
+        cmd = ['build', packer_file]
+
+        print("Beginning image build (this may take several minutes)")
         start_time = time.perf_counter()
         self._packer(*cmd)
         end_time = time.perf_counter()
