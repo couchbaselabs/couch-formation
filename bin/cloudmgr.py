@@ -37,7 +37,9 @@ class CloudManager(object):
 
     def run_v3(self):
         if self.verb == 'image':
-            print("Not implemented")
+            config.env_name = config.cloud
+            if config.operating_mode == OperatingMode.BUILD.value:
+                config.cloud_operator().create_image()
         elif self.verb == 'create':
             print("Not implemented")
         elif self.verb == 'deploy':
@@ -129,7 +131,7 @@ def main():
         pass
 
     session = CloudManager(parameters)
-    if config.env_name:
+    if config.env_name or parameters.v3:
         session.run_v3()
     else:
         session.run()

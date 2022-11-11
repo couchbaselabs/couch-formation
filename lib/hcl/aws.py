@@ -15,6 +15,7 @@ from lib.invoke import tf_run
 import lib.config as config
 from lib.hcl.aws_vpc import AWSProvider, VPCResource, InternetGatewayResource, RouteEntry, RouteResource, SubnetResource, RTAssociationResource, SecurityGroupEntry, \
     SGResource, Resources, Variables, Variable, VPCConfig
+from lib.hcl.aws_image import Packer, PackerElement, RequiredPlugins, AmazonPlugin, AmazonPluginSettings, ImageMain, Locals, LocalVar
 
 
 @attr.s
@@ -45,8 +46,6 @@ class Record(object):
     image = attr.ib(validator=io(str))
     owner = attr.ib(validator=io(str))
     user = attr.ib(validator=io(str))
-    vars = attr.ib(validator=io(str))
-    hcl = attr.ib(validator=io(str))
 
     @classmethod
     def from_config(cls, json_data):
@@ -54,14 +53,13 @@ class Record(object):
             json_data.get("version"),
             json_data.get("image"),
             json_data.get("owner"),
-            json_data.get("user"),
-            json_data.get("vars"),
-            json_data.get("hcl"),
+            json_data.get("user")
             )
 
 
 class CloudDriver(object):
     VERSION = '3.0.0'
+    HOST_PREP_REPO = "couchbaselabs/couchbase-hostprep"
     DRIVER_CONFIG = "aws.json"
     NETWORK_CONFIG = "main.tf.json"
 
@@ -95,9 +93,51 @@ class CloudDriver(object):
     def create_image(self):
         cb_rel = CBRelease()
 
-        os_choice = [i for i in self.config.build.keys()]
+        region = config.cloud_base().region
 
-        self.ask.ask_list(os_choice)
+        print(f"Configuring image in region {region}")
+
+        os_list = [i for i in self.config.build.keys()]
+        os_choice = self.ask.ask_list_basic("Select OS", os_list)
+
+        distro_list = Entry.from_config(os_choice, self.config.build)
+
+        distro_choice = self.ask.ask_list_dict("Select OS revision", distro_list.versions)
+
+        distro_table = Record.from_config(distro_choice)
+
+        release_list = cb_rel.get_cb_version(os_choice, distro_table.version)
+
+        cb_release_choice = self.ask.ask_list_basic("Select CBS release", release_list)
+
+        var_list = [
+            ("os_linux_type", os_choice, "OS Name", "string"),
+            ("region_name", region, "Region name", "string"),
+            ("cb_version", cb_release_choice, "CBS Revision", "string"),
+            ("host_prep_repo", CloudDriver.HOST_PREP_REPO, "Host Prep Utility", "string"),
+            ("os_image_name", distro_table.image, "Image", "string"),
+            ("os_image_owner", distro_table.owner, "Image Owner", "string"),
+            ("os_image_user", distro_table.user, "Image User", "string"),
+            ("os_linux_release", distro_table.version, "OS Revision", "string"),
+        ]
+
+        packer_block = Packer.construct(
+            PackerElement.construct(
+                RequiredPlugins.construct(
+                    AmazonPlugin.construct(
+                        AmazonPluginSettings.construct("github.com/hashicorp/amazon", "1.1.1")
+                        .as_dict)
+                    .as_dict)
+                .as_dict)
+            .as_dict)
+
+        locals_block = Locals.construct(LocalVar.construct("timestamp", "${formatdate(\"YYYY-MM-DD-hhmm\", timestamp())}").as_dict)
+
+        packer_config = ImageMain.build()\
+            .add(packer_block.as_dict)\
+            .add(locals_block.as_dict).as_dict
+
+        print(json.dumps(packer_config, indent=2))
 
     def create_nodes(self):
         pass

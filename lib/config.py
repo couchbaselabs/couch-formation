@@ -13,6 +13,9 @@ class OperatingMode(Enum):
     DESTROY = 1
     SHOW = 2
     LOG = 3
+    BUILD = 4
+    LIST = 5
+    DELETE = 6
 
 
 warnings.filterwarnings("ignore")
@@ -83,6 +86,9 @@ def process_params(parameters: argparse.Namespace) -> None:
     if 'destroy' in parameters:
         if parameters.destroy:
             operating_mode = OperatingMode.DESTROY.value
+    if 'build' in parameters:
+        if parameters.build:
+            operating_mode = OperatingMode.BUILD.value
 
 
 def enable_cloud(name: str) -> None:
