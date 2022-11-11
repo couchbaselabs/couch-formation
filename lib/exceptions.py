@@ -106,3 +106,6 @@ class CBReleaseManagerError(fatalError):
 class EmptyResultSet(nonFatalError):
     pass
 
+
+class MissingParameterError(fatalError):
+    pass

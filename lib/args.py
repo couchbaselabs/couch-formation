@@ -43,6 +43,14 @@ class Parameters(object):
         vpc_parser.add_argument('--destroy', action='store_true', help='Destroy a VPC')
         vpc_parser.add_argument('--show', action='store_true', help='Show VPC')
         vpc_parser.add_argument('-h', '--help', action='help', default=argparse.SUPPRESS, help='Show help message')
+        log_parser = argparse.ArgumentParser(add_help=False)
+        log_parser.add_argument('--image', action='store_true', help='Show image build logs')
+        log_parser.add_argument('--vpc', action='store_true', help='Show image build logs')
+        log_parser.add_argument('--cluster', action='store_true', help='Show image build logs')
+        log_parser.add_argument('--applog', action='store_true', help='Show image build logs')
+        log_parser.add_argument('--sgwlog', action='store_true', help='Show image build logs')
+        log_parser.add_argument('-c', '--count', action='store', help='Number of lines to show', type=int, default=25)
+        log_parser.add_argument('-h', '--help', action='help', default=argparse.SUPPRESS, help='Show help message')
         subparsers = parser.add_subparsers(dest='command')
         image_mode = subparsers.add_parser('image', help="Manage CB Images", parents=[parent_parser, image_parser], add_help=False)
         create_mode = subparsers.add_parser('create', help="Create Nodes", parents=[parent_parser], add_help=False)
@@ -53,6 +61,7 @@ class Parameters(object):
         net_mode = subparsers.add_parser('net', help="Static Network Configuration", parents=[parent_parser, net_parser], add_help=False)
         vpc_mode = subparsers.add_parser('vpc', help="Create VPC", parents=[parent_parser, vpc_parser], add_help=False)
         ssh_mode = subparsers.add_parser('ssh', help="Create SSH Keys", parents=[parent_parser], add_help=False)
+        log_mode = subparsers.add_parser('logs', help="View logs", parents=[parent_parser, log_parser], add_help=False)
         self.parser = parser
         self.image_parser = image_mode
         self.create_parser = create_mode
@@ -63,6 +72,7 @@ class Parameters(object):
         self.net_parser = net_mode
         self.vpc_parser = vpc_mode
         self.ssh_parser = ssh_mode
+        self.log_parser = log_mode
 
         self.parameters = parser.parse_args()
 

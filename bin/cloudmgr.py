@@ -12,6 +12,7 @@ from lib.args import Parameters
 from lib.imagemgr import image_manager
 from lib.runmgr import run_manager
 from lib.netmgr import network_manager
+from lib.util.envmgr import LogViewer
 import lib.config as config
 from lib.config import OperatingMode
 
@@ -61,6 +62,8 @@ class CloudManager(object):
                 config.cloud_operator().destroy_net()
         elif self.verb == 'ssh':
             print("Not implemented")
+        elif self.verb == 'logs':
+            LogViewer(self.args).print_log(lines=self.args.count)
 
     def run(self):
         if self.verb == 'image':
@@ -108,6 +111,8 @@ class CloudManager(object):
             print("Not implemented")
         elif self.verb == 'ssh':
             print("Not implemented")
+        elif self.verb == 'logs':
+            LogViewer(self.args).print_log(lines=self.args.count)
 
 
 def main():

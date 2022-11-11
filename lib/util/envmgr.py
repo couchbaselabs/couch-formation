@@ -11,7 +11,7 @@ from enum import Enum
 from typing import Union
 from lib.util.generator import Generator
 import lib.config as config
-from lib.exceptions import DirectoryStructureError
+from lib.exceptions import DirectoryStructureError, MissingParameterError
 
 logger = logging.getLogger(__name__)
 
@@ -100,6 +100,7 @@ class PathMap(object):
             self.root = f"{config.package_dir}/db"
         self.path['root'] = self.root
         self.cm = CatalogManager(self.root)
+        self._last_mapped = None
 
     def map(self, mode: Enum) -> None:
         if mode.value == PathType.IMAGE.value:
@@ -117,6 +118,7 @@ class PathMap(object):
             self.cm.update('images', BaseCatalogEntry.create(mode.name.lower(), path_dir).as_key(self.cloud))
         else:
             self.cm.update('inventory', NodeCatalogEntry.create(self.cloud, mode.name.lower(), path_dir).as_key(self.name))
+        self._last_mapped = mode.name.lower()
         logger.debug(f"mapping path {path_dir} for {self.name}")
 
     @staticmethod
@@ -170,6 +172,10 @@ class PathMap(object):
             return self.path[mode.name.lower()]['path'] + '/'
         except KeyError:
             raise ValueError(f"path not mapped for {mode.name.lower()}")
+
+    @property
+    def last_mapped(self):
+        return self._last_mapped
 
     @property
     def as_dict(self):
@@ -227,3 +233,57 @@ class CatalogManager(object):
                 json.dump(data, catalog_file)
         except Exception as err:
             raise DirectoryStructureError(f"can not read catalog file {self._catalog}: {err}")
+
+
+class LogViewer(object):
+    IMAGE_LOG = "build.log"
+    DEPLOY_LOG = "deploy.log"
+
+    def __init__(self, parameters):
+        self.logger = logging.getLogger(self.__class__.__name__)
+
+        if not config.env_name and not parameters.image:
+            raise MissingParameterError("environment name not specified, please use the --name parameter to select an environment")
+
+        self.path_map = PathMap(config.env_name, config.cloud)
+        self.log_path = None
+        self.log_file = None
+
+        if 'image' in parameters:
+            if parameters.image:
+                self.path_map.map(PathType.IMAGE)
+                self.log_path = self.path_map.get_path(PathType.IMAGE)
+                self.log_file = LogViewer.IMAGE_LOG
+        elif 'vpc' in parameters:
+            if parameters.net:
+                self.path_map.map(PathType.NETWORK)
+                self.log_path = self.path_map.get_path(PathType.NETWORK)
+                self.log_file = LogViewer.DEPLOY_LOG
+        elif 'applog' in parameters:
+            if parameters.app:
+                self.path_map.map(PathType.APP)
+                self.log_path = self.path_map.get_path(PathType.APP)
+                self.log_file = LogViewer.DEPLOY_LOG
+        elif 'sgwlog' in parameters:
+            if parameters.sgw:
+                self.path_map.map(PathType.SGW)
+                self.log_path = self.path_map.get_path(PathType.SGW)
+                self.log_file = LogViewer.DEPLOY_LOG
+        else:
+            self.path_map.map(PathType.CLUSTER)
+            self.log_path = self.path_map.get_path(PathType.CLUSTER)
+            self.log_file = LogViewer.DEPLOY_LOG
+
+    def print_log(self, lines=25):
+        if not self.log_path:
+            raise MissingParameterError(f"could not determine log path, please check the parameters and try again.")
+
+        read_file = self.log_path + '/' + self.log_file
+
+        if not os.path.exists(read_file):
+            print(f"No log files found.")
+            return
+
+        with open(read_file, 'r') as log_file_h:
+            for line in (log_file_h.readlines()[-lines:]):
+                print(line, end='')

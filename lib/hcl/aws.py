@@ -74,9 +74,6 @@ class CloudDriver(object):
             raise AWSDriverError("no environment specified")
 
         self.path_map = PathMap(config.env_name, config.cloud)
-        self.path_map.map(PathType.IMAGE)
-        self.path_map.map(PathType.CLUSTER)
-        self.path_map.map(PathType.NETWORK)
 
         self.driver_config = self.path_map.root + "/" + CloudDriver.DRIVER_CONFIG
         try:
@@ -176,6 +173,7 @@ class CloudDriver(object):
             .add(build_block.as_dict)\
             .add(var_block.as_dict).as_dict
 
+        self.path_map.map(PathType.IMAGE)
         cfg_file: ConfigFile
         cfg_file = self.path_map.use(CloudDriver.IMAGE_CONFIG, PathType.IMAGE)
         try:
@@ -194,7 +192,7 @@ class CloudDriver(object):
             AWSDriverError(f"can not build image: {err}")
 
     def create_nodes(self):
-        pass
+        self.path_map.map(PathType.CLUSTER)
 
     def create_net(self):
         cidr_util = NetworkDriver()
@@ -286,6 +284,7 @@ class CloudDriver(object):
             .add(resource_block.as_dict)\
             .add(var_struct.as_dict).as_dict
 
+        self.path_map.map(PathType.NETWORK)
         cfg_file: ConfigFile
         cfg_file = self.path_map.use(CloudDriver.NETWORK_CONFIG, PathType.NETWORK)
         try:
@@ -306,6 +305,7 @@ class CloudDriver(object):
             raise AWSDriverError(f"can not create VPC: {err}")
 
     def destroy_net(self):
+        self.path_map.map(PathType.NETWORK)
         cfg_file: ConfigFile
         cfg_file = self.path_map.use(CloudDriver.NETWORK_CONFIG, PathType.NETWORK)
         try:
