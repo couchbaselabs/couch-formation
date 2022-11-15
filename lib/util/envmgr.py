@@ -241,34 +241,31 @@ class LogViewer(object):
 
     def __init__(self, parameters):
         self.logger = logging.getLogger(self.__class__.__name__)
+        print(parameters)
 
-        if not config.env_name and not parameters.image:
+        if not config.env_name and not parameters.log_command == "image":
             raise MissingParameterError("environment name not specified, please use the --name parameter to select an environment")
 
         self.path_map = PathMap(config.env_name, config.cloud)
         self.log_path = None
         self.log_file = None
 
-        if 'image' in parameters:
-            if parameters.image:
-                self.path_map.map(PathType.IMAGE)
-                self.log_path = self.path_map.get_path(PathType.IMAGE)
-                self.log_file = LogViewer.IMAGE_LOG
-        elif 'vpc' in parameters:
-            if parameters.net:
-                self.path_map.map(PathType.NETWORK)
-                self.log_path = self.path_map.get_path(PathType.NETWORK)
-                self.log_file = LogViewer.DEPLOY_LOG
-        elif 'applog' in parameters:
-            if parameters.app:
-                self.path_map.map(PathType.APP)
-                self.log_path = self.path_map.get_path(PathType.APP)
-                self.log_file = LogViewer.DEPLOY_LOG
-        elif 'sgwlog' in parameters:
-            if parameters.sgw:
-                self.path_map.map(PathType.SGW)
-                self.log_path = self.path_map.get_path(PathType.SGW)
-                self.log_file = LogViewer.DEPLOY_LOG
+        if parameters.log_command == "image":
+            self.path_map.map(PathType.IMAGE)
+            self.log_path = self.path_map.get_path(PathType.IMAGE)
+            self.log_file = LogViewer.IMAGE_LOG
+        elif parameters.log_command == "vpc":
+            self.path_map.map(PathType.NETWORK)
+            self.log_path = self.path_map.get_path(PathType.NETWORK)
+            self.log_file = LogViewer.DEPLOY_LOG
+        elif parameters.log_command == "app":
+            self.path_map.map(PathType.APP)
+            self.log_path = self.path_map.get_path(PathType.APP)
+            self.log_file = LogViewer.DEPLOY_LOG
+        elif parameters.log_command == "sgw":
+            self.path_map.map(PathType.SGW)
+            self.log_path = self.path_map.get_path(PathType.SGW)
+            self.log_file = LogViewer.DEPLOY_LOG
         else:
             self.path_map.map(PathType.CLUSTER)
             self.log_path = self.path_map.get_path(PathType.CLUSTER)

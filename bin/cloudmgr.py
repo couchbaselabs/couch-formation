@@ -33,7 +33,7 @@ class CloudManager(object):
         print(f"Couch Formation ({VERSION})")
         self.args = parameters
         self.verb = self.args.command
-        config.process_params(parameters)
+        # config.process_params(parameters)
         config.enable_cloud(self.args.cloud)
 
     def run_v3(self):
@@ -52,7 +52,9 @@ class CloudManager(object):
         elif self.verb == 'remove':
             print("Not implemented")
         elif self.verb == 'list':
-            print("Not implemented")
+            if self.args.list_command == "images":
+                config.env_name = config.cloud
+                config.cloud_operator().list_images()
         elif self.verb == 'net':
             print("Not implemented")
         elif self.verb == 'vpc':
@@ -118,6 +120,7 @@ class CloudManager(object):
 def main():
     global logger
     arg_parser = Parameters()
+    arg_parser.update_config()
     parameters = arg_parser.args
     signal.signal(signal.SIGINT, break_signal_handler)
 

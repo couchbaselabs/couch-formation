@@ -3,6 +3,7 @@
 
 import argparse
 import lib.config as config
+from lib.config import OperatingMode
 
 
 class Parameters(object):
@@ -44,11 +45,11 @@ class Parameters(object):
         vpc_parser.add_argument('--show', action='store_true', help='Show VPC')
         vpc_parser.add_argument('-h', '--help', action='help', default=argparse.SUPPRESS, help='Show help message')
         log_parser = argparse.ArgumentParser(add_help=False)
-        log_parser.add_argument('--image', action='store_true', help='Show image build logs')
-        log_parser.add_argument('--vpc', action='store_true', help='Show image build logs')
-        log_parser.add_argument('--cluster', action='store_true', help='Show image build logs')
-        log_parser.add_argument('--applog', action='store_true', help='Show image build logs')
-        log_parser.add_argument('--sgwlog', action='store_true', help='Show image build logs')
+        # log_parser.add_argument('--image', action='store_true', help='Show image build logs')
+        # log_parser.add_argument('--vpc', action='store_true', help='Show image build logs')
+        # log_parser.add_argument('--cluster', action='store_true', help='Show image build logs')
+        # log_parser.add_argument('--applog', action='store_true', help='Show image build logs')
+        # log_parser.add_argument('--sgwlog', action='store_true', help='Show image build logs')
         log_parser.add_argument('-c', '--count', action='store', help='Number of lines to show', type=int, default=25)
         log_parser.add_argument('-h', '--help', action='help', default=argparse.SUPPRESS, help='Show help message')
         subparsers = parser.add_subparsers(dest='command')
@@ -57,11 +58,23 @@ class Parameters(object):
         deploy_mode = subparsers.add_parser('deploy', help="Deploy Nodes", parents=[parent_parser], add_help=False)
         destroy_mode = subparsers.add_parser('destroy', help="Destroy Nodes", parents=[parent_parser], add_help=False)
         remove_mode = subparsers.add_parser('remove', help="Remove Environments", parents=[parent_parser], add_help=False)
+
         list_mode = subparsers.add_parser('list', help="List Nodes", parents=[parent_parser], add_help=False)
+        list_action = list_mode.add_subparsers(dest='list_command')
+        list_action_image = list_action.add_parser('images', help="List images", parents=[parent_parser, log_parser], add_help=False)
+
         net_mode = subparsers.add_parser('net', help="Static Network Configuration", parents=[parent_parser, net_parser], add_help=False)
         vpc_mode = subparsers.add_parser('vpc', help="Create VPC", parents=[parent_parser, vpc_parser], add_help=False)
         ssh_mode = subparsers.add_parser('ssh', help="Create SSH Keys", parents=[parent_parser], add_help=False)
+
         log_mode = subparsers.add_parser('logs', help="View logs", parents=[parent_parser, log_parser], add_help=False)
+        log_action = log_mode.add_subparsers(dest='log_command')
+        log_action_image = log_action.add_parser('image', help="Get image build logs", parents=[parent_parser, log_parser], add_help=False)
+        log_action_vpc = log_action.add_parser('vpc', help="Get vpc build logs", parents=[parent_parser, log_parser], add_help=False)
+        log_action_cluster = log_action.add_parser('cluster', help="Get cluster build logs", parents=[parent_parser, log_parser], add_help=False)
+        log_action_app = log_action.add_parser('app', help="Get app build logs", parents=[parent_parser, log_parser], add_help=False)
+        log_action_sgw = log_action.add_parser('sgw', help="Get sgw build logs", parents=[parent_parser, log_parser], add_help=False)
+
         self.parser = parser
         self.image_parser = image_mode
         self.create_parser = create_mode
@@ -81,15 +94,29 @@ class Parameters(object):
         return self.parameters
 
     def update_config(self):
-        if self.parameters.test:
-            config.test_mode = self.parameters.test
-        if self.parameters.cloud:
-            config.cloud = self.parameters.cloud
         if self.parameters.debug:
-            config.debug_level = self.parameters.debug
+            config.enable_debug = self.parameters.debug
         if self.parameters.name:
             config.env_name = self.parameters.name
+        if self.parameters.cloud:
+            config.cloud = self.parameters.cloud
+        if self.parameters.zone:
+            config.cloud_zone = self.parameters.zone
+        if self.parameters.static:
+            config.static_ip = self.parameters.static
         if self.parameters.min:
-            config.cb_node_min = self.parameters.min
-        if self.parameters.saz:
-            config.single_az = self.parameters.saz
+            config.cb_node_min = config.app_node_count = config.sgw_node_count = self.parameters.min
+        if self.parameters.dns:
+            config.update_dns = self.parameters.dns
+        if 'create' in self.parameters:
+            if self.parameters.create:
+                config.operating_mode = OperatingMode.CREATE.value
+        if 'destroy' in self.parameters:
+            if self.parameters.destroy:
+                config.operating_mode = OperatingMode.DESTROY.value
+        if 'build' in self.parameters:
+            if self.parameters.build:
+                config.operating_mode = OperatingMode.BUILD.value
+
+        if 'list_command' in self.parameters:
+            self.parameters.v3 = True

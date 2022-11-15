@@ -6,6 +6,7 @@ import sys
 import ipaddress
 import getpass
 import re
+from lib.util.keyboard import get_char
 from typing import Union, Iterable
 from distutils.util import strtobool
 
@@ -23,17 +24,44 @@ class Inquire(object):
             yield array[i:i + n]
 
     @staticmethod
-    def field_lengths(table: list[dict]) -> tuple[int]:
+    def create_header_vector(table: list[dict]) -> list[str]:
+        header = []
+        max_len = 0
+        for row in table:
+            row_len = len(row)
+            if row_len <= max_len > 0:
+                continue
+            max_len = row_len
+            header.clear()
+            for key in row.keys():
+                header.append(key)
+        return header
+
+    @staticmethod
+    def max_row_length(table: list[dict]) -> int:
+        row_max = 0
+        for row in table:
+            if len(row) > row_max:
+                row_max = len(row)
+        return row_max
+
+    def field_lengths(self, table: list[dict]) -> tuple[int]:
         vector = []
-        row_len = 0
+        row_len = self.max_row_length(table)
         for item in table:
             columns = ()
             for n, key in enumerate(item.keys()):
                 lk = len(key)
-                lv = len(item[key])
+                if item[key] is None:
+                    lv = 0
+                else:
+                    lv = len(item[key])
                 lt = lk if lk > lv else lv
                 columns = columns + (lt,)
-            row_len = len(columns)
+            this_row_len = len(columns)
+            if this_row_len < row_len:
+                for i in range(row_len - this_row_len):
+                    columns = columns + (0,)
             vector.append(columns)
 
         final = ()
@@ -44,9 +72,9 @@ class Inquire(object):
         return final
 
     @staticmethod
-    def print_header(t: tuple, row: dict, pad: int = 5) -> None:
+    def print_header(t: tuple, headers: list, pad: int = 5) -> None:
         print("#".ljust(pad+2), end='')
-        for n, key in enumerate(row.keys()):
+        for n, key in enumerate(headers):
             print(key.capitalize().ljust(t[n]), end='')
             print(" ", end='')
         print("")
@@ -78,7 +106,8 @@ class Inquire(object):
                     raise Exception("get_option_struct_type: unknown options data type")
         raise Exception("ask: no options to select from")
 
-    def get_option_text(self, options, option_type, index=0):
+    @staticmethod
+    def get_option_text(options, option_type, index=0):
         if option_type == Inquire.type_dict:
             return options[index]['name']
         else:
@@ -122,6 +151,7 @@ class Inquire(object):
                 continue
 
     def ask_list_dict(self, question: str, options: list[dict], sort_key: Union[str, None] = None, page_length: int = 20) -> dict:
+        table_header = self.create_header_vector(options)
         if sort_key:
             options = sorted(options, key=lambda i: i[sort_key] if i[sort_key] else "")
 
@@ -134,7 +164,7 @@ class Inquire(object):
             answer = ''
             for count, sub_list in enumerate(divided_list):
                 page_incr = count * page_length
-                self.print_header(field_length, sub_list[0])
+                self.print_header(field_length, table_header)
                 for n, item in enumerate(sub_list):
                     item_number = n + 1 + page_incr
                     self.print_line(field_length, item, item_number)
@@ -163,6 +193,30 @@ class Inquire(object):
             except ValueError:
                 print("Please select the number corresponding to your selection.")
                 continue
+
+    def list_dict(self, description: str, items: list[dict], sort_key: Union[str, None] = None, page_length: int = 20) -> None:
+        table_header = self.create_header_vector(items)
+        if sort_key:
+            items = sorted(items, key=lambda i: i[sort_key] if i[sort_key] else "")
+
+        print("%s:" % description)
+
+        divided_list = list(self.divide_list(items, page_length))
+        field_length = self.field_lengths(items)
+
+        for count, sub_list in enumerate(divided_list):
+            page_incr = count * page_length
+            self.print_header(field_length, table_header)
+
+            for n, item in enumerate(sub_list):
+                item_number = n + 1 + page_incr
+                self.print_line(field_length, item, item_number)
+
+            if count != len(divided_list) - 1:
+                print("Press any key to continue...", end='\r', flush=True)
+                answer = get_char()
+                sys.stdout.write("\033[K")
+                print("")
 
     def ask_list(self, question, options=[], descriptions=[], list_only=False, page_len=20, default=None):
         """Get selection from list"""

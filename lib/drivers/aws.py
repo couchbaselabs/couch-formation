@@ -6,7 +6,7 @@ import boto3
 import os
 import attr
 from attr.validators import instance_of as io
-from typing import Iterable
+from typing import Iterable, Union
 from itertools import cycle
 from lib.exceptions import AWSDriverError, EmptyResultSet
 import lib.config as config
@@ -123,7 +123,8 @@ class CloudBase(object):
         block = {}
         if 'Tags' in struct:
             for tag in struct['Tags']:
-                block.update({tag['Key'].lower(): tag['Value']})
+                block.update({tag['Key'].lower() + '_tag': tag['Value']})
+        block = dict(sorted(block.items()))
         return block
 
     @staticmethod
@@ -272,7 +273,7 @@ class Image(CloudBase):
         super().__init__()
         self.logger = logging.getLogger(self.__class__.__name__)
 
-    def list(self) -> list[dict]:
+    def list(self, filter_keys_exist: Union[list[str], None] = None) -> list[dict]:
         image_list = []
         ami_filter = {
             'Name': 'is-public',
@@ -291,7 +292,10 @@ class Image(CloudBase):
                            'description': image['Name'],
                            'date': image['CreationDate'],
                            'arch': image['Architecture']}
-            image_block.update(self.process_tags(images))
+            image_block.update(self.process_tags(image))
+            if filter_keys_exist:
+                if not all(key in image_block for key in filter_keys_exist):
+                    continue
             image_list.append(image_block)
 
         if len(image_list) == 0:
