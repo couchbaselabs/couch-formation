@@ -24,10 +24,13 @@ class Inquire(object):
             yield array[i:i + n]
 
     @staticmethod
-    def create_header_vector(table: list[dict]) -> list[str]:
+    def create_header_vector(table: list[dict], hide_key: Union[list[str], None] = None) -> list[str]:
         header = []
         max_len = 0
         for row in table:
+            if hide_key:
+                for del_key in hide_key:
+                    row.pop(del_key, None)
             row_len = len(row)
             if row_len <= max_len > 0:
                 continue
@@ -38,17 +41,23 @@ class Inquire(object):
         return header
 
     @staticmethod
-    def max_row_length(table: list[dict]) -> int:
+    def max_row_length(table: list[dict], hide_key: Union[list[str], None] = None) -> int:
         row_max = 0
         for row in table:
+            if hide_key:
+                for del_key in hide_key:
+                    row.pop(del_key, None)
             if len(row) > row_max:
                 row_max = len(row)
         return row_max
 
-    def field_lengths(self, table: list[dict]) -> tuple[int]:
+    def field_lengths(self, table: list[dict], hide_key: Union[list[str], None] = None) -> tuple[int]:
         vector = []
-        row_len = self.max_row_length(table)
+        row_len = self.max_row_length(table, hide_key=hide_key)
         for item in table:
+            if hide_key:
+                for del_key in hide_key:
+                    item.pop(del_key, None)
             columns = ()
             for n, key in enumerate(item.keys()):
                 lk = len(key)
@@ -86,7 +95,10 @@ class Inquire(object):
         print("")
 
     @staticmethod
-    def print_line(t: tuple, row: dict, item: int, pad: int = 5) -> None:
+    def print_line(t: tuple, row: dict, item: int, pad: int = 5, hide_key: Union[list[str], None] = None) -> None:
+        if hide_key:
+            for del_key in hide_key:
+                row.pop(del_key, None)
         print(f"{str(item).rjust(pad)}) ", end='')
         for n, key in enumerate(row.keys()):
             print(str(row[key]).ljust(t[n]), end='')
@@ -194,15 +206,20 @@ class Inquire(object):
                 print("Please select the number corresponding to your selection.")
                 continue
 
-    def list_dict(self, description: str, items: list[dict], sort_key: Union[str, None] = None, page_length: int = 20) -> None:
-        table_header = self.create_header_vector(items)
+    def list_dict(self,
+                  description: str,
+                  items: list[dict],
+                  sort_key: Union[str, None] = None,
+                  hide_key: Union[list[str], None] = None,
+                  page_length: int = 20) -> None:
+        table_header = self.create_header_vector(items, hide_key=hide_key)
         if sort_key:
             items = sorted(items, key=lambda i: i[sort_key] if i[sort_key] else "")
 
         print("%s:" % description)
 
         divided_list = list(self.divide_list(items, page_length))
-        field_length = self.field_lengths(items)
+        field_length = self.field_lengths(items, hide_key=hide_key)
 
         for count, sub_list in enumerate(divided_list):
             page_incr = count * page_length
@@ -210,7 +227,7 @@ class Inquire(object):
 
             for n, item in enumerate(sub_list):
                 item_number = n + 1 + page_incr
-                self.print_line(field_length, item, item_number)
+                self.print_line(field_length, item, item_number, hide_key=hide_key)
 
             if count != len(divided_list) - 1:
                 print("Press any key to continue...", end='\r', flush=True)

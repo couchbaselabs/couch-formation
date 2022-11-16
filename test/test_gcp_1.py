@@ -14,8 +14,8 @@ def test_gcp_driver_1():
     subnet = getattr(driver, 'Subnet')
     # security_group = getattr(driver, 'SecurityGroup')
     machine_type = getattr(driver, 'MachineType')
-    # instance = getattr(driver, 'Instance')
-    # ssh_key = getattr(driver, 'SSHKey')
+    instance = getattr(driver, 'Instance')
+    ssh_key = getattr(driver, 'SSHKey')
     image = getattr(driver, 'Image')
 
     for net in network().cidr_list:
@@ -37,27 +37,26 @@ def test_gcp_driver_1():
     print(f"Subnet : {subnet_list[1]}")
     print(f"Zone   : {zone_list[0]}")
 
-    # vpc_id = AWSvpc().create("pytest-vpc", vpc_cidr)
+    network_name = network().create("pytest-vpc")
     # sg_id = AWSSecurityGroup().create("pytest-sg", "TestSG", vpc_id)
-    # ssh_key = AWSkey().create("pytest-key")
-    # subnet_id = AWSSubnet().create("pytest-subnet-01", vpc_id, zone_list[0], subnet_list[1])
-    #
-    # instance = AWSInstance().run("pytest-instance", "ami-0fb653ca2d3203ac1", ssh_key, sg_id, subnet_id)
-    # image_name = image().create("pytest-image", "ubuntu-2004-focal-v20220110")
-    #
+    ssh_key = ssh_key().public_key("mminichino-default-key-pair")
+    subnet_name = subnet().create("pytest-subnet-01", network_name, subnet_list[1])
+
+    instance_name = instance().run("pytest-instance", "ubuntu-2004-focal-v20220110", zone_list[0], network_name, subnet_name, ssh_key)
+    image_name = image().create("pytest-image", "ubuntu-2004-focal-v20220110")
+
     # sg_list = AWSSecurityGroup().list(vpc_id)
-    # image_list = image().list()
-    # new_vpc_list = AWSvpc().list()
-    #
-    # assert any(i['id'] == vpc_id for i in new_vpc_list) is True
-    #
+    image_list = image().list()
+    new_vpc_list = network().list()
+
+    assert any(i['name'] == network_name for i in new_vpc_list) is True
+
     # assert any(i['id'] == sg_id for i in sg_list) is True
-    #
-    # assert any(i['name'] == image_name for i in image_list) is True
-    #
-    # AWSInstance().terminate(instance)
-    # image().delete(image_name)
+
+    assert any(i['name'] == image_name for i in image_list) is True
+
+    instance().terminate(instance_name, zone_list[0])
+    image().delete(image_name)
     # AWSSecurityGroup().delete(sg_id)
-    # AWSSubnet().delete(subnet_id)
-    # AWSvpc().delete(vpc_id)
-    # AWSkey().delete(ssh_key)
+    subnet().delete(subnet_name)
+    network().delete(network_name)

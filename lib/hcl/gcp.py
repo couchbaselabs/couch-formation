@@ -200,7 +200,7 @@ class CloudDriver(object):
 
     def list_images(self):
         image_list = config.cloud_image().list(filter_keys_exist=["release_tag", "type_tag", "version_tag"])
-        self.ask.list_dict(f"Images in cloud {config.cloud}", image_list, sort_key="date")
+        self.ask.list_dict(f"Images in cloud {config.cloud}", image_list, sort_key="date", hide_key=["link"])
 
     def create_nodes(self):
         self.path_map.map(PathType.CLUSTER)

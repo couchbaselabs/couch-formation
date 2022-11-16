@@ -9,6 +9,8 @@ import inspect
 class fatalError(Exception):
 
     def __init__(self, message):
+        import traceback
+        traceback.print_exc()
         frame = inspect.currentframe().f_back
         (filename, line, function, lines, index) = inspect.getframeinfo(frame)
         filename = os.path.basename(filename)

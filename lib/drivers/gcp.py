@@ -7,13 +7,15 @@ import json
 import configparser
 from Crypto.PublicKey import RSA
 import googleapiclient.discovery
+import googleapiclient.errors
 from google.oauth2 import service_account
-from google.cloud import compute_v1, network_management_v1
+from google.cloud import compute_v1
 from lib.exceptions import GCPDriverError, EmptyResultSet
 from lib.util.filemgr import FileManager
-from typing import Iterable, Union
+from typing import Union
 from itertools import cycle
 import lib.config as config
+import time
 
 
 class CloudBase(object):
@@ -133,6 +135,47 @@ class CloudBase(object):
         block = dict(sorted(block.items()))
         return block
 
+    def wait_for_global_operation(self, operation):
+        while True:
+            result = self.gcp_client.globalOperations().get(
+                project=self.gcp_project,
+                operation=operation).execute()
+
+            if result['status'] == 'DONE':
+                if 'error' in result:
+                    raise GCPDriverError(result['error'])
+                return result
+
+            time.sleep(1)
+
+    def wait_for_regional_operation(self, operation):
+        while True:
+            result = self.gcp_client.regionOperations().get(
+                project=self.gcp_project,
+                region=self.gcp_region,
+                operation=operation).execute()
+
+            if result['status'] == 'DONE':
+                if 'error' in result:
+                    raise GCPDriverError(result['error'])
+                return result
+
+            time.sleep(1)
+
+    def wait_for_zone_operation(self, operation, zone):
+        while True:
+            result = self.gcp_client.zoneOperations().get(
+                project=self.gcp_project,
+                zone=zone,
+                operation=operation).execute()
+
+            if result['status'] == 'DONE':
+                if 'error' in result:
+                    raise GCPDriverError(result['error'])
+                return result
+
+            time.sleep(1)
+
 
 class Network(CloudBase):
 
@@ -175,16 +218,23 @@ class Network(CloudBase):
             "autoCreateSubnetworks": False
         }
         try:
-            operation = self.gcp_client.networks().insert(project=self.gcp_project, body=network_body)
-            response = operation.execute()
-            return response['name']
+            request = self.gcp_client.networks().insert(project=self.gcp_project, body=network_body)
+            operation = request.execute()
+            self.wait_for_global_operation(operation['name'])
+        except googleapiclient.errors.HttpError as err:
+            error_details = err.error_details[0].get('reason')
+            if error_details != "alreadyExists":
+                raise GCPDriverError(f"can not create network: {err}")
         except Exception as err:
             raise GCPDriverError(f"error creating network: {err}")
 
+        return name
+
     def delete(self, network: str) -> None:
         try:
-            operation = self.gcp_client.networks().delete(project=self.gcp_project, network=network)
-            operation.execute()
+            request = self.gcp_client.networks().delete(project=self.gcp_project, network=network)
+            operation = request.execute()
+            self.wait_for_global_operation(operation['name'])
         except Exception as err:
             raise GCPDriverError(f"error deleting network: {err}")
 
@@ -236,16 +286,23 @@ class Subnet(CloudBase):
             "region": self.gcp_region
         }
         try:
-            operation = self.gcp_client.subnetworks().insert(project=self.gcp_project, region=self.gcp_region, body=subnetwork_body)
-            response = operation.execute()
-            return response['name']
+            request = self.gcp_client.subnetworks().insert(project=self.gcp_project, region=self.gcp_region, body=subnetwork_body)
+            operation = request.execute()
+            self.wait_for_regional_operation(operation['name'])
+        except googleapiclient.errors.HttpError as err:
+            error_details = err.error_details[0].get('reason')
+            if error_details != "alreadyExists":
+                raise GCPDriverError(f"can not create subnet: {err}")
         except Exception as err:
             raise GCPDriverError(f"error creating subnet: {err}")
 
+        return name
+
     def delete(self, subnet: str) -> None:
         try:
-            operation = self.gcp_client.subnetworks().delete(project=self.gcp_project, region=self.gcp_region, subnetwork=subnet)
-            operation.execute()
+            request = self.gcp_client.subnetworks().delete(project=self.gcp_project, region=self.gcp_region, subnetwork=subnet)
+            operation = request.execute()
+            self.wait_for_regional_operation(operation['name'])
         except Exception as err:
             raise GCPDriverError(f"error deleting network: {err}")
 
@@ -303,61 +360,70 @@ class Instance(CloudBase):
         self.logger = logging.getLogger(self.__class__.__name__)
 
     def run(self, name: str, image_name: str, zone: str, vpc: str, subnet: str, public_key: str, root_type="pd-ssd", root_size=100, machine_type="n2-standard-2"):
-        network_interface = compute_v1.NetworkInterface()
-        network_interface.name = vpc
-        network_interface.subnetwork = subnet
+        image_detail = Image().market_search(image_name)
+        if not image_detail:
+            raise GCPDriverError(f"can not find image {image_name}")
 
-        disk = compute_v1.AttachedDisk()
-        initialize_params = compute_v1.AttachedDiskInitializeParams()
-        initialize_params.source_image = image_name
-        initialize_params.disk_size_gb = root_size
-        initialize_params.disk_type = root_type
-        disk.initialize_params = initialize_params
-        disk.auto_delete = True
-        disk.boot = True
-
-        metadata = compute_v1.Metadata()
-        metadata.items = [
-            {
-                "key": "ssh-keys",
-                "value": public_key
-            }
-        ]
-
-        instance = compute_v1.Instance()
-        instance.network_interfaces = [network_interface]
-        instance.name = name
-        instance.disks = disk
-        instance.machine_type = f"zones/{zone}/machineTypes/{machine_type}"
-        instance.metadata = metadata
-
-        request = compute_v1.InsertInstanceRequest()
-        request.zone = zone
-        request.project = self.gcp_project
-        request.instance_resource = instance
+        instance_body = {
+            "name": name,
+            "networkInterfaces": [
+                {
+                    "network": f"projects/{self.gcp_project}/global/networks/{vpc}",
+                    "subnetwork": f"regions/{self.gcp_region}/subnetworks/{subnet}",
+                    "accessConfigs": []
+                }
+            ],
+            "metadata": {
+                "items": [
+                    {
+                        "key": "ssh-keys",
+                        "value": public_key
+                    }
+                ]
+            },
+            "disks": [
+                {
+                    "boot": True,
+                    "initializeParams": {
+                        "sourceImage": image_detail['link'],
+                        "diskType": f"zones/{zone}/diskTypes/{root_type}",
+                        "diskSizeGb": root_size
+                    },
+                    "autoDelete": True
+                }
+            ],
+            "machineType": f"zones/{zone}/machineTypes/{machine_type}"
+        }
 
         try:
-            request = self.gcp_client.instances().insert(request=request)
-            response = request.execute()
-            return response['name']
+            request = self.gcp_client.instances().insert(project=self.gcp_project, zone=zone, body=instance_body)
+            operation = request.execute()
+            self.wait_for_zone_operation(operation['name'], zone)
+        except googleapiclient.errors.HttpError as err:
+            error_details = err.error_details[0].get('reason')
+            if error_details != "alreadyExists":
+                raise GCPDriverError(f"can not create instance: {err}")
         except Exception as err:
-            raise GCPDriverError(f"error deleting image: {err}")
+            raise GCPDriverError(f"error creating instance: {err}")
+
+        return name
 
     def details(self, instance: str, zone: str) -> dict:
         try:
-            request = self.gcp_client.images().get(project=self.gcp_project, zone=zone, instance=instance)
+            request = self.gcp_client.instances().get(project=self.gcp_project, zone=zone, instance=instance)
             response = request.execute()
         except Exception as err:
-            raise GCPDriverError(f"error getting image details: {err}")
+            raise GCPDriverError(f"error getting instance details: {err}")
 
         return response
 
     def terminate(self, instance: str, zone: str) -> None:
         try:
-            request = self.gcp_client.images().delete(project=self.gcp_project, zone=zone, instance=instance)
-            request.execute()
+            request = self.gcp_client.instances().delete(project=self.gcp_project, zone=zone, instance=instance)
+            operation = request.execute()
+            self.wait_for_zone_operation(operation['name'], zone)
         except Exception as err:
-            raise GCPDriverError(f"error getting image details: {err}")
+            raise GCPDriverError(f"error terminating instance: {err}")
 
 
 class SSHKey(CloudBase):
@@ -391,10 +457,12 @@ class Image(CloudBase):
         super().__init__()
         self.logger = logging.getLogger(self.__class__.__name__)
 
-    def list(self, filter_keys_exist: Union[list[str], None] = None) -> list[dict]:
+    def list(self, filter_keys_exist: Union[list[str], None] = None, project: Union[str, None] = None) -> list[dict]:
         image_list = []
+        if not project:
+            project = self.gcp_project
 
-        request = self.gcp_client.images().list(project=self.gcp_project)
+        request = self.gcp_client.images().list(project=project)
 
         while request is not None:
             try:
@@ -403,6 +471,7 @@ class Image(CloudBase):
                 raise GCPDriverError(f"error getting images: {err}")
             for image in response['items']:
                 image_block = {'name': image['name'],
+                               'link': image['selfLink'],
                                'date': image['creationTimestamp']}
                 image_block.update(self.process_labels(image))
                 if filter_keys_exist:
@@ -416,37 +485,73 @@ class Image(CloudBase):
 
         return image_list
 
-    def details(self, image: str) -> dict:
+    def details(self, image: str, project: Union[str, None] = None) -> dict:
+        if not project:
+            project = self.gcp_project
+
         try:
-            request = self.gcp_client.images().get(project=self.gcp_project, image=image)
+            request = self.gcp_client.images().get(project=project, image=image)
             image = request.execute()
         except Exception as err:
-            raise GCPDriverError(f"error getting image details: {err}")
+            if isinstance(err, googleapiclient.errors.HttpError):
+                error_details = err.error_details[0].get('reason')
+                if error_details == "notFound":
+                    raise EmptyResultSet(f"image {image} not found")
+            raise GCPDriverError(f"image detail error: {err}")
 
         image_block = {'name': image['name'],
+                       'link': image['selfLink'],
                        'date': image['creationTimestamp']}
         image_block.update(self.process_labels(image))
 
         return image_block
 
     def create(self, name: str, source_image: str, description=None, root_type="pd-ssd", root_size=100) -> str:
+        image_detail = Image().market_search(source_image)
+        if not image_detail:
+            raise GCPDriverError(f"can not find image {source_image}")
         image_body = {
             "name": name,
             "description": description if description else "",
-            "sourceImage": f"/global/images/{source_image}",
+            "sourceImage": image_detail['link'],
             "diskSizeGb": root_size,
         }
         try:
             request = self.gcp_client.images().insert(project=self.gcp_project, body=image_body)
-            response = request.execute()
+            operation = request.execute()
+            self.wait_for_global_operation(operation['name'])
         except Exception as err:
             raise GCPDriverError(f"error creating image: {err}")
 
-        return response['name']
+        return name
 
     def delete(self, image: str) -> None:
         try:
             request = self.gcp_client.images().delete(project=self.gcp_project, image=image)
-            request.execute()
+            operation = request.execute()
+            self.wait_for_global_operation(operation['name'])
         except Exception as err:
             raise GCPDriverError(f"error deleting image: {err}")
+
+    def market_search(self, name: str) -> Union[dict, None]:
+        project_list = [
+            'centos-cloud',
+            'cos-cloud',
+            'debian-cloud',
+            'fedora-cloud',
+            'opensuse-cloud',
+            'rhel-cloud',
+            'rocky-linux-cloud',
+            'suse-cloud',
+            'ubuntu-os-cloud',
+            'ubuntu-os-pro-cloud',
+            'fedora-coreos-cloud',
+        ]
+
+        for project in project_list:
+            try:
+                return self.details(name, project=project)
+            except EmptyResultSet:
+                pass
+
+        return None
