@@ -16,7 +16,7 @@ def test_gcp_driver_1():
     machine_type = getattr(driver, 'MachineType')
     # instance = getattr(driver, 'Instance')
     # ssh_key = getattr(driver, 'SSHKey')
-    # image = getattr(driver, 'Image')
+    image = getattr(driver, 'Image')
 
     for net in network().cidr_list:
         cidr_util.add_network(net)
@@ -43,20 +43,20 @@ def test_gcp_driver_1():
     # subnet_id = AWSSubnet().create("pytest-subnet-01", vpc_id, zone_list[0], subnet_list[1])
     #
     # instance = AWSInstance().run("pytest-instance", "ami-0fb653ca2d3203ac1", ssh_key, sg_id, subnet_id)
-    # ami_id = AWSami().create("pytest-image", instance)
+    # image_name = image().create("pytest-image", "ubuntu-2004-focal-v20220110")
     #
     # sg_list = AWSSecurityGroup().list(vpc_id)
-    # ami_list = AWSami().list()
+    # image_list = image().list()
     # new_vpc_list = AWSvpc().list()
     #
     # assert any(i['id'] == vpc_id for i in new_vpc_list) is True
     #
     # assert any(i['id'] == sg_id for i in sg_list) is True
     #
-    # assert any(i['name'] == ami_id for i in ami_list) is True
+    # assert any(i['name'] == image_name for i in image_list) is True
     #
     # AWSInstance().terminate(instance)
-    # AWSami().delete(ami_id)
+    # image().delete(image_name)
     # AWSSecurityGroup().delete(sg_id)
     # AWSSubnet().delete(subnet_id)
     # AWSvpc().delete(vpc_id)

@@ -14,6 +14,8 @@ from lib.util.inquire import Inquire
 import lib.config as config
 from lib.invoke import tf_run
 from lib.hcl.gcp_vpc import GCPProvider, NetworkResource, SubnetResource, FirewallResource, Variables, Variable, VPCConfig, Resources
+from lib.hcl.gcp_image import Packer, PackerElement, RequiredPlugins, GooglePlugin, GooglePluginSettings, ImageMain, Locals, LocalVar, Source, SourceType, NodeType, NodeElements, \
+    ImageBuild, BuildConfig, BuildElements, Shell, ShellElements
 
 
 @attr.s
@@ -61,8 +63,10 @@ class Record(object):
 
 class CloudDriver(object):
     VERSION = '3.0.0'
+    HOST_PREP_REPO = "couchbaselabs/couchbase-hostprep"
     DRIVER_CONFIG = "gcp.json"
     NETWORK_CONFIG = "main.tf.json"
+    IMAGE_CONFIG = "main.pkr.json"
 
     def __init__(self):
         self.logger = logging.getLogger(self.__class__.__name__)
@@ -73,9 +77,6 @@ class CloudDriver(object):
             raise GCPDriverError("no environment specified")
 
         self.path_map = PathMap(config.env_name, config.cloud)
-        self.path_map.map(PathType.IMAGE)
-        self.path_map.map(PathType.CLUSTER)
-        self.path_map.map(PathType.NETWORK)
 
         self.driver_config = self.path_map.root + "/" + CloudDriver.DRIVER_CONFIG
         try:
@@ -92,10 +93,117 @@ class CloudDriver(object):
         self.config = Build.from_config(cfg_json)
 
     def create_image(self):
-        pass
+        cb_rel = CBRelease()
+
+        gcp_zone = config.cloud_base().gcp_zone
+        gcp_account_file = config.cloud_base().account_file
+        gcp_project = config.cloud_base().project
+
+        print(f"Configuring image in zone {gcp_zone}")
+
+        os_list = [i for i in self.config.build.keys()]
+        os_choice = self.ask.ask_list_basic("Select OS", os_list)
+
+        distro_list = Entry.from_config(os_choice, self.config.build)
+
+        distro_choice = self.ask.ask_list_dict("Select OS revision", distro_list.versions)
+
+        distro_table = Record.from_config(distro_choice)
+
+        release_list = cb_rel.get_cb_version(os_choice, distro_table.version)
+
+        cb_release_choice = self.ask.ask_list_basic("Select CBS release", release_list)
+
+        var_list = [
+            ("os_linux_type", os_choice, "OS Name", "string"),
+            ("gcp_account_file", gcp_account_file, "Zone name", "string"),
+            ("gcp_project", gcp_project, "Zone name", "string"),
+            ("gcp_zone", gcp_zone, "Zone name", "string"),
+            ("cb_version", cb_release_choice, "CBS Revision", "string"),
+            ("host_prep_repo", CloudDriver.HOST_PREP_REPO, "Host Prep Utility", "string"),
+            ("os_image_name", distro_table.image, "Image", "string"),
+            ("os_image_family", distro_table.family, "Image Owner", "string"),
+            ("os_image_user", distro_table.user, "Image User", "string"),
+            ("os_linux_release", distro_table.version, "OS Revision", "string"),
+        ]
+
+        packer_block = Packer.construct(
+            PackerElement.construct(
+                RequiredPlugins.construct(
+                    GooglePlugin.construct(
+                        GooglePluginSettings.construct("github.com/hashicorp/googlecompute", "1.0.16")
+                        .as_dict)
+                    .as_dict)
+                .as_dict)
+            .as_dict)
+
+        locals_block = Locals.construct(LocalVar.construct("timestamp", "${formatdate(\"MMDDYY-hhmm\", timestamp())}").as_dict)
+
+        source_block = Source.construct(
+            SourceType.construct(
+                NodeType.construct(
+                    NodeElements.construct('os_linux_type', "os_linux_release", "c5.xlarge", "region_name", "os_image_name", "os_image_owner", "os_image_user", "cb_version")
+                    .as_dict)
+                .as_key("cb-node"))
+            .as_key("amazon-ebs"))
+
+        build_block = ImageBuild.construct(
+            BuildConfig.construct(
+                BuildElements.construct(os_choice,
+                                        distro_table.version,
+                                        Shell.construct(
+                                            ShellElements.construct([
+                                                "SW_VERSION=${var.cb_version}"
+                                            ],
+                                                [
+                                                    "echo Installing Couchbase",
+                                                    "sleep 30",
+                                                    "curl -sfL https://raw.githubusercontent.com/${var.host_prep_repo}/main/bin/bootstrap.sh | sudo -E bash -",
+                                                    "sudo git clone https://github.com/${var.host_prep_repo} /usr/local/hostprep",
+                                                    "sudo /usr/local/hostprep/bin/hostprep.sh -t couchbase -v ${var.cb_version}"
+                                                ])
+                                            .as_dict)
+                                        .as_dict,
+                                        "amazon-ebs",
+                                        "cb-node")
+                .as_dict)
+            .as_dict)
+
+        var_block = Variables.build()
+        for item in var_list:
+            var_block.add(Variable.construct(item[0], item[1], item[2], item[3]).as_dict)
+
+        packer_config = ImageMain.build() \
+            .add(packer_block.as_dict) \
+            .add(locals_block.as_dict) \
+            .add(source_block.as_dict) \
+            .add(build_block.as_dict) \
+            .add(var_block.as_dict).as_dict
+
+        self.path_map.map(PathType.IMAGE)
+        cfg_file: ConfigFile
+        cfg_file = self.path_map.use(CloudDriver.IMAGE_CONFIG, PathType.IMAGE)
+        try:
+            with open(cfg_file.file_name, 'w') as cfg_file_h:
+                json.dump(packer_config, cfg_file_h, indent=2)
+        except Exception as err:
+            raise GCPDriverError(f"can not write to image config file {cfg_file.file_name}: {err}")
+
+        try:
+            print("")
+            print(f"Building {os_choice} {distro_table.version} {cb_release_choice} image in {config.cloud}")
+            pr = packer_run(working_dir=cfg_file.file_path)
+            pr.init(cfg_file.file_name)
+            pr.build_gen(cfg_file.file_name)
+        except Exception as err:
+            GCPDriverError(f"can not build image: {err}")
+
+    def list_images(self):
+        image_list = config.cloud_image().list(filter_keys_exist=["release_tag", "type_tag", "version_tag"])
+        self.ask.list_dict(f"Images in cloud {config.cloud}", image_list, sort_key="date")
 
     def create_nodes(self):
-        pass
+        self.path_map.map(PathType.CLUSTER)
 
     def create_net(self):
         cidr_util = NetworkDriver()
@@ -151,6 +259,7 @@ class CloudDriver(object):
             .add(resource_block.as_dict)\
             .add(var_block.as_dict).as_dict
 
+        self.path_map.map(PathType.NETWORK)
         cfg_file: ConfigFile
         cfg_file = self.path_map.use(CloudDriver.NETWORK_CONFIG, PathType.NETWORK)
         try:
@@ -171,6 +280,7 @@ class CloudDriver(object):
             raise GCPDriverError(f"can not create VPC: {err}")
 
     def destroy_net(self):
+        self.path_map.map(PathType.NETWORK)
         cfg_file: ConfigFile
         cfg_file = self.path_map.use(CloudDriver.NETWORK_CONFIG, PathType.NETWORK)
         try:

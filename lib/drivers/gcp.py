@@ -5,9 +5,12 @@ import logging
 import os
 import json
 import configparser
+from Crypto.PublicKey import RSA
 import googleapiclient.discovery
 from google.oauth2 import service_account
-from lib.exceptions import GCPDriverError
+from google.cloud import compute_v1, network_management_v1
+from lib.exceptions import GCPDriverError, EmptyResultSet
+from typing import Iterable, Union
 from itertools import cycle
 import lib.config as config
 
@@ -120,6 +123,15 @@ class CloudBase(object):
     def project(self):
         return self.gcp_project
 
+    @staticmethod
+    def process_labels(struct: dict) -> dict:
+        block = {}
+        if 'labels' in struct:
+            for tag in struct['labels']:
+                block.update({tag.lower() + '_tag': struct['labels'][tag]})
+        block = dict(sorted(block.items()))
+        return block
+
 
 class Network(CloudBase):
 
@@ -156,6 +168,33 @@ class Network(CloudBase):
         for item in Subnet().list():
             yield item['cidr']
 
+    def create(self, name: str) -> str:
+        network_body = {
+            "name": name,
+            "autoCreateSubnetworks": False
+        }
+        try:
+            operation = self.gcp_client.networks().insert(project=self.gcp_project, body=network_body)
+            response = operation.execute()
+            return response['name']
+        except Exception as err:
+            raise GCPDriverError(f"error creating network: {err}")
+
+    def delete(self, network: str) -> None:
+        try:
+            operation = self.gcp_client.networks().delete(project=self.gcp_project, network=network)
+            operation.execute()
+        except Exception as err:
+            raise GCPDriverError(f"error deleting network: {err}")
+
+    def details(self, network: str) -> dict:
+        try:
+            request = self.gcp_client.networks().get(project=self.gcp_project, network=network)
+            result = request.execute()
+            return result
+        except Exception as err:
+            raise GCPDriverError(f"error getting network link: {err}")
+
 
 class Subnet(CloudBase):
 
@@ -186,6 +225,28 @@ class Subnet(CloudBase):
             raise GCPDriverError(f"no subnets found")
         else:
             return subnet_list
+
+    def create(self, name: str, network: str, cidr: str) -> str:
+        network_info = Network().details(network)
+        subnetwork_body = {
+            "name": name,
+            "network": network_info['selfLink'],
+            "ipCidrRange": cidr,
+            "region": self.gcp_region
+        }
+        try:
+            operation = self.gcp_client.subnetworks().insert(project=self.gcp_project, region=self.gcp_region, body=subnetwork_body)
+            response = operation.execute()
+            return response['name']
+        except Exception as err:
+            raise GCPDriverError(f"error creating subnet: {err}")
+
+    def delete(self, subnet: str) -> None:
+        try:
+            operation = self.gcp_client.subnetworks().delete(project=self.gcp_project, region=self.gcp_region, subnetwork=subnet)
+            operation.execute()
+        except Exception as err:
+            raise GCPDriverError(f"error deleting network: {err}")
 
 
 class SecurityGroup(CloudBase):
@@ -240,6 +301,63 @@ class Instance(CloudBase):
         super().__init__()
         self.logger = logging.getLogger(self.__class__.__name__)
 
+    def run(self, name: str, image_name: str, zone: str, vpc: str, subnet: str, public_key: str, root_type="pd-ssd", root_size=100, machine_type="n2-standard-2"):
+        network_interface = compute_v1.NetworkInterface()
+        network_interface.name = vpc
+        network_interface.subnetwork = subnet
+
+        disk = compute_v1.AttachedDisk()
+        initialize_params = compute_v1.AttachedDiskInitializeParams()
+        initialize_params.source_image = image_name
+        initialize_params.disk_size_gb = root_size
+        initialize_params.disk_type = root_type
+        disk.initialize_params = initialize_params
+        disk.auto_delete = True
+        disk.boot = True
+
+        metadata = compute_v1.Metadata()
+        metadata.items = [
+            {
+                "key": "ssh-keys",
+                "value": public_key
+            }
+        ]
+
+        instance = compute_v1.Instance()
+        instance.network_interfaces = [network_interface]
+        instance.name = name
+        instance.disks = disk
+        instance.machine_type = f"zones/{zone}/machineTypes/{machine_type}"
+        instance.metadata = metadata
+
+        request = compute_v1.InsertInstanceRequest()
+        request.zone = zone
+        request.project = self.gcp_project
+        request.instance_resource = instance
+
+        try:
+            request = self.gcp_client.instances().insert(request=request)
+            response = request.execute()
+            return response['name']
+        except Exception as err:
+            raise GCPDriverError(f"error deleting image: {err}")
+
+    def details(self, instance: str, zone: str) -> dict:
+        try:
+            request = self.gcp_client.images().get(project=self.gcp_project, zone=zone, instance=instance)
+            response = request.execute()
+        except Exception as err:
+            raise GCPDriverError(f"error getting image details: {err}")
+
+        return response
+
+    def terminate(self, instance: str, zone: str) -> None:
+        try:
+            request = self.gcp_client.images().delete(project=self.gcp_project, zone=zone, instance=instance)
+            request.execute()
+        except Exception as err:
+            raise GCPDriverError(f"error getting image details: {err}")
+
 
 class SSHKey(CloudBase):
 
@@ -247,9 +365,86 @@ class SSHKey(CloudBase):
         super().__init__()
         self.logger = logging.getLogger(self.__class__.__name__)
 
+    def details(self, key_file: str) -> str:
+        if not os.path.isabs(key_file):
+            pass
+        fh = open(key_file, 'r')
+        key_pem = fh.read()
+        fh.close()
+        rsa_key = RSA.importKey(key_pem)
+        modulus = rsa_key.n
+        pubExpE = rsa_key.e
+        priExpD = rsa_key.d
+        primeP = rsa_key.p
+        primeQ = rsa_key.q
+        private_key = RSA.construct((modulus, pubExpE, priExpD, primeP, primeQ))
+        public_key = private_key.public_key().exportKey('OpenSSH')
+        ssh_public_key = public_key.decode('utf-8')
+        return ssh_public_key
+
 
 class Image(CloudBase):
 
     def __init__(self):
         super().__init__()
         self.logger = logging.getLogger(self.__class__.__name__)
+
+    def list(self, filter_keys_exist: Union[list[str], None] = None) -> list[dict]:
+        image_list = []
+
+        request = self.gcp_client.images().list(project=self.gcp_project)
+
+        while request is not None:
+            try:
+                response = request.execute()
+            except Exception as err:
+                raise GCPDriverError(f"error getting images: {err}")
+            for image in response['items']:
+                image_block = {'name': image['name'],
+                               'date': image['creationTimestamp']}
+                image_block.update(self.process_labels(image))
+                if filter_keys_exist:
+                    if not all(key in image_block for key in filter_keys_exist):
+                        continue
+                image_list.append(image_block)
+            request = self.gcp_client.images().list_next(previous_request=request, previous_response=response)
+
+        if len(image_list) == 0:
+            raise EmptyResultSet(f"no images found")
+
+        return image_list
+
+    def details(self, image: str) -> dict:
+        try:
+            request = self.gcp_client.images().get(project=self.gcp_project, image=image)
+            image = request.execute()
+        except Exception as err:
+            raise GCPDriverError(f"error getting image details: {err}")
+
+        image_block = {'name': image['name'],
+                       'date': image['creationTimestamp']}
+        image_block.update(self.process_labels(image))
+
+        return image_block
+
+    def create(self, name: str, source_image: str, description=None, root_type="pd-ssd", root_size=100) -> str:
+        image_body = {
+            "name": name,
+            "description": description if description else "",
+            "sourceImage": f"/global/images/{source_image}",
+            "diskSizeGb": root_size,
+        }
+        try:
+            request = self.gcp_client.images().insert(project=self.gcp_project, body=image_body)
+            response = request.execute()
+        except Exception as err:
+            raise GCPDriverError(f"error creating image: {err}")
+
+        return response['name']
+
+    def delete(self, image: str) -> None:
+        try:
+            request = self.gcp_client.images().delete(project=self.gcp_project, image=image)
+            request.execute()
+        except Exception as err:
+            raise GCPDriverError(f"error deleting image: {err}")
