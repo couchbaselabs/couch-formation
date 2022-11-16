@@ -10,6 +10,7 @@ import googleapiclient.discovery
 from google.oauth2 import service_account
 from google.cloud import compute_v1, network_management_v1
 from lib.exceptions import GCPDriverError, EmptyResultSet
+from lib.util.filemgr import FileManager
 from typing import Iterable, Union
 from itertools import cycle
 import lib.config as config
@@ -365,9 +366,10 @@ class SSHKey(CloudBase):
         super().__init__()
         self.logger = logging.getLogger(self.__class__.__name__)
 
-    def details(self, key_file: str) -> str:
+    @staticmethod
+    def public_key(key_file: str) -> str:
         if not os.path.isabs(key_file):
-            pass
+            key_file = FileManager.ssh_key_absolute_path(key_file)
         fh = open(key_file, 'r')
         key_pem = fh.read()
         fh.close()
