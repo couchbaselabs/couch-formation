@@ -298,7 +298,7 @@ class NodeElements(object):
             f"${{var.{os_image_publisher}}}",
             f"${{var.{os_image_sku}}}",
             f"${{var.{azure_location}}}",
-            f"${{var.{os_linux_type}}}-${{var.{os_linux_release}}}-couchbase-${{local.timestamp}}",
+            f"cf-${{var.{os_linux_type}}}-${{var.{os_linux_release}}}-couchbase-${{local.timestamp}}",
             f"${{var.{azure_resource_group}}}",
             f"{os_type}",
             True,

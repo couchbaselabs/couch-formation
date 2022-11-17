@@ -174,6 +174,14 @@ class CloudBase(object):
         block = dict(sorted(block.items()))
         return block
 
+    def rg_switch(self):
+        image_rg = f"cf-image-{self.azure_location}-rg"
+        if self.get_rg(image_rg, self.azure_location):
+            resource_group = image_rg
+        else:
+            resource_group = self.azure_resource_group
+        return resource_group
+
     @property
     def region(self):
         return self.azure_location
@@ -212,6 +220,15 @@ class Network(CloudBase):
         for item in self.list():
             for net in item['cidr']:
                 yield net
+
+    def create(self, name: str) -> str:
+        pass
+
+    def delete(self, network: str) -> None:
+        pass
+
+    def details(self, network: str) -> dict:
+        pass
 
 
 class Subnet(CloudBase):
@@ -313,11 +330,7 @@ class Image(CloudBase):
     def list(self, filter_keys_exist: Union[list[str], None] = None, resource_group: Union[str, None] = None) -> list[dict]:
         image_list = []
         if not resource_group:
-            image_rg = f"cf-image-{self.azure_location}-rg"
-            if self.get_rg(image_rg, self.azure_location):
-                resource_group = image_rg
-            else:
-                resource_group = self.azure_resource_group
+            resource_group = self.rg_switch()
 
         images = self.compute_client.images.list_by_resource_group(resource_group)
 
@@ -335,3 +348,26 @@ class Image(CloudBase):
             raise AzureDriverError(f"no images found")
 
         return image_list
+
+    def details(self, name: str, resource_group: Union[str, None] = None) -> dict:
+        if not resource_group:
+            resource_group = self.rg_switch()
+        request = self.compute_client.images.get(resource_group, name)
+        image = request.result()
+        image_block = {'name': image.name,
+                       'id': image.id,
+                       'location': image.location}
+        image_block.update(self.process_tags(image.tags))
+        return image_block
+
+    def create(self, name: str, source_image: str, description=None, root_type="StandardSSD_LRS", root_size=100) -> str:
+        pass
+
+    def delete(self, name: str, resource_group: Union[str, None] = None) -> None:
+        if not resource_group:
+            resource_group = self.rg_switch()
+        request = self.compute_client.images.begin_delete(resource_group, name)
+        result = request.result()
+
+    def market_search(self, name: str) -> Union[dict, None]:
+        pass
