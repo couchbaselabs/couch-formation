@@ -134,6 +134,46 @@ class CloudBase(object):
         zone_list = self.zones()
         config.cloud_zone_cycle = cycle(zone_list)
 
+    def create_rg(self, name: str, location: str, tags: Union[dict, None]) -> dict:
+        if not tags:
+            tags = {}
+        if not tags.get('type'):
+            tags.update({"type": "couch-formation"})
+        try:
+            if self.resource_client.resource_groups.check_existence(name):
+                return self.get_rg(name, location)
+            else:
+                result = self.resource_client.resource_groups.create_or_update(
+                    name,
+                    {
+                        "location": location,
+                        "tags": tags
+                    }
+                )
+                return result.__dict__
+        except Exception as err:
+            raise AzureDriverError(f"error creating resource group: {err}")
+
+    def get_rg(self, name: str, location: str) -> Union[dict, None]:
+        try:
+            if self.resource_client.resource_groups.check_existence(name):
+                result = self.resource_client.resource_groups.get(name)
+                if result.location == location:
+                    return result.__dict__
+        except Exception as err:
+            raise AzureDriverError(f"error getting resource group: {err}")
+
+        return None
+
+    @staticmethod
+    def process_tags(struct: dict) -> dict:
+        block = {}
+        if struct:
+            for tag in struct:
+                block.update({tag.lower() + '_tag': struct[tag]})
+        block = dict(sorted(block.items()))
+        return block
+
     @property
     def region(self):
         return self.azure_location
@@ -269,3 +309,29 @@ class Image(CloudBase):
     def __init__(self):
         super().__init__()
         self.logger = logging.getLogger(self.__class__.__name__)
+
+    def list(self, filter_keys_exist: Union[list[str], None] = None, resource_group: Union[str, None] = None) -> list[dict]:
+        image_list = []
+        if not resource_group:
+            image_rg = f"cf-image-{self.azure_location}-rg"
+            if self.get_rg(image_rg, self.azure_location):
+                resource_group = image_rg
+            else:
+                resource_group = self.azure_resource_group
+
+        images = self.compute_client.images.list_by_resource_group(resource_group)
+
+        for image in list(images):
+            image_block = {'name': image.name,
+                           'id': image.id,
+                           'location': image.location}
+            image_block.update(self.process_tags(image.tags))
+            if filter_keys_exist:
+                if not all(key in image_block for key in filter_keys_exist):
+                    continue
+            image_list.append(image_block)
+
+        if len(image_list) == 0:
+            raise AzureDriverError(f"no images found")
+
+        return image_list
