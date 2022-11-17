@@ -12,7 +12,7 @@ from lib.drivers.cbrelease import CBRelease
 from lib.drivers.network import NetworkDriver
 from lib.util.inquire import Inquire
 import lib.config as config
-from lib.invoke import tf_run
+from lib.invoke import tf_run, packer_run
 from lib.hcl.gcp_vpc import GCPProvider, NetworkResource, SubnetResource, FirewallResource, Variables, Variable, VPCConfig, Resources
 from lib.hcl.gcp_image import Packer, PackerElement, RequiredPlugins, GooglePlugin, GooglePluginSettings, ImageMain, Locals, LocalVar, Source, SourceType, NodeType, NodeElements, \
     ImageBuild, BuildConfig, BuildElements, Shell, ShellElements
@@ -142,10 +142,19 @@ class CloudDriver(object):
         source_block = Source.construct(
             SourceType.construct(
                 NodeType.construct(
-                    NodeElements.construct('os_linux_type', "os_linux_release", "c5.xlarge", "region_name", "os_image_name", "os_image_owner", "os_image_user", "cb_version")
+                    NodeElements.construct('os_linux_type',
+                                           "os_linux_release",
+                                           "n2-standard-2",
+                                           "gcp_zone",
+                                           "gcp_project",
+                                           "gcp_account_file",
+                                           "os_image_name",
+                                           "os_image_family",
+                                           "os_image_user",
+                                           "cb_version")
                     .as_dict)
                 .as_key("cb-node"))
-            .as_key("amazon-ebs"))
+            .as_key("googlecompute"))
 
         build_block = ImageBuild.construct(
             BuildConfig.construct(
@@ -164,7 +173,7 @@ class CloudDriver(object):
                                                 ])
                                             .as_dict)
                                         .as_dict,
-                                        "amazon-ebs",
+                                        "googlecompute",
                                         "cb-node")
                 .as_dict)
             .as_dict)
