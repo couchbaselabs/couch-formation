@@ -10,6 +10,7 @@ from azure.mgmt.compute import ComputeManagementClient
 from azure.mgmt.network import NetworkManagementClient
 from azure.mgmt.resource.resources import ResourceManagementClient
 from azure.mgmt.resource.subscriptions import SubscriptionClient
+from azure.mgmt.network.models import SecurityRule
 from itertools import cycle
 from lib.exceptions import AzureDriverError
 import lib.config as config
@@ -134,7 +135,7 @@ class CloudBase(object):
         zone_list = self.zones()
         config.cloud_zone_cycle = cycle(zone_list)
 
-    def create_rg(self, name: str, location: str, tags: Union[dict, None]) -> dict:
+    def create_rg(self, name: str, location: str, tags: Union[dict, None] = None) -> dict:
         if not tags:
             tags = {}
         if not tags.get('type'):
@@ -193,11 +194,13 @@ class Network(CloudBase):
         super().__init__()
         self.logger = logging.getLogger(self.__class__.__name__)
 
-    def list(self) -> list[dict]:
+    def list(self, resource_group: Union[str, None] = None) -> list[dict]:
+        if not resource_group:
+            resource_group = self.azure_resource_group
         vnet_list = []
 
         try:
-            vnetworks = self.network_client.virtual_networks.list(self.azure_resource_group)
+            vnetworks = self.network_client.virtual_networks.list(resource_group)
         except Exception as err:
             raise AzureDriverError(f"error getting vnet: {err}")
 
@@ -221,14 +224,48 @@ class Network(CloudBase):
             for net in item['cidr']:
                 yield net
 
-    def create(self, name: str) -> str:
-        pass
+    def create(self, name: str, cidr: str, resource_group: Union[str, None] = None) -> str:
+        if not resource_group:
+            resource_group = self.azure_resource_group
+        try:
+            request = self.network_client.virtual_networks.begin_create_or_update(
+                resource_group,
+                name,
+                {
+                    'location': self.azure_location,
+                    'address_space': {
+                        'address_prefixes': [cidr]
+                    }
+                }
+            )
+            request.wait()
+        except Exception as err:
+            raise AzureDriverError(f"error creating network: {err}")
+        return name
 
-    def delete(self, network: str) -> None:
-        pass
+    def delete(self, network: str, resource_group: Union[str, None] = None) -> None:
+        if not resource_group:
+            resource_group = self.azure_resource_group
+        try:
+            request = self.network_client.virtual_networks.begin_delete(resource_group, network)
+            request.wait()
+        except Exception as err:
+            raise AzureDriverError(f"error getting vnet: {err}")
 
-    def details(self, network: str) -> dict:
-        pass
+    def details(self, network: str, resource_group: Union[str, None] = None) -> dict:
+        if not resource_group:
+            resource_group = self.azure_resource_group
+        try:
+            info = self.network_client.virtual_networks.get(resource_group, network)
+        except Exception as err:
+            raise AzureDriverError(f"error getting vnet: {err}")
+
+        network_block = {'cidr': info.address_space.address_prefixes,
+                         'name': info.name,
+                         'subnets': [s.name for s in info.subnets],
+                         'id': info.id}
+
+        return network_block
 
 
 class Subnet(CloudBase):
@@ -237,11 +274,13 @@ class Subnet(CloudBase):
         super().__init__()
         self.logger = logging.getLogger(self.__class__.__name__)
 
-    def list(self, vnet: str) -> list[dict]:
+    def list(self, vnet: str, resource_group: Union[str, None] = None) -> list[dict]:
+        if not resource_group:
+            resource_group = self.azure_resource_group
         subnet_list = []
 
         try:
-            subnets = self.network_client.subnets.list(self.azure_resource_group, vnet)
+            subnets = self.network_client.subnets.list(resource_group, vnet)
         except Exception as err:
             raise AzureDriverError(f"error getting subnets: {err}")
 
@@ -258,12 +297,161 @@ class Subnet(CloudBase):
 
         return subnet_list
 
+    def create(self, name: str, network: str, cidr: str, nsg: str, resource_group: Union[str, None] = None) -> str:
+        if not resource_group:
+            resource_group = self.azure_resource_group
+
+        nsg_data = SecurityGroup().details(nsg, resource_group)
+        if not nsg_data.get('id'):
+            raise AzureDriverError(f"can not lookup nsg {nsg}")
+
+        request = self.network_client.subnets.begin_create_or_update(
+            resource_group,
+            network,
+            name,
+            {
+                'address_prefix': cidr,
+                'network_security_group': {
+                    'id': nsg_data['id']
+                }
+            }
+        )
+        subnet_info = request.result()
+
+        return subnet_info.name
+
+    def delete(self, network: str, subnet: str, resource_group: Union[str, None] = None) -> None:
+        if not resource_group:
+            resource_group = self.azure_resource_group
+        try:
+            request = self.network_client.subnets.begin_delete(resource_group, network, subnet)
+            request.wait()
+        except Exception as err:
+            raise AzureDriverError(f"error deleting subnet: {err}")
+
+    def details(self, network: str, subnet: str, resource_group: Union[str, None] = None) -> dict:
+        if not resource_group:
+            resource_group = self.azure_resource_group
+        try:
+            info = self.network_client.subnets.get(resource_group, network, subnet)
+        except Exception as err:
+            raise AzureDriverError(f"error getting subnet: {err}")
+
+        subnet_block = {'cidr': info.address_prefix,
+                        'name': info.name,
+                        'routes': info.route_table.routes,
+                        'nsg': info.network_security_group,
+                        'id': info.id}
+
+        return subnet_block
+
 
 class SecurityGroup(CloudBase):
 
     def __init__(self):
         super().__init__()
         self.logger = logging.getLogger(self.__class__.__name__)
+
+    def list(self, resource_group: Union[str, None] = None) -> list[dict]:
+        if not resource_group:
+            resource_group = self.azure_resource_group
+        nsg_list = []
+
+        try:
+            result = self.network_client.network_security_groups.list(resource_group)
+        except Exception as err:
+            raise AzureDriverError(f"error getting vnet: {err}")
+
+        for group in list(result):
+            if group.location != self.azure_location:
+                continue
+            nsg_block = {'location': group.location,
+                         'name': group.name,
+                         'rules': [r.__dict__ for r in group.security_rules] if group.security_rules else [],
+                         'subnets': [s.__dict__ for s in group.subnets] if group.subnets else [],
+                         'id': group.id}
+            nsg_list.append(nsg_block)
+
+        if len(nsg_list) == 0:
+            raise AzureDriverError(f"no suitable network security group in group {resource_group}")
+
+        return nsg_list
+
+    def create(self, name: str, resource_group: Union[str, None] = None) -> str:
+        if not resource_group:
+            resource_group = self.azure_resource_group
+        try:
+            request = self.network_client.network_security_groups.begin_create_or_update(
+                resource_group,
+                name,
+                {
+                    'location': self.azure_location
+                }
+            )
+            request.wait()
+        except Exception as err:
+            raise AzureDriverError(f"error creating network security group: {err}")
+        return name
+
+    def add_rule(self,
+                 name: str,
+                 nsg: str,
+                 ports: list,
+                 priority: int,
+                 source: Union[list, None] = None,
+                 resource_group: Union[str, None] = None) -> None:
+        if not resource_group:
+            resource_group = self.azure_resource_group
+        if source:
+            default_source = None
+        else:
+            default_source = "*"
+        try:
+            request = self.network_client.security_rules.create_or_update(
+                resource_group,
+                nsg,
+                name,
+                {
+                    "description": "Cloud Formation Managed",
+                    "access": "Allow",
+                    "destination_address_prefix": "*",
+                    "destination_port_ranges": ports,
+                    "direction": "Inbound",
+                    "priority": priority,
+                    "protocol": "Tcp",
+                    "source_address_prefix": default_source,
+                    "source_address_prefixes": source,
+                    "source_port_range": "*",
+                }
+            )
+            request.wait()
+        except Exception as err:
+            raise AzureDriverError(f"error creating network security group rule: {err}")
+
+    def delete(self, name: str, resource_group: Union[str, None] = None) -> None:
+        if not resource_group:
+            resource_group = self.azure_resource_group
+        try:
+            request = self.network_client.network_security_groups.begin_delete(resource_group, name)
+            request.wait()
+        except Exception as err:
+            raise AzureDriverError(f"error getting network security group: {err}")
+
+    def details(self, name: str, resource_group: Union[str, None] = None) -> dict:
+        if not resource_group:
+            resource_group = self.azure_resource_group
+        try:
+            info = self.network_client.network_security_groups.get(resource_group, name)
+        except Exception as err:
+            raise AzureDriverError(f"error getting network security group: {err}")
+
+        nsg_block = {'location': info.location,
+                     'name': info.name,
+                     'rules': [r.__dict__ for r in info.security_rules] if info.security_rules else [],
+                     'subnets': [s.__dict__ for s in info.subnets] if info.subnets else [],
+                     'id': info.id}
+
+        return nsg_block
 
 
 class MachineType(CloudBase):

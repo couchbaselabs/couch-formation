@@ -12,7 +12,7 @@ def test_azure_driver_1():
     base = getattr(driver, 'CloudBase')
     network = getattr(driver, 'Network')
     subnet = getattr(driver, 'Subnet')
-    # security_group = getattr(driver, 'SecurityGroup')
+    security_group = getattr(driver, 'SecurityGroup')
     machine_type = getattr(driver, 'MachineType')
     # instance = getattr(driver, 'Instance')
     # ssh_key = getattr(driver, 'SSHKey')
@@ -24,6 +24,7 @@ def test_azure_driver_1():
     vpc_cidr = cidr_util.get_next_network()
     subnet_list = list(cidr_util.get_next_subnet())
     zone_list = base().zones()
+    azure_location = base().region
 
     instance_type_list = machine_type().list()
     assert any(i['name'] == 'Standard_D2_v4' for i in instance_type_list) is True
@@ -37,24 +38,29 @@ def test_azure_driver_1():
     print(f"Subnet : {subnet_list[1]}")
     print(f"Zone   : {zone_list[0]}")
 
-    # vpc_id = AWSvpc().create("pytest-vpc", vpc_cidr)
-    # sg_id = AWSSecurityGroup().create("pytest-sg", "TestSG", vpc_id)
+    azure_rg_struct = base().create_rg(f"pytest-rg", azure_location)
+    if not azure_rg_struct.get('name'):
+        raise Exception(f"resource group creation failed")
+    azure_rg = azure_rg_struct['name']
+
+    network_name = network().create("pytest-vpc", vpc_cidr, azure_rg)
+    sg_name = security_group().create("pytest-sg", azure_rg)
     # ssh_key = AWSkey().create("pytest-key")
-    # subnet_id = AWSSubnet().create("pytest-subnet-01", vpc_id, zone_list[0], subnet_list[1])
-    #
+    subnet_name = subnet().create("pytest-subnet-01", network_name, subnet_list[1], sg_name, azure_rg)
+
     # instance = AWSInstance().run("pytest-instance", "ami-0fb653ca2d3203ac1", ssh_key, sg_id, subnet_id)
     # ami_id = AWSami().create("pytest-image", instance)
-    #
-    # sg_list = AWSSecurityGroup().list(vpc_id)
+
+    sg_list = security_group().list(azure_rg)
     # ami_list = AWSami().list()
-    # new_vpc_list = AWSvpc().list()
-    #
-    # assert any(i['id'] == vpc_id for i in new_vpc_list) is True
-    #
-    # assert any(i['id'] == sg_id for i in sg_list) is True
-    #
+    new_vpc_list = network().list(azure_rg)
+
+    assert any(i['name'] == network_name for i in new_vpc_list) is True
+
+    assert any(i['name'] == sg_name for i in sg_list) is True
+
     # assert any(i['name'] == ami_id for i in ami_list) is True
-    #
+
     # AWSInstance().terminate(instance)
     # AWSami().delete(ami_id)
     # AWSSecurityGroup().delete(sg_id)
