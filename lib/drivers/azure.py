@@ -5,12 +5,14 @@ import logging
 import os
 import configparser
 from typing import Union
+from Crypto.PublicKey import RSA
 from azure.identity import AzureCliCredential
 from azure.mgmt.compute import ComputeManagementClient
 from azure.mgmt.network import NetworkManagementClient
 from azure.mgmt.resource.resources import ResourceManagementClient
 from azure.mgmt.resource.subscriptions import SubscriptionClient
-from azure.mgmt.network.models import SecurityRule
+from azure.core.exceptions import ResourceNotFoundError
+from lib.util.filemgr import FileManager
 from itertools import cycle
 from lib.exceptions import AzureDriverError
 import lib.config as config
@@ -166,6 +168,14 @@ class CloudBase(object):
 
         return None
 
+    def delete_rg(self, name: str):
+        try:
+            if self.resource_client.resource_groups.check_existence(name):
+                request = self.resource_client.resource_groups.begin_delete(name)
+                request.wait()
+        except Exception as err:
+            raise AzureDriverError(f"error deleting resource group: {err}")
+
     @staticmethod
     def process_tags(struct: dict) -> dict:
         block = {}
@@ -227,6 +237,13 @@ class Network(CloudBase):
     def create(self, name: str, cidr: str, resource_group: Union[str, None] = None) -> str:
         if not resource_group:
             resource_group = self.azure_resource_group
+
+        try:
+            net_info = self.details(name, resource_group)
+            return net_info['name']
+        except ResourceNotFoundError:
+            pass
+
         try:
             request = self.network_client.virtual_networks.begin_create_or_update(
                 resource_group,
@@ -257,6 +274,8 @@ class Network(CloudBase):
             resource_group = self.azure_resource_group
         try:
             info = self.network_client.virtual_networks.get(resource_group, network)
+        except ResourceNotFoundError:
+            raise
         except Exception as err:
             raise AzureDriverError(f"error getting vnet: {err}")
 
@@ -266,6 +285,78 @@ class Network(CloudBase):
                          'id': info.id}
 
         return network_block
+
+    def create_pub_ip(self, name: str, resource_group: Union[str, None] = None) -> dict:
+        public_ip = {
+            'location': self.azure_location,
+            'public_ip_allocation_method': 'Static',
+            'sku': {
+                'name': 'Standard'
+            }
+        }
+
+        try:
+            request = self.network_client.public_ip_addresses.begin_create_or_update(resource_group, name, public_ip)
+            result = request.result()
+        except Exception as err:
+            raise AzureDriverError(f"can not create public IP: {err}")
+
+        return result.__dict__
+
+    def create_nic(self, name: str, network: str, subnet: str, zone: str, resource_group: Union[str, None] = None) -> dict:
+        if not resource_group:
+            resource_group = self.azure_resource_group
+
+        try:
+            subnet_info = Subnet().details(network, subnet, resource_group)
+        except Exception as err:
+            raise AzureDriverError(f"can not get subnet {subnet} info: {err}")
+
+        pub_ip = self.create_pub_ip(f"{name}-pub-ip", resource_group)
+
+        parameters = {
+            'location': self.azure_location,
+            'ip_configurations': [
+                {
+                    'name': f"{name}-int",
+                    'subnet': {
+                        'id': subnet_info['id'],
+                    },
+                    'private_ip_allocation_method': 'Dynamic',
+                    'zones': [zone],
+                    'public_ip_address': {
+                        'id': pub_ip['id']
+                    }
+                }
+            ]
+        }
+
+        try:
+            request = self.network_client.network_interfaces.begin_create_or_update(resource_group, name, parameters)
+            result = request.result()
+        except Exception as err:
+            raise AzureDriverError(f"error creating nic: {err}")
+
+        return result.__dict__
+
+    def delete_pub_ip(self, name: str, resource_group: Union[str, None] = None):
+        if not resource_group:
+            resource_group = self.azure_resource_group
+        try:
+            request = self.network_client.public_ip_addresses.begin_delete(resource_group, name)
+            request.wait()
+        except Exception as err:
+            raise AzureDriverError(f"error deleting public IP: {err}")
+
+    def delete_nic(self, name: str, resource_group: Union[str, None] = None) -> None:
+        if not resource_group:
+            resource_group = self.azure_resource_group
+        try:
+            request = self.network_client.network_interfaces.begin_delete(resource_group, name)
+            request.wait()
+            self.delete_pub_ip(f"{name}-pub-ip", resource_group)
+        except Exception as err:
+            raise AzureDriverError(f"error deleting nic: {err}")
 
 
 class Subnet(CloudBase):
@@ -339,8 +430,8 @@ class Subnet(CloudBase):
 
         subnet_block = {'cidr': info.address_prefix,
                         'name': info.name,
-                        'routes': info.route_table.routes,
-                        'nsg': info.network_security_group,
+                        'routes': info.route_table.routes if info.route_table else None,
+                        'nsg': info.network_security_group if info.network_security_group else None,
                         'id': info.id}
 
         return subnet_block
@@ -501,12 +592,144 @@ class Instance(CloudBase):
         super().__init__()
         self.logger = logging.getLogger(self.__class__.__name__)
 
+    def run(self,
+            name: str,
+            image_reference: Union[tuple, str],
+            zone: str,
+            network: str,
+            subnet: str,
+            username: str,
+            public_key: str,
+            root_type="StandardSSD_LRS",
+            root_size=100,
+            machine_type="Standard_D4_v3",
+            resource_group: Union[str, None] = None) -> str:
+        if not resource_group:
+            resource_group = self.azure_resource_group
+
+        try:
+            instance_info = self.details(name, resource_group)
+            return instance_info['name']
+        except ResourceNotFoundError:
+            pass
+
+        if type(image_reference) is str:
+            image_block = {
+                'id': image_reference
+            }
+        else:
+            image_block = {
+                'publisher': image_reference[0],
+                'offer': image_reference[1],
+                'sku': image_reference[2],
+                'version': 'latest'
+            }
+
+        try:
+            nic_info = Network().create_nic(f"{name}-nic", network, subnet, zone, resource_group)
+        except Exception as err:
+            raise AzureDriverError(f"can not create nic: {err}")
+
+        parameters = {
+            'location': self.azure_location,
+            'os_profile': {
+                'computer_name': name,
+                'admin_username': username,
+                'linux_configuration': {
+                    'ssh': {
+                        'public_keys': [
+                            {
+                                'path': f"/home/{username}/.ssh/authorized_keys",
+                                'key_data': public_key
+                            }
+                        ]
+                    }
+                }
+            },
+            'hardware_profile': {
+                'vm_size': machine_type
+            },
+            'storage_profile': {
+                'image_reference': image_block,
+                'os_disk': {
+                    'name': f"{name}-boot-disk",
+                    'disk_size_gb': root_size,
+                    'create_option': 'FromImage',
+                    'managed_disk': {
+                        'storage_account_type': root_type
+                    }
+                }
+            },
+            'network_profile': {
+                'network_interfaces': [{
+                    'id': nic_info['id'],
+                }]
+            },
+        }
+
+        try:
+            request = self.compute_client.virtual_machines.begin_create_or_update(resource_group, name, parameters)
+            request.wait()
+        except Exception as err:
+            raise AzureDriverError(f"error listing machine types: {err}")
+
+        return name
+
+    def details(self, instance: str, resource_group: Union[str, None] = None) -> dict:
+        if not resource_group:
+            resource_group = self.azure_resource_group
+        try:
+            machine = self.compute_client.virtual_machines.get(resource_group, instance)
+        except ResourceNotFoundError:
+            raise
+        except Exception as err:
+            raise AzureDriverError(f"error getting instance {instance}: {err}")
+
+        instance_info = {'name': machine.name,
+                         'id': machine.id,
+                         'zones': machine.zones,
+                         'storage': machine.storage_profile.__dict__,
+                         'os': machine.os_profile.__dict__,
+                         'disk': machine.network_profile.__dict__}
+
+        return instance_info
+
+    def terminate(self, instance: str, resource_group: Union[str, None] = None) -> None:
+        if not resource_group:
+            resource_group = self.azure_resource_group
+        try:
+            request = self.compute_client.virtual_machines.begin_delete(resource_group, instance)
+            request.wait()
+            request = self.compute_client.disks.begin_delete(resource_group, f"{instance}-boot-disk")
+            request.wait()
+            Network().delete_nic(f"{instance}-nic", resource_group)
+        except Exception as err:
+            raise AzureDriverError(f"error deleting instance: {err}")
+
 
 class SSHKey(CloudBase):
 
     def __init__(self):
         super().__init__()
         self.logger = logging.getLogger(self.__class__.__name__)
+
+    @staticmethod
+    def public_key(key_file: str) -> str:
+        if not os.path.isabs(key_file):
+            key_file = FileManager.ssh_key_absolute_path(key_file)
+        fh = open(key_file, 'r')
+        key_pem = fh.read()
+        fh.close()
+        rsa_key = RSA.importKey(key_pem)
+        modulus = rsa_key.n
+        pubExpE = rsa_key.e
+        priExpD = rsa_key.d
+        primeP = rsa_key.p
+        primeQ = rsa_key.q
+        private_key = RSA.construct((modulus, pubExpE, priExpD, primeP, primeQ))
+        public_key = private_key.public_key().exportKey('OpenSSH')
+        ssh_public_key = public_key.decode('utf-8')
+        return ssh_public_key
 
 
 class Image(CloudBase):
@@ -548,14 +771,42 @@ class Image(CloudBase):
         image_block.update(self.process_tags(image.tags))
         return image_block
 
-    def create(self, name: str, source_image: str, description=None, root_type="StandardSSD_LRS", root_size=100) -> str:
-        pass
+    def create(self, name: str, source_instance: str, root_type="StandardSSD_LRS", root_size=100, resource_group: Union[str, None] = None) -> str:
+        if not resource_group:
+            resource_group = self.rg_switch()
+
+        try:
+            vm_info = Instance().details(source_instance, resource_group)
+            vm_id = vm_info['id']
+        except Exception as err:
+            raise AzureDriverError(f"can not get instance {name} info: {err}")
+
+        parameters = {
+            'location': self.azure_location,
+            'source_virtual_machine': {
+                'id': vm_id
+            },
+        }
+
+        try:
+            request = self.compute_client.virtual_machines.begin_power_off(resource_group, source_instance)
+            request.wait()
+            self.compute_client.virtual_machines.generalize(resource_group, source_instance)
+            request = self.compute_client.images.begin_create_or_update(resource_group, name, parameters)
+            request.wait()
+        except Exception as err:
+            raise AzureDriverError(f"error creating image: {err}")
+
+        return name
 
     def delete(self, name: str, resource_group: Union[str, None] = None) -> None:
         if not resource_group:
             resource_group = self.rg_switch()
-        request = self.compute_client.images.begin_delete(resource_group, name)
-        result = request.result()
+        try:
+            request = self.compute_client.images.begin_delete(resource_group, name)
+            result = request.result()
+        except Exception as err:
+            raise AzureDriverError(f"can not delete image: {err}")
 
     def market_search(self, name: str) -> Union[dict, None]:
         pass

@@ -14,9 +14,9 @@ def test_azure_driver_1():
     subnet = getattr(driver, 'Subnet')
     security_group = getattr(driver, 'SecurityGroup')
     machine_type = getattr(driver, 'MachineType')
-    # instance = getattr(driver, 'Instance')
-    # ssh_key = getattr(driver, 'SSHKey')
-    # image = getattr(driver, 'Image')
+    instance = getattr(driver, 'Instance')
+    ssh_key = getattr(driver, 'SSHKey')
+    image = getattr(driver, 'Image')
 
     for net in network().cidr_list:
         cidr_util.add_network(net)
@@ -38,32 +38,43 @@ def test_azure_driver_1():
     print(f"Subnet : {subnet_list[1]}")
     print(f"Zone   : {zone_list[0]}")
 
-    azure_rg_struct = base().create_rg(f"pytest-rg", azure_location)
+    azure_rg_struct = base().create_rg("pytest-rg", azure_location)
     if not azure_rg_struct.get('name'):
         raise Exception(f"resource group creation failed")
     azure_rg = azure_rg_struct['name']
 
     network_name = network().create("pytest-vpc", vpc_cidr, azure_rg)
     sg_name = security_group().create("pytest-sg", azure_rg)
-    # ssh_key = AWSkey().create("pytest-key")
+    ssh_key = ssh_key().public_key("mminichino-default-key-pair")
     subnet_name = subnet().create("pytest-subnet-01", network_name, subnet_list[1], sg_name, azure_rg)
 
-    # instance = AWSInstance().run("pytest-instance", "ami-0fb653ca2d3203ac1", ssh_key, sg_id, subnet_id)
-    # ami_id = AWSami().create("pytest-image", instance)
+    instance_name = instance().run("pytest-instance",
+                                   ("Canonical", "0001-com-ubuntu-server-focal", "20_04-lts"),
+                                   zone_list[0],
+                                   network_name,
+                                   subnet_name,
+                                   "ubuntu",
+                                   ssh_key,
+                                   machine_type="Standard_D2_v4",
+                                   resource_group=azure_rg)
+
+    image_name = image().create("pytest-image",
+                                instance_name,
+                                resource_group=azure_rg)
 
     sg_list = security_group().list(azure_rg)
-    # ami_list = AWSami().list()
+    image_list = image().list(resource_group=azure_rg)
     new_vpc_list = network().list(azure_rg)
 
     assert any(i['name'] == network_name for i in new_vpc_list) is True
 
     assert any(i['name'] == sg_name for i in sg_list) is True
 
-    # assert any(i['name'] == ami_id for i in ami_list) is True
+    assert any(i['name'] == image_name for i in image_list) is True
 
-    # AWSInstance().terminate(instance)
-    # AWSami().delete(ami_id)
-    # AWSSecurityGroup().delete(sg_id)
-    # AWSSubnet().delete(subnet_id)
-    # AWSvpc().delete(vpc_id)
-    # AWSkey().delete(ssh_key)
+    instance().terminate(instance_name, resource_group=azure_rg)
+    image().delete(image_name, resource_group=azure_rg)
+    subnet().delete(network_name, subnet_name, resource_group=azure_rg)
+    security_group().delete(sg_name, resource_group=azure_rg)
+    network().delete(network_name, resource_group=azure_rg)
+    base().delete_rg("pytest-rg")
