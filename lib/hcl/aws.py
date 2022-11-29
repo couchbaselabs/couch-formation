@@ -7,16 +7,18 @@ import json
 from attr.validators import instance_of as io
 from typing import Iterable
 from lib.util.envmgr import PathMap, PathType, ConfigFile
-from lib.exceptions import AWSDriverError
+from lib.exceptions import AWSDriverError, EmptyResultSet
 from lib.drivers.cbrelease import CBRelease
 from lib.drivers.network import NetworkDriver
 from lib.util.inquire import Inquire
 from lib.invoke import tf_run, packer_run
 import lib.config as config
 from lib.hcl.aws_vpc import AWSProvider, VPCResource, InternetGatewayResource, RouteEntry, RouteResource, SubnetResource, RTAssociationResource, SecurityGroupEntry, \
-    SGResource, Resources, Variables, Variable, VPCConfig
-from lib.hcl.aws_image import Packer, PackerElement, RequiredPlugins, AmazonPlugin, AmazonPluginSettings, ImageMain, Locals, LocalVar, Source, SourceType, NodeType, NodeElements, \
+    SGResource, Resources, VPCConfig
+from lib.hcl.aws_image import Packer, PackerElement, RequiredPlugins, AmazonPlugin, AmazonPluginSettings, ImageMain, Source, SourceType, NodeType, NodeElements, \
     ImageBuild, BuildConfig, BuildElements, Shell, ShellElements
+from lib.hcl.common import Variable, Variables, Locals, LocalVar, NodeMain, NullResource, NullResourceBlock, NullResourceBody, DependsOn, InLine, Connection, ConnectionElements, \
+    RemoteExec, ForEach, Provisioner, Triggers, Output, OutputValue
 
 
 @attr.s
@@ -110,14 +112,14 @@ class CloudDriver(object):
         cb_release_choice = self.ask.ask_list_basic("Select CBS release", release_list)
 
         var_list = [
-            ("os_linux_type", os_choice, "OS Name", "string"),
-            ("region_name", region, "Region name", "string"),
-            ("cb_version", cb_release_choice, "CBS Revision", "string"),
-            ("host_prep_repo", CloudDriver.HOST_PREP_REPO, "Host Prep Utility", "string"),
-            ("os_image_name", distro_table.image, "Image", "string"),
-            ("os_image_owner", distro_table.owner, "Image Owner", "string"),
-            ("os_image_user", distro_table.user, "Image User", "string"),
-            ("os_linux_release", distro_table.version, "OS Revision", "string"),
+            ("os_linux_type", os_choice, "OS Name"),
+            ("region_name", region, "Region name"),
+            ("cb_version", cb_release_choice, "CBS Revision"),
+            ("host_prep_repo", CloudDriver.HOST_PREP_REPO, "Host Prep Utility"),
+            ("os_image_name", distro_table.image, "Image"),
+            ("os_image_owner", distro_table.owner, "Image Owner"),
+            ("os_image_user", distro_table.user, "Image User"),
+            ("os_linux_release", distro_table.version, "OS Revision"),
         ]
 
         packer_block = Packer.construct(
@@ -130,7 +132,7 @@ class CloudDriver(object):
                 .as_dict)
             .as_dict)
 
-        locals_block = Locals.construct(LocalVar.construct("timestamp", "${formatdate(\"MMDDYY-hhmm\", timestamp())}").as_dict)
+        locals_block = Locals.construct(LocalVar.build().add("timestamp", "${formatdate(\"MMDDYY-hhmm\", timestamp())}").as_dict)
 
         source_block = Source.construct(
             SourceType.construct(
@@ -164,7 +166,7 @@ class CloudDriver(object):
 
         var_block = Variables.build()
         for item in var_list:
-            var_block.add(Variable.construct(item[0], item[1], item[2], item[3]).as_dict)
+            var_block.add(Variable.construct(item[0], item[1], item[2]).as_dict)
 
         packer_config = ImageMain.build()\
             .add(packer_block.as_dict)\
@@ -195,8 +197,121 @@ class CloudDriver(object):
         image_list = config.cloud_image().list(filter_keys_exist=["release_tag", "type_tag", "version_tag"])
         self.ask.list_dict(f"Images in cloud {config.cloud}", image_list, sort_key="date")
 
-    def create_nodes(self):
-        self.path_map.map(PathType.CLUSTER)
+    def create_nodes(self, node_type: str):
+        vpc_list = []
+        region = config.cloud_base().region
+
+        try:
+            vpc_list = config.cloud_network().list(filter_keys_exist=["environment_tag"])
+        except EmptyResultSet:
+            pass
+
+        env_vpc = next((d for d in vpc_list if d.get('environment_tag') == config.env_name), None)
+
+        if not env_vpc:
+            print(f"No network found for environment {config.env_name}")
+            if self.ask.ask_bool("Create cloud infrastructure for the environment"):
+                self.create_net()
+
+        image_list = config.cloud_image().list(filter_keys_exist=["release_tag", "type_tag", "version_tag"])
+
+        image = self.ask.ask_list_dict(f"Select {config.cloud} image", image_list, sort_key="date")
+
+        var_list = [
+            ("region_name", region, "Region name"),
+            ("ami_id", image['name'], "AMI Id"),
+        ]
+
+        if node_type == "app":
+            self.path_map.map(PathType.APP)
+        elif node_type == "sgw":
+            self.path_map.map(PathType.SGW)
+        elif node_type == "generic":
+            self.path_map.map(PathType.GENERIC)
+        else:
+            self.path_map.map(PathType.CLUSTER)
+
+        print(f"Configuring {self.path_map.last_mapped} nodes in region {region}")
+
+        var_block = Variables.build()
+        for item in var_list:
+            var_block.add(Variable.construct(item[0], item[1], item[2]).as_dict)
+
+        locals_block = Locals.construct(LocalVar.build()
+                                        .add("cluster_init_name", config.env_name)
+                                        .add("rally_node", "${element([for node in aws_instance.couchbase_nodes: node.private_ip], 0)}")
+                                        .add("rally_node_public", "${element([for node in aws_instance.couchbase_nodes: node.public_ip], 0)}")
+                                        .as_dict)
+
+        null_resource_block = NullResource.build().add(
+            NullResourceBlock.construct(
+                NullResourceBody
+                .build()
+                .add(Connection.build()
+                     .add(
+                    ConnectionElements.construct(
+                        "${var.use_public_ip ? each.value.public_ip : each.value.private_ip}",
+                        "var.ssh_private_key",
+                        "${var.os_image_user}").as_dict)
+                     .as_dict)
+                .add(DependsOn.build()
+                     .add("${aws_instance.couchbase_nodes}")
+                     .add("${time_sleep.pause}").as_dict)
+                .add(ForEach.construct("${aws_instance.couchbase_nodes}").as_dict)
+                .add(Provisioner.build()
+                     .add(RemoteExec.build()
+                          .add(InLine.build()
+                               .add("sudo /usr/local/hostprep/bin/clusterinit.sh -m config -r ${local.rally_node} -n ${local.cluster_init_name}")
+                               .as_dict)
+                          .as_dict)
+                     .as_dict)
+                .add(Triggers.build()
+                     .add("cb_nodes", "${join(\",\", keys(aws_instance.couchbase_nodes))}")
+                     .as_dict)
+                .as_dict
+            )
+            .as_name("couchbase-init")
+        ).add(
+            NullResourceBlock.construct(
+                NullResourceBody
+                .build()
+                .add(Connection.build()
+                     .add(
+                    ConnectionElements.construct(
+                        "${var.use_public_ip ? local.rally_node_public : local.rally_node}",
+                        "var.ssh_private_key",
+                        "${var.os_image_user}").as_dict)
+                     .as_dict)
+                .add(DependsOn.build()
+                     .add("${null_resource.couchbase-init}").as_dict)
+                .add(Provisioner.build()
+                     .add(RemoteExec.build()
+                          .add(InLine.build()
+                               .add("sudo /usr/local/hostprep/bin/clusterinit.sh -m rebalance -r ${local.rally_node}")
+                               .as_dict)
+                          .as_dict)
+                     .as_dict)
+                .add(Triggers.build()
+                     .add("cb_nodes", "${join(\",\", keys(aws_instance.couchbase_nodes))}")
+                     .as_dict)
+                .as_dict
+            )
+            .as_name("couchbase-rebalance")
+        )
+
+        output_block = Output.build().add(
+            OutputValue.build()
+            .add("aws_vpc.cf_vpc.id")
+            .as_name("network_name")
+        )
+
+        main_config = NodeMain.build()\
+            .add(locals_block.as_dict) \
+            .add(null_resource_block.as_dict) \
+            .add(output_block.as_dict) \
+            .add(var_block.as_dict).as_dict
+
+        print(json.dumps(main_config, indent=2))
 
     def create_net(self):
         cidr_util = NetworkDriver()
@@ -213,9 +328,9 @@ class CloudDriver(object):
         print(f"Configuring VPC in region {region}")
 
         var_list = [
-            ("cf_env_name", config.env_name, "Environment Name", "string"),
-            ("cf_vpc_cidr", vpc_cidr, "VPC CIDR", "string"),
-            ("region_name", region, "Region name", "string"),
+            ("cf_env_name", config.env_name, "Environment Name"),
+            ("cf_vpc_cidr", vpc_cidr, "VPC CIDR"),
+            ("region_name", region, "Region name"),
         ]
 
         if config.cloud_zone:
@@ -279,13 +394,28 @@ class CloudDriver(object):
         resource_block.add(cf_rt)
         resource_block.add(cf_sg)
 
+        output_block = Output.build()
+        output_block.add(
+            OutputValue.build()
+            .add("aws_vpc.cf_vpc.id")
+            .as_name("network_name")
+        )
+        for i in range(subnet_count):
+            subnet_name = f"cf_subnet_{i + 1}"
+            output_block.add(
+                OutputValue.build()
+                .add(f"aws_subnet.{subnet_name}")
+                .as_name(subnet_name)
+            )
+
         var_struct = Variables.build()
         for item in var_list:
-            var_struct.add(Variable.construct(item[0], item[1], item[2], item[3]).as_dict)
+            var_struct.add(Variable.construct(item[0], item[1], item[2]).as_dict)
 
-        vpc_config = VPCConfig.build()\
-            .add(provider_block.as_dict)\
-            .add(resource_block.as_dict)\
+        vpc_config = VPCConfig.build() \
+            .add(provider_block.as_dict) \
+            .add(resource_block.as_dict) \
+            .add(output_block.as_dict) \
             .add(var_struct.as_dict).as_dict
 
         self.path_map.map(PathType.NETWORK)
@@ -307,6 +437,17 @@ class CloudDriver(object):
             tf.apply()
         except Exception as err:
             raise AWSDriverError(f"can not create VPC: {err}")
+
+    def list_net(self):
+        self.path_map.map(PathType.NETWORK)
+        cfg_file: ConfigFile
+        cfg_file = self.path_map.use(CloudDriver.NETWORK_CONFIG, PathType.NETWORK)
+        try:
+            tf = tf_run(working_dir=cfg_file.file_path)
+            vpc_data = tf.output(quiet=True)
+            return vpc_data
+        except Exception as err:
+            raise AWSDriverError(f"can not list VPC: {err}")
 
     def destroy_net(self):
         self.path_map.map(PathType.NETWORK)

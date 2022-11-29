@@ -162,15 +162,20 @@ class Inquire(object):
                 print("Please select the number corresponding to your selection.")
                 continue
 
-    def ask_list_dict(self, question: str, options: list[dict], sort_key: Union[str, None] = None, page_length: int = 20) -> dict:
-        table_header = self.create_header_vector(options)
+    def ask_list_dict(self,
+                      question: str,
+                      options: list[dict],
+                      sort_key: Union[str, None] = None,
+                      hide_key: Union[list[str], None] = None,
+                      page_length: int = 20) -> dict:
+        table_header = self.create_header_vector(options, hide_key=hide_key)
         if sort_key:
             options = sorted(options, key=lambda i: i[sort_key] if i[sort_key] else "")
 
         print("%s:" % question)
 
         divided_list = list(self.divide_list(options, page_length))
-        field_length = self.field_lengths(options)
+        field_length = self.field_lengths(options, hide_key=hide_key)
         while True:
             last_group = False
             answer = ''
@@ -179,7 +184,7 @@ class Inquire(object):
                 self.print_header(field_length, table_header)
                 for n, item in enumerate(sub_list):
                     item_number = n + 1 + page_incr
-                    self.print_line(field_length, item, item_number)
+                    self.print_line(field_length, item, item_number, hide_key=hide_key)
 
                 if count == len(divided_list) - 1:
                     answer = input("Selection [q=quit]: ")

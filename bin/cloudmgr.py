@@ -13,6 +13,7 @@ from lib.imagemgr import image_manager
 from lib.runmgr import run_manager
 from lib.netmgr import network_manager
 from lib.util.envmgr import LogViewer
+from lib.util.namegen import get_random_name
 import lib.config as config
 from lib.config import OperatingMode
 
@@ -42,7 +43,9 @@ class CloudManager(object):
             if config.operating_mode == OperatingMode.BUILD.value:
                 config.cloud_operator().create_image()
         elif self.verb == 'create':
-            print("Not implemented")
+            if not config.env_name:
+                config.env_name = get_random_name()
+            config.cloud_operator().create_nodes(self.args.create_command)
         elif self.verb == 'deploy':
             print("Not implemented")
         elif self.verb == 'destroy':

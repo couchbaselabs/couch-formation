@@ -23,7 +23,8 @@ class PathType(Enum):
     APP = 3
     SGW = 4
     CONFIG = 5
-    OTHER = 6
+    GENERIC = 6
+    OTHER = 7
 
 
 @attr.s

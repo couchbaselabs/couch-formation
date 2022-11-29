@@ -104,36 +104,36 @@ class AmazonPluginSettings(object):
         return self.__dict__
 
 
-@attr.s
-class Locals(object):
-    locals = attr.ib(validator=io(list))
-
-    @classmethod
-    def construct(cls, entry: dict):
-        return cls(
-            [
-                entry
-            ]
-        )
-
-    @property
-    def as_dict(self):
-        return self.__dict__
-
-
-@attr.s
-class LocalVar(object):
-    local = attr.ib(validator=io(dict))
-
-    @classmethod
-    def construct(cls, var_name: str, var_value: str):
-        return cls(
-            {var_name: var_value}
-        )
-
-    @property
-    def as_dict(self):
-        return self.__dict__['local']
+# @attr.s
+# class Locals(object):
+#     locals = attr.ib(validator=io(list))
+#
+#     @classmethod
+#     def construct(cls, entry: dict):
+#         return cls(
+#             [
+#                 entry
+#             ]
+#         )
+#
+#     @property
+#     def as_dict(self):
+#         return self.__dict__
+#
+#
+# @attr.s
+# class LocalVar(object):
+#     local = attr.ib(validator=io(dict))
+#
+#     @classmethod
+#     def construct(cls, var_name: str, var_value: str):
+#         return cls(
+#             {var_name: var_value}
+#         )
+#
+#     @property
+#     def as_dict(self):
+#         return self.__dict__['local']
 
 
 @attr.s

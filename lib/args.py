@@ -54,7 +54,14 @@ class Parameters(object):
         log_parser.add_argument('-h', '--help', action='help', default=argparse.SUPPRESS, help='Show help message')
         subparsers = parser.add_subparsers(dest='command')
         image_mode = subparsers.add_parser('image', help="Manage CB Images", parents=[parent_parser, image_parser], add_help=False)
+
         create_mode = subparsers.add_parser('create', help="Create Nodes", parents=[parent_parser], add_help=False)
+        create_action = create_mode.add_subparsers(dest='create_command')
+        create_action_cluster = create_action.add_parser('cluster', help="Create a Couchbase Cluster", parents=[parent_parser], add_help=False)
+        create_action_app = create_action.add_parser('app', help="Create App Nodes", parents=[parent_parser], add_help=False)
+        create_action_sgw = create_action.add_parser('sgw', help="Create Sync Gateway Nodes", parents=[parent_parser], add_help=False)
+        create_action_generic = create_action.add_parser('generic', help="Generic Nodes", parents=[parent_parser], add_help=False)
+
         deploy_mode = subparsers.add_parser('deploy', help="Deploy Nodes", parents=[parent_parser], add_help=False)
         destroy_mode = subparsers.add_parser('destroy', help="Destroy Nodes", parents=[parent_parser], add_help=False)
         remove_mode = subparsers.add_parser('remove', help="Remove Environments", parents=[parent_parser], add_help=False)

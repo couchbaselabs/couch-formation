@@ -220,7 +220,7 @@ class Network(CloudBase):
         super().__init__()
         self.logger = logging.getLogger(self.__class__.__name__)
 
-    def list(self) -> list[dict]:
+    def list(self, filter_keys_exist: Union[list[str], None] = None) -> list[dict]:
         vpc_list = []
         vpcs = []
         extra_args = {}
@@ -239,6 +239,10 @@ class Network(CloudBase):
             vpc_block = {'cidr': vpc_entry['CidrBlock'],
                          'default': vpc_entry['IsDefault'],
                          'id': vpc_entry['VpcId']}
+            vpc_block.update(self.process_tags(vpc_entry))
+            if filter_keys_exist:
+                if not all(key in vpc_block for key in filter_keys_exist):
+                    continue
             vpc_list.append(vpc_block)
 
         if len(vpc_list) == 0:
