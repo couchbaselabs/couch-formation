@@ -420,7 +420,7 @@ class Subnet(CloudBase):
         super().__init__()
         self.logger = logging.getLogger(self.__class__.__name__)
 
-    def list(self, vpc_id: str, zone: str) -> list[dict]:
+    def list(self, vpc_id: str, zone: Union[str, None] = None, filter_keys_exist: Union[list[str], None] = None) -> list[dict]:
         subnet_list = []
         subnets = []
         extra_args = {}
@@ -430,14 +430,18 @@ class Subnet(CloudBase):
                 'Values': [
                     vpc_id,
                 ]
-            },
-            {
-                'Name': 'availability-zone',
-                'Values': [
-                    zone,
-                ]
-            },
+            }
         ]
+
+        if zone:
+            subnet_filter.append(
+                {
+                    'Name': 'availability-zone',
+                    'Values': [
+                        zone,
+                    ]
+                }
+            )
 
         try:
             while True:
@@ -452,7 +456,14 @@ class Subnet(CloudBase):
         for subnet in subnets:
             net_block = {'cidr': subnet['CidrBlock'],
                          'id': subnet['SubnetId'],
+                         'vpc': subnet['VpcId'],
+                         'zone': subnet['AvailabilityZone'],
+                         'default': subnet['DefaultForAz'],
                          'public': subnet['MapPublicIpOnLaunch']}
+            net_block.update(self.process_tags(subnet))
+            if filter_keys_exist:
+                if not all(key in net_block for key in filter_keys_exist):
+                    continue
             subnet_list.append(net_block)
 
         if len(subnet_list) == 0:

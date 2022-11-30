@@ -199,6 +199,7 @@ class CloudDriver(object):
 
     def create_nodes(self, node_type: str):
         vpc_list = []
+        subnet_list = []
         env_vpc = {}
         vpc_id = None
         region = config.cloud_base().region
@@ -223,6 +224,11 @@ class CloudDriver(object):
 
         if vpc_id:
             print(f"Deploying into VPC {vpc_id}")
+            subnets = config.cloud_subnet().list(vpc_id, filter_keys_exist=["environment_tag"])
+            for s in subnets:
+                if s['environment_tag'] == config.env_name:
+                    print(f"Found subnet {s['id']} in zone {s['zone']}")
+                    subnet_list.append(s)
 
         image_list = config.cloud_image().list(filter_keys_exist=["release_tag", "type_tag", "version_tag"])
 
