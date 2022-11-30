@@ -270,6 +270,20 @@ class Network(CloudBase):
         except Exception as err:
             raise AWSDriverError(f"error deleting VPC: {err}")
 
+    def details(self, vpc_id: str) -> Union[dict, None]:
+        try:
+            result = self.ec2_client.describe_vpcs(VpcId=[vpc_id])
+            vpc_entry = result['Vpcs'][0]
+            vpc_block = {'cidr': vpc_entry['CidrBlock'],
+                         'default': vpc_entry['IsDefault'],
+                         'id': vpc_entry['VpcId']}
+            vpc_block.update(self.process_tags(vpc_entry))
+            return vpc_block
+        except (KeyError, IndexError):
+            return None
+        except Exception as err:
+            raise AWSDriverError(f"error getting VPC details: {err}")
+
 
 class Image(CloudBase):
 

@@ -199,6 +199,8 @@ class CloudDriver(object):
 
     def create_nodes(self, node_type: str):
         vpc_list = []
+        env_vpc = {}
+        vpc_id = None
         region = config.cloud_base().region
 
         try:
@@ -207,11 +209,20 @@ class CloudDriver(object):
             pass
 
         env_vpc = next((d for d in vpc_list if d.get('environment_tag') == config.env_name), None)
+        if env_vpc:
+            vpc_id = env_vpc.get("id")
 
         if not env_vpc:
             print(f"No network found for environment {config.env_name}")
             if self.ask.ask_bool("Create cloud infrastructure for the environment"):
                 self.create_net()
+                vpc_data = self.list_net()
+                vpc_id = vpc_data.get("network_name", {}).get("value", None)
+                if not vpc_id:
+                    raise AWSDriverError("can not get ID of created VPC")
+
+        if vpc_id:
+            print(f"Deploying into VPC {vpc_id}")
 
         image_list = config.cloud_image().list(filter_keys_exist=["release_tag", "type_tag", "version_tag"])
 
