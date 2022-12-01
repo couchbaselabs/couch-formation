@@ -5,10 +5,12 @@ import logging
 import boto3
 import os
 import attr
+from Crypto.PublicKey import RSA
 from attr.validators import instance_of as io
 from typing import Iterable, Union
 from itertools import cycle
 from lib.exceptions import AWSDriverError, EmptyResultSet
+from lib.util.filemgr import FileManager
 import lib.config as config
 
 
@@ -165,7 +167,7 @@ class SecurityGroup(CloudBase):
         super().__init__()
         self.logger = logging.getLogger(self.__class__.__name__)
 
-    def list(self, vpc_id: str) -> list[dict]:
+    def list(self, vpc_id: str, filter_keys_exist: Union[list[str], None] = None) -> list[dict]:
         sg_list = []
         sgs = []
         extra_args = {}
@@ -191,6 +193,10 @@ class SecurityGroup(CloudBase):
                         'description': sg_entry['Description'],
                         'id': sg_entry['GroupId'],
                         'vpc': sg_entry['VpcId']}
+            sg_block.update(self.process_tags(sg_entry))
+            if filter_keys_exist:
+                if not all(key in sg_block for key in filter_keys_exist):
+                    continue
             sg_list.append(sg_block)
 
         if len(sg_list) == 0:
@@ -378,7 +384,7 @@ class SSHKey(CloudBase):
         super().__init__()
         self.logger = logging.getLogger(self.__class__.__name__)
 
-    def list(self) -> list[dict]:
+    def list(self, filter_keys_exist: Union[list[str], None] = None) -> list[dict]:
         key_list = []
 
         try:
@@ -390,7 +396,11 @@ class SSHKey(CloudBase):
             key_block = {'name': key['KeyName'],
                          'id': key['KeyPairId'],
                          'fingerprint': key['KeyFingerprint'],
-                         'pubkey': key['PublicKey']}
+                         'pubkey': key.get('PublicKey')}
+            key_block.update(self.process_tags(key))
+            if filter_keys_exist:
+                if not all(key in key_block for key in filter_keys_exist):
+                    continue
             key_list.append(key_block)
 
         if len(key_list) == 0:
@@ -398,20 +408,67 @@ class SSHKey(CloudBase):
 
         return key_list
 
-    def create(self, name: str) -> str:
-        result = None
+    def create(self, name: str, file_name: str, tags: Union[dict, None] = None) -> dict:
+        ssh_key = self.public_key(file_name)
+        key_block = {}
+        key_tag = []
+
+        if tags:
+            tag_build = AWSTagStruct.build("key-pair")
+            for k, v in tags.items():
+                tag_build.add(AWSTag(k, v))
+            key_tag = [tag_build.as_dict]
+
+        try:
+            result = self.ec2_client.import_key_pair(KeyName=name,
+                                                     PublicKeyMaterial=ssh_key.encode('utf-8'),
+                                                     TagSpecifications=key_tag)
+            key_block = {'name': result['KeyName'],
+                         'id': result['KeyPairId'],
+                         'fingerprint': result['KeyFingerprint']}
+            key_block.update(self.process_tags(result))
+        except Exception as err:
+            AWSDriverError(f"error importing key pair: {err}")
+
+        return key_block
+
+    def create_native(self, name: str) -> dict:
+        key_block = {}
         try:
             result = self.ec2_client.create_key_pair(KeyName=name)
+            key_block = {'name': result['KeyName'],
+                         'id': result['KeyPairId'],
+                         'fingerprint': result['KeyFingerprint'],
+                         'key': result['KeyMaterial']}
+            key_block.update(self.process_tags(result))
         except Exception as err:
-            AWSDriverError(f"error creating keu pair: {err}")
+            AWSDriverError(f"error creating key pair: {err}")
 
-        return result['KeyName']
+        return key_block
 
     def delete(self, name: str) -> None:
         try:
             self.ec2_client.delete_key_pair(KeyName=name)
         except Exception as err:
             raise AWSDriverError(f"error deleting key pair: {err}")
+
+    @staticmethod
+    def public_key(key_file: str) -> str:
+        if not os.path.isabs(key_file):
+            key_file = FileManager.ssh_key_absolute_path(key_file)
+        fh = open(key_file, 'r')
+        key_pem = fh.read()
+        fh.close()
+        rsa_key = RSA.importKey(key_pem)
+        modulus = rsa_key.n
+        pubExpE = rsa_key.e
+        priExpD = rsa_key.d
+        primeP = rsa_key.p
+        primeQ = rsa_key.q
+        private_key = RSA.construct((modulus, pubExpE, priExpD, primeP, primeQ))
+        public_key = private_key.public_key().exportKey('OpenSSH')
+        ssh_public_key = public_key.decode('utf-8')
+        return ssh_public_key
 
 
 class Subnet(CloudBase):
@@ -535,7 +592,7 @@ class Instance(CloudBase):
 
     def terminate(self, instance_id: str) -> None:
         try:
-            result = self.ec2_client.terminate_instances(InstanceIds=[instance_id])
+            self.ec2_client.terminate_instances(InstanceIds=[instance_id])
         except Exception as err:
             raise AWSDriverError(f"error terminating instance: {err}")
 

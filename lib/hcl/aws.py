@@ -51,13 +51,24 @@ class Record(object):
     user = attr.ib(validator=io(str))
 
     @classmethod
-    def from_config(cls, json_data):
+    def from_config(cls, json_data: dict):
         return cls(
             json_data.get("version"),
             json_data.get("image"),
             json_data.get("owner"),
             json_data.get("user")
             )
+
+    @classmethod
+    def by_version(cls, distro: str, version: str, json_data: dict):
+        distro_list = json_data.get(distro)
+        version_data = next((i for i in distro_list if i['version'] == version), {})
+        return cls(
+            version_data.get("version"),
+            version_data.get("image"),
+            version_data.get("owner"),
+            version_data.get("user")
+        )
 
 
 class CloudDriver(object):
@@ -199,7 +210,9 @@ class CloudDriver(object):
 
     def create_nodes(self, node_type: str):
         vpc_list = []
+        key_list = []
         subnet_list = []
+        security_group = None
         env_vpc = {}
         vpc_id = None
         region = config.cloud_base().region
@@ -212,8 +225,7 @@ class CloudDriver(object):
         env_vpc = next((d for d in vpc_list if d.get('environment_tag') == config.env_name), None)
         if env_vpc:
             vpc_id = env_vpc.get("id")
-
-        if not env_vpc:
+        else:
             print(f"No network found for environment {config.env_name}")
             if self.ask.ask_bool("Create cloud infrastructure for the environment"):
                 self.create_net()
@@ -229,14 +241,38 @@ class CloudDriver(object):
                 if s['environment_tag'] == config.env_name:
                     print(f"Found subnet {s['id']} in zone {s['zone']}")
                     subnet_list.append(s)
+            sec_groups = config.cloud_security_group().list(vpc_id, filter_keys_exist=["environment_tag"])
+            security_group = next((i for i in sec_groups if i['environment_tag'] == config.env_name), None)
+            if security_group:
+                print(f"Found security group {security_group['id']}")
+
+        try:
+            key_list = config.ssh_key().list(filter_keys_exist=["environment_tag"])
+        except EmptyResultSet:
+            pass
+
+        env_ssh = next((d for d in key_list if d.get('environment_tag') == config.env_name), None)
+        if env_ssh:
+            env_ssh_key = env_ssh.get("name")
+        else:
+            print(f"No SSH key found for environment {config.env_name}")
 
         image_list = config.cloud_image().list(filter_keys_exist=["release_tag", "type_tag", "version_tag"])
 
         image = self.ask.ask_list_dict(f"Select {config.cloud} image", image_list, sort_key="date")
 
+        image_release = image['release_tag']
+        image_type = image['type_tag']
+        image_version = image['version_tag']
+
+        distro_table = Record.by_version(image_type, image_release, self.config.build)
+
+        image_user = distro_table.user
+
         var_list = [
             ("region_name", region, "Region name"),
             ("ami_id", image['name'], "AMI Id"),
+            ("ssh_user", image_user, "Admin Username"),
         ]
 
         if node_type == "app":

@@ -36,5 +36,11 @@
         "user": "ubuntu"
       }
     ]
+  },
+  "defaults": {
+    "instance_type": "m5.xlarge",
+    "root_iops": "0",
+    "root_size": "256",
+    "root_type": "gp3"
   }
 }
