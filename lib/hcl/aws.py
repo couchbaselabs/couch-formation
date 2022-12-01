@@ -11,6 +11,7 @@ from lib.exceptions import AWSDriverError, EmptyResultSet
 from lib.drivers.cbrelease import CBRelease
 from lib.drivers.network import NetworkDriver
 from lib.util.inquire import Inquire
+from lib.util.filemgr import FileManager
 from lib.invoke import tf_run, packer_run
 import lib.config as config
 from lib.hcl.aws_vpc import AWSProvider, VPCResource, InternetGatewayResource, RouteEntry, RouteResource, SubnetResource, RTAssociationResource, SecurityGroupEntry, \
@@ -256,6 +257,8 @@ class CloudDriver(object):
             env_ssh_key = env_ssh.get("name")
         else:
             print(f"No SSH key found for environment {config.env_name}")
+            if self.ask.ask_bool("Add SSH key to the environment"):
+                self.create_key()
 
         image_list = config.cloud_image().list(filter_keys_exist=["release_tag", "type_tag", "version_tag"])
 
@@ -514,3 +517,13 @@ class CloudDriver(object):
                 tf.destroy()
         except Exception as err:
             raise AWSDriverError(f"can not destroy VPC: {err}")
+
+    def create_key(self):
+        try:
+            key_file_list = FileManager.list_private_key_files()
+        except EmptyResultSet:
+            raise AWSDriverError(f"can not find any SSH private key files, please create a SSH key")
+
+        ssh_key = self.ask.ask_list_dict("Select SSH private key file", key_file_list, hide_key=["fingerprint"])
+
+        config.ssh_key().create(f"{config.env_name}-key", ssh_key["file"], {"Environment": config.env_name})

@@ -39,7 +39,8 @@ def test_aws_driver_1():
 
     vpc_id = network().create("pytest-vpc", vpc_cidr)
     sg_id = security_group().create("pytest-sg", "TestSG", vpc_id)
-    ssh_key_name = ssh_key().create("pytest-key")
+    ssh_key_data = ssh_key().create("pytest-key", "mminichino-default-key-pair", {"Environment": "pytest"})
+    ssh_key_name = ssh_key_data['name']
     subnet_id = subnet().create("pytest-subnet-01", vpc_id, zone_list[0], subnet_list[1])
 
     instance_id = instance().run("pytest-instance", "ami-0fb653ca2d3203ac1", ssh_key_name, sg_id, subnet_id)

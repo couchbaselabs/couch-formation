@@ -411,13 +411,14 @@ class SSHKey(CloudBase):
     def create(self, name: str, file_name: str, tags: Union[dict, None] = None) -> dict:
         ssh_key = self.public_key(file_name)
         key_block = {}
-        key_tag = []
+        tag_build = AWSTagStruct.build("key-pair")
+        tag_build.add(AWSTag("Name", name))
 
         if tags:
-            tag_build = AWSTagStruct.build("key-pair")
-            for k, v in tags.items():
-                tag_build.add(AWSTag(k, v))
-            key_tag = [tag_build.as_dict]
+            for key, value in tags.items():
+                tag_build.add(AWSTag(key, value))
+
+        key_tag = [tag_build.as_dict]
 
         try:
             result = self.ec2_client.import_key_pair(KeyName=name,

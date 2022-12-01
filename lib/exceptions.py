@@ -111,3 +111,7 @@ class EmptyResultSet(nonFatalError):
 
 class MissingParameterError(fatalError):
     pass
+
+
+class FileManagerError(fatalError):
+    pass
