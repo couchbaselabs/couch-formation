@@ -115,3 +115,7 @@ class MissingParameterError(fatalError):
 
 class FileManagerError(fatalError):
     pass
+
+
+class ConfigManagerError(fatalError):
+    pass
