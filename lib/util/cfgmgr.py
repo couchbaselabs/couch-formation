@@ -8,7 +8,6 @@ import os
 import time
 from attr.validators import instance_of as io
 from lib.exceptions import ConfigManagerError
-from shutil import copyfile
 
 
 @attr.s
@@ -70,6 +69,8 @@ class ConfigMgr(object):
         self.config_data = {}
         self.retry_count = 10
         self.unlock_file()
+        if not self.exists():
+            self.create()
 
     def get_config(self) -> bool:
         try:
@@ -88,13 +89,25 @@ class ConfigMgr(object):
         for arg in kwargs.keys():
             prefix, suffix = arg.split("_", 1)
             for category in Config.__attrs_attrs__:
+                if category.name == prefix:
+                    _class_name = category.metadata['_class_name']
+                    _config_class = globals()[_class_name]
+                    for attribute in _config_class.__attrs_attrs__:
+                        if suffix == attribute.name:
+                            part = {suffix: kwargs[arg]}
+                            self.config_data[prefix].update(part)
+        self.write_config()
+
+    def get(self, key: str):
+        self.get_config()
+        prefix, suffix = key.split("_", 1)
+        for category in Config.__attrs_attrs__:
+            if category.name == prefix:
                 _class_name = category.metadata['_class_name']
                 _config_class = globals()[_class_name]
                 for attribute in _config_class.__attrs_attrs__:
                     if suffix == attribute.name:
-                        part = {suffix: kwargs[arg]}
-                        self.config_data[prefix].update(part)
-        self.write_config()
+                        return self.config_data[prefix].get(suffix)
 
     def write_config(self) -> None:
         try:
@@ -104,7 +117,15 @@ class ConfigMgr(object):
                 json.dump(self.config_data, config_file)
             self.unlock_file()
         except Exception as err:
-            raise ConfigManagerError(f"can not read catalog file {self.filename}: {err}")
+            raise ConfigManagerError(f"can not write config file {self.filename}: {err}")
+
+    def exists(self) -> bool:
+        if os.path.exists(self.filename):
+            return True
+        return False
+
+    def create(self) -> None:
+        self.write_config()
 
     def lock_file(self) -> None:
         lock_file = f"{self.filename}.lck"

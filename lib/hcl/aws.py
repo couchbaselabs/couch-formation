@@ -13,6 +13,7 @@ from lib.drivers.network import NetworkDriver
 from lib.util.inquire import Inquire
 from lib.util.filemgr import FileManager
 from lib.invoke import tf_run, packer_run
+from lib.util.cfgmgr import ConfigMgr
 import lib.config as config
 from lib.hcl.aws_vpc import AWSProvider, VPCResource, InternetGatewayResource, RouteEntry, RouteResource, SubnetResource, RTAssociationResource, SecurityGroupEntry, \
     SGResource, Resources, VPCConfig
@@ -78,6 +79,7 @@ class CloudDriver(object):
     DRIVER_CONFIG = "aws.json"
     NETWORK_CONFIG = "main.tf.json"
     IMAGE_CONFIG = "main.pkr.json"
+    CONFIG_FILE = "config.json"
 
     def __init__(self):
         self.logger = logging.getLogger(self.__class__.__name__)
@@ -88,6 +90,10 @@ class CloudDriver(object):
             raise AWSDriverError("no environment specified")
 
         self.path_map = PathMap(config.env_name, config.cloud)
+        self.path_map.map(PathType.CONFIG)
+        cfg_file: ConfigFile
+        cfg_file = self.path_map.use(CloudDriver.CONFIG_FILE, PathType.CONFIG)
+        self.env_cfg = ConfigMgr(cfg_file.file_name)
 
         self.driver_config = self.path_map.root + "/" + CloudDriver.DRIVER_CONFIG
         try:
