@@ -4,6 +4,8 @@
 import logging
 import attr
 import json
+import os
+import time
 from attr.validators import instance_of as io
 from lib.exceptions import ConfigManagerError
 from shutil import copyfile
@@ -66,6 +68,8 @@ class ConfigMgr(object):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.filename = filename
         self.config_data = {}
+        self.retry_count = 10
+        self.unlock_file()
 
     def get_config(self) -> bool:
         try:
@@ -79,7 +83,8 @@ class ConfigMgr(object):
         except Exception as err:
             raise ConfigManagerError(f"can not read config file {self.filename}: {err}")
 
-    def update_config(self, **kwargs) -> None:
+    def update(self, **kwargs) -> None:
+        self.get_config()
         for arg in kwargs.keys():
             prefix, suffix = arg.split("_", 1)
             for category in Config.__attrs_attrs__:
@@ -89,10 +94,43 @@ class ConfigMgr(object):
                     if suffix == attribute.name:
                         part = {suffix: kwargs[arg]}
                         self.config_data[prefix].update(part)
+        self.write_config()
 
     def write_config(self) -> None:
         try:
+            self.lock_wait()
+            self.lock_file()
             with open(self.filename, 'w') as config_file:
                 json.dump(self.config_data, config_file)
+            self.unlock_file()
         except Exception as err:
             raise ConfigManagerError(f"can not read catalog file {self.filename}: {err}")
+
+    def lock_file(self) -> None:
+        lock_file = f"{self.filename}.lck"
+        open(lock_file, 'w').close()
+
+    def unlock_file(self) -> None:
+        if self.filename == "." or self.filename == ".." or self.filename == "*" or len(self.filename) == 0:
+            raise ConfigManagerError(f"unlock_file: unsafe remove operation on file \"{self.filename}\"")
+        lock_file = f"{self.filename}.lck"
+        if os.path.exists(lock_file):
+            os.remove(lock_file)
+
+    def check_lock(self) -> bool:
+        lock_file = f"{self.filename}.lck"
+        if os.path.exists(lock_file):
+            raise ConfigManagerError("configuration file locked")
+        return True
+
+    def lock_wait(self) -> bool:
+        factor = 0.01
+        for retry_number in range(self.retry_count + 1):
+            try:
+                return self.check_lock()
+            except ConfigManagerError:
+                if retry_number == self.retry_count:
+                    raise ConfigManagerError("timeout waiting on file lock")
+                wait = factor
+                wait *= (2 ** (retry_number + 1))
+                time.sleep(wait)
