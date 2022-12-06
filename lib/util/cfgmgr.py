@@ -16,6 +16,7 @@ class SSHSettings(object):
     public_key = attr.ib(validator=attr.validators.optional(io(str)), default=None)
     private_key = attr.ib(validator=attr.validators.optional(io(str)), default=None)
     user_name = attr.ib(validator=attr.validators.optional(io(str)), default=None)
+    fingerprint = attr.ib(validator=attr.validators.optional(io(str)), default=None)
 
     @property
     def as_dict(self):
@@ -29,7 +30,7 @@ class AWSSettings(object):
     machine_type = attr.ib(validator=attr.validators.optional(io(str)), default=None)
     key_pair = attr.ib(validator=attr.validators.optional(io(str)), default=None)
     vpc_id = attr.ib(validator=attr.validators.optional(io(str)), default=None)
-    subnet_ids = attr.ib(validator=attr.validators.optional(io(list[str])), default=None)
+    subnet_list = attr.ib(validator=attr.validators.optional(io(list[str])), default=None)
     security_group_id = attr.ib(validator=attr.validators.optional(io(str)), default=None)
     root_iops = attr.ib(validator=attr.validators.optional(io(str)), default=None)
     root_size = attr.ib(validator=attr.validators.optional(io(str)), default=None)
@@ -76,10 +77,11 @@ class ConfigMgr(object):
         try:
             with open(self.filename, 'r') as config_file:
                 data_read = json.load(config_file)
-                for category in Config.__attrs_attrs__:
-                    self.config_data[category.name] = Config(
-                        data_read.get(category.name)
-                    ).as_dict[category.name]
+                self.config_data = Config(
+                    data_read.get('ssh'),
+                    data_read.get('aws'),
+                    data_read.get('cbs')
+                ).as_dict
             return True
         except Exception as err:
             raise ConfigManagerError(f"can not read config file {self.filename}: {err}")

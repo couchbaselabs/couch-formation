@@ -4,6 +4,29 @@
 import attr
 from typing import Union
 from attr.validators import instance_of as io
+from typing import Iterable
+
+
+@attr.s
+class Build(object):
+    build = attr.ib(validator=io(dict))
+
+    @classmethod
+    def from_config(cls, json_data: dict):
+        return cls(
+            json_data.get("build"),
+            )
+
+
+@attr.s
+class Entry(object):
+    versions = attr.ib(validator=io(Iterable))
+
+    @classmethod
+    def from_config(cls, distro: str, json_data: dict):
+        return cls(
+            json_data.get(distro),
+            )
 
 
 @attr.s

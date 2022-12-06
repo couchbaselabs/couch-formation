@@ -2,10 +2,7 @@
 ##
 
 import logging
-import attr
 import json
-from attr.validators import instance_of as io
-from typing import Iterable
 from lib.util.envmgr import PathMap, PathType, ConfigFile
 from lib.exceptions import AWSDriverError, EmptyResultSet
 from lib.drivers.cbrelease import CBRelease
@@ -14,130 +11,14 @@ from lib.util.inquire import Inquire
 from lib.util.filemgr import FileManager
 from lib.invoke import tf_run, packer_run
 from lib.util.cfgmgr import ConfigMgr
+from lib.util.aws_data import DataCollect
 import lib.config as config
 from lib.hcl.aws_vpc import AWSProvider, VPCResource, InternetGatewayResource, RouteEntry, RouteResource, SubnetResource, RTAssociationResource, SecurityGroupEntry, \
     SGResource, Resources, VPCConfig
 from lib.hcl.aws_image import Packer, PackerElement, RequiredPlugins, AmazonPlugin, AmazonPluginSettings, ImageMain, Source, SourceType, NodeType, NodeElements, \
-    ImageBuild, BuildConfig, BuildElements, Shell, ShellElements
+    ImageBuild, BuildConfig, BuildElements, Shell, ShellElements, AWSImageDataRecord
 from lib.hcl.common import Variable, Variables, Locals, LocalVar, NodeMain, NullResource, NullResourceBlock, NullResourceBody, DependsOn, InLine, Connection, ConnectionElements, \
-    RemoteExec, ForEach, Provisioner, Triggers, Output, OutputValue
-
-
-@attr.s
-class Build(object):
-    build = attr.ib(validator=io(dict))
-
-    @classmethod
-    def from_config(cls, json_data: dict):
-        return cls(
-            json_data.get("build"),
-            )
-
-
-@attr.s
-class Entry(object):
-    versions = attr.ib(validator=io(Iterable))
-
-    @classmethod
-    def from_config(cls, distro: str, json_data: dict):
-        return cls(
-            json_data.get(distro),
-            )
-
-
-@attr.s
-class Record(object):
-    version = attr.ib(validator=io(str))
-    image = attr.ib(validator=io(str))
-    owner = attr.ib(validator=io(str))
-    user = attr.ib(validator=io(str))
-
-    @classmethod
-    def from_config(cls, json_data: dict):
-        return cls(
-            json_data.get("version"),
-            json_data.get("image"),
-            json_data.get("owner"),
-            json_data.get("user")
-            )
-
-    @classmethod
-    def by_version(cls, distro: str, version: str, json_data: dict):
-        distro_list = json_data.get(distro)
-        version_data = next((i for i in distro_list if i['version'] == version), {})
-        return cls(
-            version_data.get("version"),
-            version_data.get("image"),
-            version_data.get("owner"),
-            version_data.get("user")
-        )
-
-
-class DataCollect(object):
-
-    def __init__(self):
-        self.logger = logging.getLogger(self.__class__.__name__)
-        self.vpc_id = None
-        self.subnet_list = []
-        self.security_group_id = None
-
-        self.path_map = PathMap(config.env_name, config.cloud)
-        self.path_map.map(PathType.CONFIG)
-        cfg_file: ConfigFile
-        cfg_file = self.path_map.use(CloudDriver.CONFIG_FILE, PathType.CONFIG)
-        self.env_cfg = ConfigMgr(cfg_file.file_name)
-
-    def get_infrastructure(self):
-        vpc_list = []
-
-        step_complete = self.env_cfg.get("aws_inf_complete")
-
-        if step_complete:
-            print("Infrastructure step complete.")
-            return
-
-        try:
-            vpc_list = config.cloud_network().list(filter_keys_exist=["environment_tag"])
-        except EmptyResultSet:
-            pass
-
-        env_vpc = next((d for d in vpc_list if d.get('environment_tag') == config.env_name), None)
-        if env_vpc:
-            self.vpc_id = env_vpc.get("id")
-        else:
-            print(f"No network found for environment {config.env_name}")
-            if Inquire().ask_bool("Create cloud infrastructure for the environment"):
-                CloudDriver().create_net()
-                vpc_data = CloudDriver().list_net()
-                self.vpc_id = vpc_data.get("network_name", {}).get("value", None)
-                if not self.vpc_id:
-                    raise AWSDriverError("can not get ID of newly created VPC")
-            else:
-                print(f"Environment {config.env_name} will be deployed on existing cloud infrastructure")
-                vpc_list = config.cloud_network().list()
-                selection = Inquire().ask_list_dict("Please select a VPC", vpc_list)
-                self.vpc_id = selection.get("id")
-
-        subnets = config.cloud_subnet().list(self.vpc_id)
-        for s in subnets:
-            self.subnet_list.append(s)
-
-        sec_groups = config.cloud_security_group().list(self.vpc_id)
-        security_group = next((i for i in sec_groups if i['environment_tag'] == config.env_name), None)
-        if security_group:
-            self.security_group_id = security_group['id']
-
-    def get_image(self):
-        pass
-
-    def get_keys(self):
-        pass
-
-    def get_cluster_settings(self):
-        pass
-
-    def get_storage_settings(self):
-        pass
+    RemoteExec, ForEach, Provisioner, Triggers, Output, OutputValue, Build, Entry
 
 
 class CloudDriver(object):
@@ -190,7 +71,7 @@ class CloudDriver(object):
 
         distro_choice = self.ask.ask_list_dict("Select OS revision", distro_list.versions)
 
-        distro_table = Record.from_config(distro_choice)
+        distro_table = AWSImageDataRecord.from_config(distro_choice)
 
         release_list = cb_rel.get_cb_version(os_choice, distro_table.version)
 
@@ -283,86 +164,20 @@ class CloudDriver(object):
         self.ask.list_dict(f"Images in cloud {config.cloud}", image_list, sort_key="date")
 
     def create_nodes(self, node_type: str):
-        vpc_list = []
-        key_list = []
-        subnet_list = []
-        security_group = None
-        security_group_id = None
-        env_vpc = {}
-        vpc_id = None
-        env_ssh_key = None
-        env_ssh_filename = None
-        region = config.cloud_base().region
+        dc = DataCollect()
 
-        try:
-            vpc_list = config.cloud_network().list(filter_keys_exist=["environment_tag"])
-        except EmptyResultSet:
-            pass
-
-        env_vpc = next((d for d in vpc_list if d.get('environment_tag') == config.env_name), None)
-        if env_vpc:
-            vpc_id = env_vpc.get("id")
-        else:
-            print(f"No network found for environment {config.env_name}")
-            if self.ask.ask_bool("Create cloud infrastructure for the environment"):
-                self.create_net()
-                vpc_data = self.list_net()
-                vpc_id = vpc_data.get("network_name", {}).get("value", None)
-                if not vpc_id:
-                    raise AWSDriverError("can not get ID of created VPC")
-
-        if vpc_id:
-            print(f"Deploying into VPC {vpc_id}")
-            subnets = config.cloud_subnet().list(vpc_id, filter_keys_exist=["environment_tag"])
-            for s in subnets:
-                if s['environment_tag'] == config.env_name:
-                    print(f"Found subnet {s['id']} in zone {s['zone']}")
-                    subnet_list.append(s)
-            sec_groups = config.cloud_security_group().list(vpc_id, filter_keys_exist=["environment_tag"])
-            security_group = next((i for i in sec_groups if i['environment_tag'] == config.env_name), None)
-            if security_group:
-                security_group_id = security_group['id']
-                print(f"Found security group {security_group_id}")
-
-        try:
-            key_list = config.ssh_key().list(filter_keys_exist=["environment_tag"])
-        except EmptyResultSet:
-            pass
-
-        env_ssh = next((d for d in key_list if d.get('environment_tag') == config.env_name), None)
-        if not env_ssh:
-            print(f"No SSH key found for environment {config.env_name}")
-            if self.ask.ask_bool("Add SSH key to the environment"):
-                self.create_key()
-                env_ssh = self.list_key()
-
-        if env_ssh:
-            env_ssh_key = env_ssh.get("name")
-            env_ssh_fingerprint = env_ssh.get("fingerprint")
-            env_ssh_filename = FileManager().get_key_by_fingerprint(env_ssh_fingerprint)
-            print(f"Using ssh key-pair {env_ssh_key}")
-            print(f"SSH key file {env_ssh_filename}")
-
-        image_list = config.cloud_image().list(filter_keys_exist=["release_tag", "type_tag", "version_tag"])
-
-        image = self.ask.ask_list_dict(f"Select {config.cloud} image", image_list, sort_key="date")
-
-        image_release = image['release_tag']
-        image_type = image['type_tag']
-        image_version = image['version_tag']
-
-        distro_table = Record.by_version(image_type, image_release, self.config.build)
-
-        image_user = distro_table.user
+        dc.get_infrastructure()
+        dc.get_keys()
+        dc.get_image()
 
         var_list = [
-            ("region_name", region, "Region name"),
-            ("ami_id", image['name'], "AMI Id"),
-            ("ssh_user", image_user, "Admin Username"),
-            ("ssh_key", env_ssh_key, "SSH key-pair name"),
-            ("ssh_private_key", env_ssh_filename, "SSH filename"),
-            ("vpc_id", vpc_id, "VPC ID"),
-            ("security_group_ids", [security_group_id], "Security group"),
+            ("region_name", dc.region, "Region name"),
+            ("ami_id", dc.ami_id, "AMI Id"),
+            ("ssh_user", dc.image_user, "Admin Username"),
+            ("ssh_key", dc.env_ssh_key, "SSH key-pair name"),
+            ("ssh_private_key", dc.env_ssh_filename, "SSH filename"),
+            ("vpc_id", dc.vpc_id, "VPC ID"),
+            ("security_group_ids", [dc.security_group_id], "Security group"),
         ]
 
         if node_type == "app":
@@ -374,7 +189,7 @@ class CloudDriver(object):
         else:
             self.path_map.map(PathType.CLUSTER)
 
-        print(f"Configuring {self.path_map.last_mapped} nodes in region {region}")
+        print(f"Configuring {self.path_map.last_mapped} nodes in region {dc.region}")
 
         var_block = Variables.build()
         for item in var_list:
