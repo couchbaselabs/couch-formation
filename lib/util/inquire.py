@@ -64,7 +64,7 @@ class Inquire(object):
                 if item[key] is None:
                     lv = 0
                 else:
-                    lv = len(item[key])
+                    lv = len(str(item[key]))
                 lt = lk if lk > lv else lv
                 columns = columns + (lt,)
             this_row_len = len(columns)
@@ -167,10 +167,20 @@ class Inquire(object):
                       options: list[dict],
                       sort_key: Union[str, None] = None,
                       hide_key: Union[list[str], None] = None,
+                      default_value: Union[tuple, None] = None,
                       page_length: int = 20) -> dict:
+        default_index = None
+        default_option_text = ""
+
         table_header = self.create_header_vector(options, hide_key=hide_key)
+
         if sort_key:
             options = sorted(options, key=lambda i: i[sort_key] if i[sort_key] else "")
+
+        if default_value:
+            result = list(i for i, d in enumerate(options) if d.get(default_value[0]) == default_value[1])
+            if len(result) != 0:
+                default_index = result[0]
 
         print("%s:" % question)
 
@@ -186,18 +196,23 @@ class Inquire(object):
                     item_number = n + 1 + page_incr
                     self.print_line(field_length, item, item_number, hide_key=hide_key)
 
+                if default_index:
+                    default_option_text = f", enter={default_value[0]} => {default_value[1]}"
+
                 if count == len(divided_list) - 1:
-                    answer = input("Selection [q=quit]: ")
+                    answer = input(f"Selection [q=quit{default_option_text}]: ")
                     last_group = True
                 else:
-                    answer = input("Selection [n=next, q=quit]: ")
+                    answer = input(f"Selection [n=next, q=quit{default_option_text}]: ")
 
                 answer = answer.rstrip("\n")
 
-                if (answer == 'n' or answer == '') and not last_group:
+                if (answer == 'n') and not last_group:
                     continue
                 elif answer == 'q':
                     sys.exit(0)
+                elif answer == '' and default_index:
+                    answer = str(default_index + 1)
                 else:
                     break
 
@@ -346,12 +361,15 @@ class Inquire(object):
         selection = self.ask_list(question, new_option_list, new_description_list)
         return new_option_list[selection]
 
-    def ask_quantity(self, options=[], mode=1, cpu_count=None):
-        """Get CPU or Memory count"""
+    def ask_quantity(self,
+                     options: list[dict],
+                     mode: int = 1,
+                     cpu_count: Union[int, None] = None) -> int:
         list_incr = 15
         last_group = False
         num_list = []
         prompt_text = ""
+
         try:
             if mode == 1:
                 prompt_text = 'Select the desired CPU count'
@@ -368,8 +386,8 @@ class Inquire(object):
             if mode == 2:
                 prompt_text = 'Select the desired RAM size'
                 for item in options:
-                    num = item['mem']
-                    if not next((item for item in options if item['mem'] == num and item['cpu'] == cpu_count), None):
+                    num = item['memory']
+                    if not next((item for item in options if item['memory'] == num and item['cpu'] == cpu_count), None):
                         continue
                     num = "{:g}".format(num / 1024)
                     if next((item for item in num_list if item[0] == num), None):
@@ -379,9 +397,12 @@ class Inquire(object):
                     num_list.append(item_set)
         except KeyError:
             raise Exception("ask_quantity: invalid options argument")
+
         if len(num_list) == 1:
             return 0
+
         print("%s:" % prompt_text)
+
         num_list = sorted(num_list, key=lambda x: float(x[0]))
         divided_list = list(self.divide_list(num_list, list_incr))
         while True:
@@ -414,34 +435,24 @@ class Inquire(object):
                     print("Please select a value from the list.")
                     continue
 
-    def ask_machine_type(self, question, options=[], default=None):
-        """Get Cloud instance type by selecting CPU and Memory"""
-        name_list = []
-        description_list = []
+    def ask_machine_type(self,
+                         question: str,
+                         options: list[dict]) -> dict:
         select_list = []
+
         print("%s:" % question)
-        if default:
-            self.logger.info("ask_machine_type: checking default value %s" % default)
-            default_selection = next((i for i, item in enumerate(options) if item['name'] == default), None)
-            if default_selection:
-                if self.ask_yn("Use previous value: \"%s\"" % default, default=True):
-                    return default_selection
+
         num_cpu = self.ask_quantity(options, 1)
         num_mem = self.ask_quantity(options, 2, cpu_count=num_cpu)
+
         try:
-            for i in range(len(options)):
-                if options[i]['cpu'] == num_cpu and options[i]['mem'] == num_mem:
-                    name_list.append(options[i]['name'])
-                    if 'description' in options[i]:
-                        description_list.append(options[i]['description'])
-                    select_list.append(i)
+            for option in options:
+                if option['cpu'] == num_cpu and option['memory'] == num_mem:
+                    select_list.append(option)
         except KeyError:
             raise Exception("ask_machine_type: invalid options argument")
-        if len(description_list) > 0:
-            selection = self.ask_list(question, name_list, description_list)
-        else:
-            selection = self.ask_list(question, name_list)
-        return select_list[selection]
+
+        return self.ask_list_dict(question, select_list)
 
     def ask_text(self, question, recommendation=None, default=None):
         """Get text input"""
@@ -467,6 +478,32 @@ class Inquire(object):
                 else:
                     print("Response can not be empty.")
                     continue
+
+    @staticmethod
+    def ask_int(question: str,
+                default: int,
+                minimum: int = 0,
+                maximum: int = 0) -> int:
+        print("%s:" % question)
+
+        while True:
+            prompt = f"Selection [q=quit enter={default}]: "
+            answer = input(prompt)
+            answer = answer.rstrip("\n")
+            if answer == 'q':
+                sys.exit(0)
+            if len(answer) > 0:
+                if int(answer) >= minimum:
+                    if maximum > 0:
+                        if int(answer) > maximum:
+                            print(f"{answer} is greater than maximum {maximum}")
+                            continue
+                    return int(answer)
+                else:
+                    print(f"{answer} is less than minimum {minimum}")
+                    continue
+            else:
+                return default
 
     def ask_pass(self, question, verify=True, default=None):
         if default:

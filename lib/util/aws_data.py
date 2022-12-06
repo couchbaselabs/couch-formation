@@ -9,6 +9,7 @@ import lib.config as config
 from lib.util.envmgr import PathMap, PathType, ConfigFile
 from lib.hcl.aws_image import AWSImageDataRecord
 from lib.util.cfgmgr import ConfigMgr
+from lib.drivers.aws import AWSEbsDiskTypes
 
 
 class DataCollect(object):
@@ -27,6 +28,11 @@ class DataCollect(object):
         self.image_user = None
         self.ami_id = None
         self.region = None
+        self.cb_index_mem_type = None
+        self.disk_iops = None
+        self.disk_size = None
+        self.disk_type = None
+        self.instance_type = None
 
         self.path_map = PathMap(config.env_name, config.cloud)
         self.path_map.map(PathType.CONFIG)
@@ -37,9 +43,9 @@ class DataCollect(object):
     def get_infrastructure(self):
         vpc_list = []
 
-        is_in_progress = self.env_cfg.get("aws_base_in_progress")
+        complete = self.env_cfg.get("aws_base_in_progress")
 
-        if is_in_progress:
+        if complete:
             print("Infrastructure configuration complete.")
             return
 
@@ -87,9 +93,9 @@ class DataCollect(object):
         self.env_cfg.update(aws_security_group_id=self.security_group_id)
 
     def get_image(self):
-        is_in_progress = self.env_cfg.get("aws_image_in_progress")
+        complete = self.env_cfg.get("aws_image_in_progress")
 
-        if is_in_progress:
+        if complete:
             print("SSH key configuration step complete.")
             return
 
@@ -108,13 +114,14 @@ class DataCollect(object):
 
         self.env_cfg.update(ssh_user_name=self.image_user)
         self.env_cfg.update(aws_ami_id=self.ami_id)
+        self.env_cfg.update(cbs_version=self.image_version)
 
     def get_keys(self):
         key_list = []
 
-        is_in_progress = self.env_cfg.get("ssh_in_progress")
+        complete = self.env_cfg.get("ssh_in_progress")
 
-        if is_in_progress:
+        if complete:
             print("SSH key configuration step complete.")
             return
 
@@ -142,7 +149,48 @@ class DataCollect(object):
         self.env_cfg.update(ssh_private_key=self.env_ssh_filename)
 
     def get_cluster_settings(self):
-        pass
+        option_list = [
+            {
+                'name': 'default',
+                'description': 'Standard Index Storage'
+            },
+            {
+                'name': 'memopt',
+                'description': 'Memory-optimized'
+            },
+        ]
 
-    def get_storage_settings(self):
-        pass
+        complete = self.env_cfg.get("cbs_in_progress")
+
+        if complete:
+            print("Cluster settings configuration step complete.")
+            return
+
+        selection = Inquire().ask_list_dict('Select index storage option', option_list)
+        self.cb_index_mem_type = selection['name']
+
+        self.env_cfg.update(cbs_index_memory=self.cb_index_mem_type)
+
+    def get_node_settings(self, default: bool = True):
+        complete = self.env_cfg.get("aws_node_in_progress")
+        if complete or not default:
+            Inquire().ask_bool("Change node settings")
+            return
+
+        machine_list = config.cloud_machine_type().list()
+
+        selection = Inquire().ask_machine_type("Select machine type", machine_list)
+
+        self.instance_type = selection['name']
+
+        selection = Inquire().ask_list_dict("Select disk type", AWSEbsDiskTypes.ebs_type_list, default_value=("type", "gp3"))
+        self.disk_type = selection['type']
+        self.disk_size = Inquire().ask_int("Volume size", 250, 100)
+
+        if selection['iops']:
+            self.disk_iops = Inquire().ask_int("Volume IOPS", selection['iops'], selection['iops'], selection['max'])
+
+        self.env_cfg.update(aws_machine_type=self.instance_type)
+        self.env_cfg.update(aws_root_type=self.disk_type)
+        self.env_cfg.update(aws_root_size=self.disk_size)
+        self.env_cfg.update(aws_root_iops=self.disk_iops)

@@ -169,6 +169,8 @@ class CloudDriver(object):
         dc.get_infrastructure()
         dc.get_keys()
         dc.get_image()
+        dc.get_cluster_settings()
+        dc.get_node_settings()
 
         var_list = [
             ("region_name", dc.region, "Region name"),
@@ -178,6 +180,11 @@ class CloudDriver(object):
             ("ssh_private_key", dc.env_ssh_filename, "SSH filename"),
             ("vpc_id", dc.vpc_id, "VPC ID"),
             ("security_group_ids", [dc.security_group_id], "Security group"),
+            ("instance_type", dc.instance_type, "Instance type"),
+            ("index_memory", dc.cb_index_mem_type, "Index memory setting"),
+            ("root_volume_iops", str(dc.disk_iops), "Volume IOPS"),
+            ("root_volume_size", str(dc.disk_size), "Volume size"),
+            ("root_volume_type", dc.disk_type, "EBS type"),
         ]
 
         if node_type == "app":

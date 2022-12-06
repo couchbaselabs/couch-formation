@@ -80,8 +80,44 @@ class AWSEbsDisk(object):
 
 
 @attr.s
-class AWSebsDiskTypes(object):
-    ebs_type_list = ['standard', 'io1', 'io2', 'gp2', 'sc1', 'st1', 'gp3']
+class AWSEbsDiskTypes(object):
+    ebs_type_list = [
+        {
+            "type": "standard",
+            "iops": None,
+            "max": None
+        },
+        {
+            "type": "io1",
+            "iops": 3000,
+            "max": 64000
+        },
+        {
+            "type": "io2",
+            "iops": 3000,
+            "max": 64000
+        },
+        {
+            "type": "gp2",
+            "iops": None,
+            "max": None
+        },
+        {
+            "type": "sc1",
+            "iops": None,
+            "max": None
+        },
+        {
+            "type": "st1",
+            "iops": None,
+            "max": None
+        },
+        {
+            "type": "gp3",
+            "iops": 3000,
+            "max": 16000
+        }
+    ]
 
 
 class CloudBase(object):
