@@ -81,6 +81,14 @@ class FileManager(object):
             hex_digest = der_digest.hexdigest()
             key_fingerprint = ':'.join(hex_digest[i:i + 2] for i in range(0, len(hex_digest), 2))
             key_entry.update({"fingerprint": key_fingerprint})
+            pub_der = key.public_key().public_bytes(
+                serialization.Encoding.DER,
+                serialization.PublicFormat.SubjectPublicKeyInfo
+            )
+            pub_der_digest = hashlib.md5(pub_der)
+            pub_hex_digest = pub_der_digest.hexdigest()
+            pub_key_fingerprint = ':'.join(pub_hex_digest[i:i + 2] for i in range(0, len(pub_hex_digest), 2))
+            key_entry.update({"pub_fingerprint": pub_key_fingerprint})
 
             key_file_list.append(key_entry)
 
@@ -88,6 +96,13 @@ class FileManager(object):
             raise EmptyResultSet("No SSH keys found. Please make sure you have at least one SSH key configured.")
 
         return key_file_list
+
+    def get_key_by_fingerprint(self, fingerprint: str):
+        key_list = self.list_private_key_files()
+        for key in key_list:
+            if key['fingerprint'] == fingerprint or key['pub_fingerprint'] == fingerprint:
+                return key['file']
+        return None
 
     @staticmethod
     def get_ssh_public_key(key_file: str) -> str:

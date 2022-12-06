@@ -73,6 +73,73 @@ class Record(object):
         )
 
 
+class DataCollect(object):
+
+    def __init__(self):
+        self.logger = logging.getLogger(self.__class__.__name__)
+        self.vpc_id = None
+        self.subnet_list = []
+        self.security_group_id = None
+
+        self.path_map = PathMap(config.env_name, config.cloud)
+        self.path_map.map(PathType.CONFIG)
+        cfg_file: ConfigFile
+        cfg_file = self.path_map.use(CloudDriver.CONFIG_FILE, PathType.CONFIG)
+        self.env_cfg = ConfigMgr(cfg_file.file_name)
+
+    def get_infrastructure(self):
+        vpc_list = []
+
+        step_complete = self.env_cfg.get("aws_inf_complete")
+
+        if step_complete:
+            print("Infrastructure step complete.")
+            return
+
+        try:
+            vpc_list = config.cloud_network().list(filter_keys_exist=["environment_tag"])
+        except EmptyResultSet:
+            pass
+
+        env_vpc = next((d for d in vpc_list if d.get('environment_tag') == config.env_name), None)
+        if env_vpc:
+            self.vpc_id = env_vpc.get("id")
+        else:
+            print(f"No network found for environment {config.env_name}")
+            if Inquire().ask_bool("Create cloud infrastructure for the environment"):
+                CloudDriver().create_net()
+                vpc_data = CloudDriver().list_net()
+                self.vpc_id = vpc_data.get("network_name", {}).get("value", None)
+                if not self.vpc_id:
+                    raise AWSDriverError("can not get ID of newly created VPC")
+            else:
+                print(f"Environment {config.env_name} will be deployed on existing cloud infrastructure")
+                vpc_list = config.cloud_network().list()
+                selection = Inquire().ask_list_dict("Please select a VPC", vpc_list)
+                self.vpc_id = selection.get("id")
+
+        subnets = config.cloud_subnet().list(self.vpc_id)
+        for s in subnets:
+            self.subnet_list.append(s)
+
+        sec_groups = config.cloud_security_group().list(self.vpc_id)
+        security_group = next((i for i in sec_groups if i['environment_tag'] == config.env_name), None)
+        if security_group:
+            self.security_group_id = security_group['id']
+
+    def get_image(self):
+        pass
+
+    def get_keys(self):
+        pass
+
+    def get_cluster_settings(self):
+        pass
+
+    def get_storage_settings(self):
+        pass
+
+
 class CloudDriver(object):
     VERSION = '3.0.0'
     HOST_PREP_REPO = "couchbaselabs/couchbase-hostprep"
@@ -220,8 +287,11 @@ class CloudDriver(object):
         key_list = []
         subnet_list = []
         security_group = None
+        security_group_id = None
         env_vpc = {}
         vpc_id = None
+        env_ssh_key = None
+        env_ssh_filename = None
         region = config.cloud_base().region
 
         try:
@@ -251,7 +321,8 @@ class CloudDriver(object):
             sec_groups = config.cloud_security_group().list(vpc_id, filter_keys_exist=["environment_tag"])
             security_group = next((i for i in sec_groups if i['environment_tag'] == config.env_name), None)
             if security_group:
-                print(f"Found security group {security_group['id']}")
+                security_group_id = security_group['id']
+                print(f"Found security group {security_group_id}")
 
         try:
             key_list = config.ssh_key().list(filter_keys_exist=["environment_tag"])
@@ -259,12 +330,18 @@ class CloudDriver(object):
             pass
 
         env_ssh = next((d for d in key_list if d.get('environment_tag') == config.env_name), None)
-        if env_ssh:
-            env_ssh_key = env_ssh.get("name")
-        else:
+        if not env_ssh:
             print(f"No SSH key found for environment {config.env_name}")
             if self.ask.ask_bool("Add SSH key to the environment"):
                 self.create_key()
+                env_ssh = self.list_key()
+
+        if env_ssh:
+            env_ssh_key = env_ssh.get("name")
+            env_ssh_fingerprint = env_ssh.get("fingerprint")
+            env_ssh_filename = FileManager().get_key_by_fingerprint(env_ssh_fingerprint)
+            print(f"Using ssh key-pair {env_ssh_key}")
+            print(f"SSH key file {env_ssh_filename}")
 
         image_list = config.cloud_image().list(filter_keys_exist=["release_tag", "type_tag", "version_tag"])
 
@@ -282,6 +359,10 @@ class CloudDriver(object):
             ("region_name", region, "Region name"),
             ("ami_id", image['name'], "AMI Id"),
             ("ssh_user", image_user, "Admin Username"),
+            ("ssh_key", env_ssh_key, "SSH key-pair name"),
+            ("ssh_private_key", env_ssh_filename, "SSH filename"),
+            ("vpc_id", vpc_id, "VPC ID"),
+            ("security_group_ids", [security_group_id], "Security group"),
         ]
 
         if node_type == "app":
@@ -532,4 +613,13 @@ class CloudDriver(object):
 
         ssh_key = self.ask.ask_list_dict("Select SSH private key file", key_file_list, hide_key=["fingerprint"])
 
-        config.ssh_key().create(f"{config.env_name}-key", ssh_key["file"], {"Environment": config.env_name})
+        key_info = config.ssh_key().create(f"{config.env_name}-key", ssh_key["file"], {"Environment": config.env_name})
+
+        self.env_cfg.update(ssh_name=key_info['name'], ssh_fingerprint=key_info['fingerprint'])
+
+    def list_key(self):
+        try:
+            key_name = self.env_cfg.get("ssh_name")
+            return config.ssh_key().details(key_name)
+        except Exception as err:
+            raise AWSDriverError(f"can not list SSH key: {err}")

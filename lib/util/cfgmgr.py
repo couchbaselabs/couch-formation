@@ -95,6 +95,8 @@ class ConfigMgr(object):
                     for attribute in _config_class.__attrs_attrs__:
                         if suffix == attribute.name:
                             part = {suffix: kwargs[arg]}
+                            if self.config_data[prefix] is None:
+                                self.config_data[prefix] = {}
                             self.config_data[prefix].update(part)
         self.write_config()
 

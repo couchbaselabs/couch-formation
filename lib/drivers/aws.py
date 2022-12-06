@@ -447,6 +447,18 @@ class SSHKey(CloudBase):
 
         return key_block
 
+    def details(self, key_name: str) -> dict:
+        try:
+            result = self.ec2_client.describe_key_pairs(KeyNames=[key_name])
+            key_result = result['KeyPairs'][0]
+            key_block = {'name': key_result['KeyName'],
+                         'id': key_result['KeyPairId'],
+                         'fingerprint': key_result['KeyFingerprint']}
+            key_block.update(self.process_tags(key_result))
+            return key_block
+        except Exception as err:
+            raise AWSDriverError(f"error deleting key pair: {err}")
+
     def delete(self, name: str) -> None:
         try:
             self.ec2_client.delete_key_pair(KeyName=name)
