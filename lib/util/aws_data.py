@@ -43,6 +43,7 @@ class DataCollect(object):
     def get_infrastructure(self):
         vpc_list = []
 
+        print("")
         in_progress = self.env_cfg.get("aws_base_in_progress")
 
         if in_progress is not None and in_progress is False:
@@ -107,6 +108,7 @@ class DataCollect(object):
     def get_image(self):
         in_progress = self.env_cfg.get("aws_image_in_progress")
 
+        print("")
         if in_progress is not None and in_progress is False:
             print("Image is configured")
 
@@ -145,6 +147,7 @@ class DataCollect(object):
 
         in_progress = self.env_cfg.get("ssh_in_progress")
 
+        print("")
         if in_progress is not None and in_progress is False:
             print("SSH key is configured")
 
@@ -198,6 +201,7 @@ class DataCollect(object):
 
         in_progress = self.env_cfg.get("cbs_in_progress")
 
+        print("")
         if in_progress is not None and in_progress is False:
             print("Cluster settings are configured")
 
@@ -218,6 +222,7 @@ class DataCollect(object):
     def get_node_settings(self, default: bool = True):
         in_progress = self.env_cfg.get("aws_node_in_progress")
 
+        print("")
         if in_progress is not None and (in_progress is False or default is False):
             print("Node settings")
 

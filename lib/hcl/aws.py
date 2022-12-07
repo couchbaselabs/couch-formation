@@ -173,8 +173,7 @@ class CloudDriver(object):
         dc.get_keys()
         dc.get_image()
         dc.get_cluster_settings()
-        dc.get_node_settings()
-        cluster.create_cloud(node_type, dc.subnet_list)
+        cluster.create_cloud(node_type, dc)
 
         var_list = [
             ("cf_env_name", config.env_name, "Environment Name"),

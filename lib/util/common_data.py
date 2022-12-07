@@ -3,6 +3,9 @@
 
 import logging
 from itertools import cycle
+from typing import Union
+
+import lib.util.aws_data
 from lib.util.inquire import Inquire
 from lib.util.cfgmgr import ConfigMgr
 import lib.config as config
@@ -24,10 +27,12 @@ class ClusterCollect(object):
         cfg_file = self.path_map.use(config.cloud_operator.CONFIG_FILE, PathType.CONFIG)
         self.env_cfg = ConfigMgr(cfg_file.file_name)
 
-    def create_cloud(self, node_type: str, subnets: list[dict]):
+    def create_cloud(self, node_type: str, dc: Union[lib.util.aws_data.DataCollect]):
         node_env = config.env_name
         node = 1
         services = []
+
+        print("")
 
         if node_type == "app":
             min_nodes = 1
@@ -43,20 +48,28 @@ class ClusterCollect(object):
             prefix_text = 'cb'
             min_nodes = config.cb_node_min
 
-        print(f"Creating {node_env} node configuration")
+        print(f" ==> Creating {node_env} node configuration <==")
+        print("")
 
         if config.cloud_zone:
-            self.availability_zone_cycle = cycle(list(i for i in subnets if i['zone'] == config.cloud_zone))
+            self.availability_zone_cycle = cycle(list(i for i in dc.subnet_list if i['zone'] == config.cloud_zone))
         else:
-            self.availability_zone_cycle = cycle(subnets)
+            self.availability_zone_cycle = cycle(dc.subnet_list)
 
         self.node_swap = Inquire.ask_bool('Configure swap', recommendation='false')
 
         var_map = VariableMap.build()
 
         while True:
+            dc.get_node_settings()
+
+            machine_data = config.cloud_machine_type().details(dc.instance_type)
+
+            print(f"Machine CPU    = {machine_data['cpu']}")
+            print(f"Machine Memory = {machine_data['memory']}")
+
             selected_services = []
-            node_ram = 16
+            node_ram = int(machine_data['memory'] / 1024)
             node_name = f"{prefix_text}-{node_env}-n{node:02d}"
 
             zone_data = next(self.availability_zone_cycle)
