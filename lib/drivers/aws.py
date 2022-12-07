@@ -561,7 +561,7 @@ class Subnet(CloudBase):
 
         for subnet in subnets:
             net_block = {'cidr': subnet['CidrBlock'],
-                         'id': subnet['SubnetId'],
+                         'name': subnet['SubnetId'],
                          'vpc': subnet['VpcId'],
                          'zone': subnet['AvailabilityZone'],
                          'default': subnet['DefaultForAz'],

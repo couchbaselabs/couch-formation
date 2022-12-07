@@ -370,4 +370,4 @@ RIGHT = [
 
 
 def get_random_name():
-    return LEFT[Generator.random_number(len(LEFT))] + "_" + RIGHT[Generator.random_number(len(RIGHT))]
+    return LEFT[Generator.random_number(len(LEFT))] + "-" + RIGHT[Generator.random_number(len(RIGHT))]

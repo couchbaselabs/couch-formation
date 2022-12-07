@@ -34,9 +34,11 @@ class Variable(object):
     variable = attr.ib(validator=io(dict))
 
     @classmethod
-    def construct(cls, name: str, value: Union[str, list], description: str):
+    def construct(cls, name: str, value: Union[str, list, dict], description: str):
         if type(value) == list:
             v_type: str = "list(string)"
+        elif type(value) == dict:
+            v_type: str = "map"
         else:
             v_type: str = "string"
         return cls(
@@ -52,6 +54,72 @@ class Variable(object):
     @property
     def as_dict(self):
         return self.__dict__['variable']
+
+
+@attr.s
+class VariableMap(object):
+    variable_block = attr.ib(validator=io(dict))
+
+    @classmethod
+    def build(cls):
+        return cls(
+            {}
+        )
+
+    def add(self, name: str, element: dict):
+        entry = {name: element}
+        self.variable_block.update(entry)
+        return self
+
+    @property
+    def as_dict(self):
+        return self.__dict__['variable_block']
+
+
+@attr.s
+class ClusterMapElement(object):
+    install_mode = attr.ib(validator=io(str))
+    node_env = attr.ib(validator=io(str))
+    node_number = attr.ib(validator=io(int))
+    node_services = attr.ib(validator=io(str))
+    node_subnet = attr.ib(validator=io(str))
+    node_zone = attr.ib(validator=io(str))
+    node_ram = attr.ib(validator=io(str))
+    node_swap = attr.ib(validator=io(bool))
+    node_gateway = attr.ib(validator=attr.validators.optional(io(str)), default=None)
+    node_ip_address = attr.ib(validator=attr.validators.optional(io(str)), default=None)
+    node_netmask = attr.ib(validator=attr.validators.optional(io(str)), default=None)
+
+    @classmethod
+    def construct(cls,
+                  mode: str,
+                  env_name: str,
+                  number: int,
+                  services: str,
+                  subnet: str,
+                  zone: str,
+                  ram_gb: str,
+                  node_swap: bool,
+                  gateway: Union[str, None] = None,
+                  ip_address: Union[str, None] = None,
+                  netmask: Union[str, None] = None):
+        return cls(
+            mode,
+            env_name,
+            number,
+            services,
+            subnet,
+            zone,
+            ram_gb,
+            node_swap,
+            gateway,
+            ip_address,
+            netmask
+        )
+
+    @property
+    def as_dict(self):
+        return self.__dict__
 
 
 @attr.s

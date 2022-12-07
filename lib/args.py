@@ -2,8 +2,17 @@
 ##
 
 import argparse
+import re
 import lib.config as config
 from lib.config import OperatingMode
+
+
+def name_arg(value):
+    p = re.compile(r"^[a-z]([-a-z0-9]*[a-z0-9])?$")
+    if p.match(value):
+        return value
+    else:
+        raise argparse.ArgumentTypeError("name must comply with RFC1035")
 
 
 class Parameters(object):
@@ -24,7 +33,7 @@ class Parameters(object):
         parent_parser.add_argument('--all', action='store_true', help="List all environments", default=False)
         parent_parser.add_argument('--standalone', action='store_true', help="Build standalone machine", default=False)
         parent_parser.add_argument('--min', action='store', help="Minimum node count", type=int, default=3)
-        parent_parser.add_argument('--name', action='store', help="Environment name")
+        parent_parser.add_argument('--name', action='store', help="Environment name", type=name_arg)
         parent_parser.add_argument('--v3', action='store_true', help="Use new framework")
         parent_parser.add_argument('--noop', action='store', help=argparse.SUPPRESS)
         image_parser = argparse.ArgumentParser(add_help=False)

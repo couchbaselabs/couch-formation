@@ -54,7 +54,7 @@ class DataCollect(object):
             self.security_group_id = self.env_cfg.get("aws_security_group_id")
             print(f"Region         = {self.region}")
             print(f"VPC            = {self.vpc_id}")
-            print(f"Subnets        = {','.join(list(i['id'] for i in self.subnet_list))}")
+            print(f"Subnets        = {','.join(list(i['name'] for i in self.subnet_list))}")
             print(f"Security Group = {self.security_group_id}")
 
             if not Inquire().ask_bool("Update settings", recommendation='false'):

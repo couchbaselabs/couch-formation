@@ -12,6 +12,7 @@ from lib.util.filemgr import FileManager
 from lib.invoke import tf_run, packer_run
 from lib.util.cfgmgr import ConfigMgr
 from lib.util.aws_data import DataCollect
+from lib.util.common_data import ClusterCollect
 import lib.config as config
 from lib.hcl.aws_vpc import AWSProvider, VPCResource, InternetGatewayResource, RouteEntry, RouteResource, SubnetResource, RTAssociationResource, SecurityGroupEntry, \
     SGResource, Resources, VPCConfig
@@ -166,12 +167,14 @@ class CloudDriver(object):
 
     def create_nodes(self, node_type: str):
         dc = DataCollect()
+        cluster = ClusterCollect()
 
         dc.get_infrastructure()
         dc.get_keys()
         dc.get_image()
         dc.get_cluster_settings()
         dc.get_node_settings()
+        cluster.create_cloud(node_type, dc.subnet_list)
 
         var_list = [
             ("cf_env_name", config.env_name, "Environment Name"),
@@ -187,6 +190,7 @@ class CloudDriver(object):
             ("root_volume_iops", str(dc.disk_iops), "Volume IOPS"),
             ("root_volume_size", str(dc.disk_size), "Volume size"),
             ("root_volume_type", dc.disk_type, "EBS type"),
+            ("cluster_spec", cluster.cluster_map, "Node map"),
         ]
 
         if node_type == "app":
