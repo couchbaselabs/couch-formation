@@ -74,6 +74,42 @@ class Variables(object):
 
 
 @attr.s
+class ResourceBlock(object):
+    resource = attr.ib(validator=io(dict))
+
+    @classmethod
+    def build(cls):
+        return cls(
+            {}
+        )
+
+    def add(self, resource: dict):
+        self.resource.update(resource)
+        return self
+
+    @property
+    def as_dict(self):
+        return self.__dict__
+
+
+@attr.s
+class NodeBuild(object):
+    node_block = attr.ib(validator=io(list))
+
+    @classmethod
+    def construct(cls, entry: dict):
+        return cls(
+            [
+                entry
+            ]
+        )
+
+    def as_name(self, name: str):
+        response = {name: self.__dict__['node_block']}
+        return response
+
+
+@attr.s
 class Locals(object):
     locals = attr.ib(validator=io(list))
 
@@ -216,7 +252,7 @@ class ConnectionElements(object):
             host,
             f"${{file({private_key_file})}}",
             "ssh",
-            user
+            f"${{var.{user}}}"
         )
 
     @property

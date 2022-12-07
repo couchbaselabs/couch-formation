@@ -48,20 +48,16 @@ class DataCollect(object):
         if in_progress is not None and in_progress is False:
             print("Cloud infrastructure is configured")
 
-            old_region = self.env_cfg.get("aws_region")
-            old_vpc_id = self.env_cfg.get("aws_vpc_id")
-            old_subnet_list = self.env_cfg.get("aws_subnet_list")
-            old_security_group_id = self.env_cfg.get("aws_security_group_id")
-            print(f"Region         = {old_region}")
-            print(f"VPC            = {old_vpc_id}")
-            print(f"Subnets        = {','.join(list(i['id'] for i in old_subnet_list))}")
-            print(f"Security Group = {old_security_group_id}")
+            self.region = self.env_cfg.get("aws_region")
+            self.vpc_id = self.env_cfg.get("aws_vpc_id")
+            self.subnet_list = self.env_cfg.get("aws_subnet_list")
+            self.security_group_id = self.env_cfg.get("aws_security_group_id")
+            print(f"Region         = {self.region}")
+            print(f"VPC            = {self.vpc_id}")
+            print(f"Subnets        = {','.join(list(i['id'] for i in self.subnet_list))}")
+            print(f"Security Group = {self.security_group_id}")
 
             if not Inquire().ask_bool("Update settings", recommendation='false'):
-                self.region = old_region
-                self.vpc_id = old_vpc_id
-                self.subnet_list = old_subnet_list
-                self.security_group_id = old_security_group_id
                 return
 
         self.env_cfg.update(aws_base_in_progress=True)
@@ -114,17 +110,14 @@ class DataCollect(object):
         if in_progress is not None and in_progress is False:
             print("Image is configured")
 
-            old_image_user = self.env_cfg.get("ssh_user_name")
-            old_ami_id = self.env_cfg.get("aws_ami_id")
-            old_image_version = self.env_cfg.get("cbs_version")
-            print(f"SSH User Name = {old_image_user}")
-            print(f"AMI ID        = {old_ami_id}")
-            print(f"CBS Version   = {old_image_version}")
+            self.image_user = self.env_cfg.get("ssh_user_name")
+            self.ami_id = self.env_cfg.get("aws_ami_id")
+            self.image_version = self.env_cfg.get("cbs_version")
+            print(f"SSH User Name = {self.image_user}")
+            print(f"AMI ID        = {self.ami_id}")
+            print(f"CBS Version   = {self.image_version}")
 
             if not Inquire().ask_bool("Update settings", recommendation='false'):
-                self.image_user = old_image_user
-                self.ami_id = old_ami_id
-                self.image_version = old_image_version
                 return
 
         self.env_cfg.update(aws_image_in_progress=True)
@@ -155,17 +148,14 @@ class DataCollect(object):
         if in_progress is not None and in_progress is False:
             print("SSH key is configured")
 
-            old_env_ssh_key = self.env_cfg.get("aws_key_pair")
-            old_env_ssh_fingerprint = self.env_cfg.get("ssh_fingerprint")
-            old_env_ssh_filename = self.env_cfg.get("ssh_private_key")
-            print(f"Key-pair             = {old_env_ssh_key}")
-            print(f"Fingerprint          = {old_env_ssh_fingerprint}")
-            print(f"Private Key Filename = {old_env_ssh_filename}")
+            self.env_ssh_key = self.env_cfg.get("aws_key_pair")
+            self.env_ssh_fingerprint = self.env_cfg.get("ssh_fingerprint")
+            self.env_ssh_filename = self.env_cfg.get("ssh_private_key")
+            print(f"Key-pair             = {self.env_ssh_key}")
+            print(f"Fingerprint          = {self.env_ssh_fingerprint}")
+            print(f"Private Key Filename = {self.env_ssh_filename}")
 
             if not Inquire().ask_bool("Update settings", recommendation='false'):
-                self.env_ssh_key = old_env_ssh_key
-                self.env_ssh_fingerprint = old_env_ssh_fingerprint
-                self.env_ssh_filename = old_env_ssh_filename
                 return
 
         self.env_cfg.update(ssh_in_progress=True)
@@ -211,11 +201,10 @@ class DataCollect(object):
         if in_progress is not None and in_progress is False:
             print("Cluster settings are configured")
 
-            old_cb_index_mem_type = self.env_cfg.get("cbs_index_memory")
-            print(f"CBS Index Memory = {old_cb_index_mem_type}")
+            self.cb_index_mem_type = self.env_cfg.get("cbs_index_memory")
+            print(f"CBS Index Memory = {self.cb_index_mem_type}")
 
             if not Inquire().ask_bool("Update settings", recommendation='false'):
-                self.cb_index_mem_type = old_cb_index_mem_type
                 return
 
         self.env_cfg.update(cbs_in_progress=True)
@@ -232,20 +221,16 @@ class DataCollect(object):
         if in_progress is not None and (in_progress is False or default is False):
             print("Node settings")
 
-            old_instance_type = self.env_cfg.get("aws_machine_type")
-            old_disk_type = self.env_cfg.get("aws_root_type")
-            old_disk_size = self.env_cfg.get("aws_root_size")
-            old_disk_iops = self.env_cfg.get("aws_root_iops")
-            print(f"Machine Type = {old_instance_type}")
-            print(f"Disk Type    = {old_disk_type}")
-            print(f"Disk Size    = {old_disk_size}")
-            print(f"Disk IOPS    = {old_disk_iops}")
+            self.instance_type = self.env_cfg.get("aws_machine_type")
+            self.disk_type = self.env_cfg.get("aws_root_type")
+            self.disk_size = self.env_cfg.get("aws_root_size")
+            self.disk_iops = self.env_cfg.get("aws_root_iops")
+            print(f"Machine Type = {self.instance_type}")
+            print(f"Disk Type    = {self.disk_type}")
+            print(f"Disk Size    = {self.disk_size}")
+            print(f"Disk IOPS    = {self.disk_iops}")
 
             if not Inquire().ask_bool("Update settings", recommendation='false'):
-                self.instance_type = old_instance_type
-                self.disk_type = old_disk_type
-                self.disk_size = old_disk_size
-                self.disk_iops = old_disk_iops
                 return
 
         self.env_cfg.update(aws_node_in_progress=True)

@@ -18,7 +18,8 @@ from lib.hcl.aws_vpc import AWSProvider, VPCResource, InternetGatewayResource, R
 from lib.hcl.aws_image import Packer, PackerElement, RequiredPlugins, AmazonPlugin, AmazonPluginSettings, ImageMain, Source, SourceType, NodeType, NodeElements, \
     ImageBuild, BuildConfig, BuildElements, Shell, ShellElements, AWSImageDataRecord
 from lib.hcl.common import Variable, Variables, Locals, LocalVar, NodeMain, NullResource, NullResourceBlock, NullResourceBody, DependsOn, InLine, Connection, ConnectionElements, \
-    RemoteExec, ForEach, Provisioner, Triggers, Output, OutputValue, Build, Entry
+    RemoteExec, ForEach, Provisioner, Triggers, Output, OutputValue, Build, Entry, ResourceBlock, NodeBuild
+from lib.hcl.aws_instance import AWSInstance, BlockDevice, EbsElements, RootElements, NodeConfiguration
 
 
 class CloudDriver(object):
@@ -173,6 +174,7 @@ class CloudDriver(object):
         dc.get_node_settings()
 
         var_list = [
+            ("cf_env_name", config.env_name, "Environment Name"),
             ("region_name", dc.region, "Region name"),
             ("ami_id", dc.ami_id, "AMI Id"),
             ("ssh_user", dc.image_user, "Admin Username"),
@@ -216,8 +218,8 @@ class CloudDriver(object):
                      .add(
                     ConnectionElements.construct(
                         "${var.use_public_ip ? each.value.public_ip : each.value.private_ip}",
-                        "var.ssh_private_key",
-                        "${var.os_image_user}").as_dict)
+                        "ssh_private_key",
+                        "ssh_user").as_dict)
                      .as_dict)
                 .add(DependsOn.build()
                      .add("${aws_instance.couchbase_nodes}")
@@ -244,8 +246,8 @@ class CloudDriver(object):
                      .add(
                     ConnectionElements.construct(
                         "${var.use_public_ip ? local.rally_node_public : local.rally_node}",
-                        "var.ssh_private_key",
-                        "${var.os_image_user}").as_dict)
+                        "ssh_private_key",
+                        "ssh_user").as_dict)
                      .as_dict)
                 .add(DependsOn.build()
                      .add("${null_resource.couchbase-init}").as_dict)
@@ -266,13 +268,66 @@ class CloudDriver(object):
 
         output_block = Output.build().add(
             OutputValue.build()
-            .add("aws_vpc.cf_vpc.id")
-            .as_name("network_name")
+            .add("${[for instance in aws_instance.couchbase_nodes: instance.private_ip]}")
+            .as_name("node-private")
+        ).add(
+            OutputValue.build()
+            .add("${var.use_public_ip ? [for instance in aws_instance.couchbase_nodes: instance.public_ip] : null}")
+            .as_name("node-public")
         )
+
+        swap_disk_block = BlockDevice.build().add(
+            EbsElements.construct(
+                "/dev/xvdb",
+                "root_volume_iops",
+                "node_ram",
+                "root_volume_type"
+            ).as_dict
+        ).as_dict
+        instance_block = AWSInstance.build().add(
+            NodeBuild.construct(
+                NodeConfiguration.construct(
+                    "cf_env_name",
+                    "ami_id",
+                    "node_zone",
+                    "cluster_spec",
+                    "instance_type",
+                    "ssh_key",
+                    Provisioner.build()
+                    .add(RemoteExec.build().add(Connection.build().add(
+                          ConnectionElements.construct(
+                            "${var.use_public_ip ? each.value.public_ip : each.value.private_ip}",
+                            "ssh_private_key",
+                            "ssh_user")
+                          .as_dict)
+                        .as_dict)
+                         .add(InLine.build()
+                              .add("sudo /usr/local/hostprep/bin/refresh.sh")
+                              .add("sudo /usr/local/hostprep/bin/configure-swap.sh -o ${each.value.node_swap} -d /dev/xvdb")
+                              .add("sudo /usr/local/hostprep/bin/clusterinit.sh -m write -i ${self.private_ip} -e %{if var.use_public_ip}${self.public_ip}%{else}none%{endif} -s ${each.value.node_services} -o ${var.index_memory} -g ${each.value.node_zone}")
+                              .as_dict)
+                         .as_dict)
+                    .as_dict,
+                    RootElements.construct(
+                        "root_volume_iops",
+                        "root_volume_size",
+                        "root_volume_type"
+                    ).as_dict,
+                    "node_subnet",
+                    "security_group_ids",
+                    "node_services",
+                    swap_disk_block
+                ).as_dict
+            ).as_name("couchbase_nodes")
+        )
+
+        resource_block = ResourceBlock.build()
+        resource_block.add(instance_block.as_dict)
+        resource_block.add(null_resource_block.as_dict)
 
         main_config = NodeMain.build()\
             .add(locals_block.as_dict) \
-            .add(null_resource_block.as_dict) \
+            .add(resource_block.as_dict) \
             .add(output_block.as_dict) \
             .add(var_block.as_dict).as_dict
 
