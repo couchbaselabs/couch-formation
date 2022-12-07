@@ -17,6 +17,7 @@ class SSHSettings(object):
     private_key = attr.ib(validator=attr.validators.optional(io(str)), default=None)
     user_name = attr.ib(validator=attr.validators.optional(io(str)), default=None)
     fingerprint = attr.ib(validator=attr.validators.optional(io(str)), default=None)
+    in_progress = attr.ib(validator=attr.validators.optional(io(bool)), default=None)
 
     @property
     def as_dict(self):
@@ -35,6 +36,9 @@ class AWSSettings(object):
     root_iops = attr.ib(validator=attr.validators.optional(io(str)), default=None)
     root_size = attr.ib(validator=attr.validators.optional(io(str)), default=None)
     root_type = attr.ib(validator=attr.validators.optional(io(str)), default=None)
+    base_in_progress = attr.ib(validator=attr.validators.optional(io(bool)), default=None)
+    image_in_progress = attr.ib(validator=attr.validators.optional(io(bool)), default=None)
+    node_in_progress = attr.ib(validator=attr.validators.optional(io(bool)), default=None)
 
     @property
     def as_dict(self):
@@ -45,6 +49,7 @@ class AWSSettings(object):
 class CBSettings(object):
     index_memory = attr.ib(validator=attr.validators.optional(io(str)), default=None)
     version = attr.ib(validator=attr.validators.optional(io(str)), default=None)
+    in_progress = attr.ib(validator=attr.validators.optional(io(bool)), default=None)
 
     @property
     def as_dict(self):

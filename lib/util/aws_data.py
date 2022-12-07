@@ -43,13 +43,28 @@ class DataCollect(object):
     def get_infrastructure(self):
         vpc_list = []
 
-        complete = self.env_cfg.get("aws_base_in_progress")
+        in_progress = self.env_cfg.get("aws_base_in_progress")
 
-        if complete:
-            print("Infrastructure configuration complete.")
-            return
+        if in_progress is not None and in_progress is False:
+            print("Cloud infrastructure is configured")
 
-        self.env_cfg.update(aws_in_progress=True)
+            old_region = self.env_cfg.get("aws_region")
+            old_vpc_id = self.env_cfg.get("aws_vpc_id")
+            old_subnet_list = self.env_cfg.get("aws_subnet_list")
+            old_security_group_id = self.env_cfg.get("aws_security_group_id")
+            print(f"Region         = {old_region}")
+            print(f"VPC            = {old_vpc_id}")
+            print(f"Subnets        = {','.join(list(i['id'] for i in old_subnet_list))}")
+            print(f"Security Group = {old_security_group_id}")
+
+            if not Inquire().ask_bool("Update settings", recommendation='false'):
+                self.region = old_region
+                self.vpc_id = old_vpc_id
+                self.subnet_list = old_subnet_list
+                self.security_group_id = old_security_group_id
+                return
+
+        self.env_cfg.update(aws_base_in_progress=True)
 
         self.region = config.cloud_base().region
 
@@ -91,13 +106,17 @@ class DataCollect(object):
         self.env_cfg.update(aws_vpc_id=self.vpc_id)
         self.env_cfg.update(aws_subnet_list=self.subnet_list)
         self.env_cfg.update(aws_security_group_id=self.security_group_id)
+        self.env_cfg.update(aws_base_in_progress=False)
 
     def get_image(self):
-        complete = self.env_cfg.get("aws_image_in_progress")
+        in_progress = self.env_cfg.get("aws_image_in_progress")
 
-        if complete:
-            print("SSH key configuration step complete.")
-            return
+        if in_progress is not None and in_progress is False:
+            print("Image is configured")
+            if not Inquire().ask_bool("Update settings", recommendation='false'):
+                return
+
+        self.env_cfg.update(aws_image_in_progress=True)
 
         image_list = config.cloud_image().list(filter_keys_exist=["release_tag", "type_tag", "version_tag"])
 
@@ -115,15 +134,19 @@ class DataCollect(object):
         self.env_cfg.update(ssh_user_name=self.image_user)
         self.env_cfg.update(aws_ami_id=self.ami_id)
         self.env_cfg.update(cbs_version=self.image_version)
+        self.env_cfg.update(aws_image_in_progress=False)
 
     def get_keys(self):
         key_list = []
 
-        complete = self.env_cfg.get("ssh_in_progress")
+        in_progress = self.env_cfg.get("ssh_in_progress")
 
-        if complete:
-            print("SSH key configuration step complete.")
-            return
+        if in_progress is not None and in_progress is False:
+            print("SSH key is configured")
+            if not Inquire().ask_bool("Update settings", recommendation='false'):
+                return
+
+        self.env_cfg.update(ssh_in_progress=True)
 
         try:
             key_list = config.ssh_key().list(filter_keys_exist=["environment_tag"])
@@ -147,6 +170,7 @@ class DataCollect(object):
         self.env_cfg.update(aws_key_pair=self.env_ssh_key)
         self.env_cfg.update(ssh_fingerprint=self.env_ssh_fingerprint)
         self.env_cfg.update(ssh_private_key=self.env_ssh_filename)
+        self.env_cfg.update(ssh_in_progress=False)
 
     def get_cluster_settings(self):
         option_list = [
@@ -160,22 +184,30 @@ class DataCollect(object):
             },
         ]
 
-        complete = self.env_cfg.get("cbs_in_progress")
+        in_progress = self.env_cfg.get("cbs_in_progress")
 
-        if complete:
-            print("Cluster settings configuration step complete.")
-            return
+        if in_progress is not None and in_progress is False:
+            print("Cluster settings are configured")
+            if not Inquire().ask_bool("Update settings", recommendation='false'):
+                return
+
+        self.env_cfg.update(cbs_in_progress=True)
 
         selection = Inquire().ask_list_dict('Select index storage option', option_list)
         self.cb_index_mem_type = selection['name']
 
         self.env_cfg.update(cbs_index_memory=self.cb_index_mem_type)
+        self.env_cfg.update(cbs_in_progress=False)
 
     def get_node_settings(self, default: bool = True):
-        complete = self.env_cfg.get("aws_node_in_progress")
-        if complete or not default:
-            Inquire().ask_bool("Change node settings")
-            return
+        in_progress = self.env_cfg.get("aws_node_in_progress")
+
+        if in_progress is not None and (in_progress is False or default is False):
+            print("Node settings")
+            if not Inquire().ask_bool("Update settings", recommendation='false'):
+                return
+
+        self.env_cfg.update(aws_node_in_progress=True)
 
         machine_list = config.cloud_machine_type().list()
 
@@ -194,3 +226,4 @@ class DataCollect(object):
         self.env_cfg.update(aws_root_type=self.disk_type)
         self.env_cfg.update(aws_root_size=self.disk_size)
         self.env_cfg.update(aws_root_iops=self.disk_iops)
+        self.env_cfg.update(aws_node_in_progress=False)
