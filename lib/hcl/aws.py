@@ -18,7 +18,7 @@ from lib.hcl.aws_vpc import AWSProvider, VPCResource, InternetGatewayResource, R
 from lib.hcl.aws_image import Packer, PackerElement, RequiredPlugins, AmazonPlugin, AmazonPluginSettings, ImageMain, Source, SourceType, NodeType, NodeElements, \
     ImageBuild, BuildConfig, BuildElements, Shell, ShellElements, AWSImageDataRecord
 from lib.hcl.common import Variable, Variables, Locals, LocalVar, NodeMain, NullResource, NullResourceBlock, NullResourceBody, DependsOn, InLine, Connection, ConnectionElements, \
-    RemoteExec, ForEach, Provisioner, Triggers, Output, OutputValue, Build, Entry, ResourceBlock, NodeBuild
+    RemoteExec, ForEach, Provisioner, Triggers, Output, OutputValue, Build, Entry, ResourceBlock, NodeBuild, TimeSleep
 from lib.hcl.aws_instance import AWSInstance, BlockDevice, EbsElements, RootElements, NodeConfiguration
 
 
@@ -210,6 +210,8 @@ class CloudDriver(object):
                                         .add("rally_node_public", "${element([for node in aws_instance.couchbase_nodes: node.public_ip], 0)}")
                                         .as_dict)
 
+        provider_block = AWSProvider.for_region("region_name")
+
         null_resource_block = NullResource.build().add(
             NullResourceBlock.construct(
                 NullResourceBody
@@ -321,12 +323,16 @@ class CloudDriver(object):
             ).as_name("couchbase_nodes")
         )
 
+        time_sleep_block = TimeSleep.construct("aws_instance", "couchbase_nodes")
+
         resource_block = ResourceBlock.build()
         resource_block.add(instance_block.as_dict)
         resource_block.add(null_resource_block.as_dict)
+        resource_block.add(time_sleep_block.as_dict)
 
         main_config = NodeMain.build()\
             .add(locals_block.as_dict) \
+            .add(provider_block.as_dict) \
             .add(resource_block.as_dict) \
             .add(output_block.as_dict) \
             .add(var_block.as_dict).as_dict

@@ -407,3 +407,40 @@ class OutputValue(object):
     def as_name(self, name: str):
         response = {name: [self.__dict__['value']]}
         return response
+
+
+@attr.s
+class TimeSleep(object):
+    time_sleep = attr.ib(validator=io(dict))
+
+    @classmethod
+    def construct(cls, resource_type: str, resource_name: str):
+        return cls(
+            TimeSleepPause.construct(resource_type, resource_name).as_dict
+        )
+
+    @property
+    def as_dict(self):
+        return self.__dict__
+
+
+@attr.s
+class TimeSleepPause(object):
+    pause = attr.ib(validator=io(list))
+
+    @classmethod
+    def construct(cls, resource_type: str, resource_name: str):
+        return cls(
+            [
+                {
+                    "create_duration": "5s",
+                    "depends_on": [
+                        f"${{{resource_type}.{resource_name}}}"
+                    ]
+                }
+            ]
+        )
+
+    @property
+    def as_dict(self):
+        return self.__dict__
