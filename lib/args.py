@@ -72,12 +72,28 @@ class Parameters(object):
         create_action_generic = create_action.add_parser('generic', help="Generic Nodes", parents=[parent_parser], add_help=False)
 
         deploy_mode = subparsers.add_parser('deploy', help="Deploy Nodes", parents=[parent_parser], add_help=False)
+
         destroy_mode = subparsers.add_parser('destroy', help="Destroy Nodes", parents=[parent_parser], add_help=False)
+        destroy_action = destroy_mode.add_subparsers(dest='destroy_command')
+        destroy_action_cluster = destroy_action.add_parser('cluster', help="Destroy a Couchbase Cluster", parents=[parent_parser], add_help=False)
+        destroy_action_app = destroy_action.add_parser('app', help="Destroy App Nodes", parents=[parent_parser], add_help=False)
+        destroy_action_sgw = destroy_action.add_parser('sgw', help="Destroy Sync Gateway Nodes", parents=[parent_parser], add_help=False)
+        destroy_action_generic = destroy_action.add_parser('generic', help="Destroy Generic Nodes", parents=[parent_parser], add_help=False)
+
         remove_mode = subparsers.add_parser('remove', help="Remove Environments", parents=[parent_parser], add_help=False)
 
-        list_mode = subparsers.add_parser('list', help="List Nodes", parents=[parent_parser], add_help=False)
+        list_mode = subparsers.add_parser('list', help="List Information", parents=[parent_parser], add_help=False)
         list_action = list_mode.add_subparsers(dest='list_command')
         list_action_image = list_action.add_parser('images', help="List images", parents=[parent_parser, log_parser], add_help=False)
+
+        show_mode = subparsers.add_parser('show', help="Show Attributes", parents=[parent_parser], add_help=False)
+        show_action = show_mode.add_subparsers(dest='show_command')
+        show_action_nodes = show_action.add_parser('nodes', help="Show Nodes", parents=[parent_parser], add_help=False)
+        show_action_node_opt = show_action_nodes.add_subparsers(dest='show_node_command')
+        show_action_cluster = show_action_node_opt.add_parser('cluster', help="Show Nodes", parents=[parent_parser], add_help=False)
+        show_action_cluster = show_action_node_opt.add_parser('app', help="Show Nodes", parents=[parent_parser], add_help=False)
+        show_action_cluster = show_action_node_opt.add_parser('sgw', help="Show Nodes", parents=[parent_parser], add_help=False)
+        show_action_cluster = show_action_node_opt.add_parser('generic', help="Show Nodes", parents=[parent_parser], add_help=False)
 
         net_mode = subparsers.add_parser('net', help="Static Network Configuration", parents=[parent_parser, net_parser], add_help=False)
         vpc_mode = subparsers.add_parser('vpc', help="Create VPC", parents=[parent_parser, vpc_parser], add_help=False)

@@ -49,7 +49,7 @@ class CloudManager(object):
         elif self.verb == 'deploy':
             print("Not implemented")
         elif self.verb == 'destroy':
-            print("Not implemented")
+            config.cloud_operator().destroy_nodes(self.args.destroy_command)
         elif self.verb == 'remove':
             print("Not implemented")
         elif self.verb == 'remove':
@@ -58,6 +58,9 @@ class CloudManager(object):
             if self.args.list_command == "images":
                 config.env_name = config.cloud
                 config.cloud_operator().list_images()
+        elif self.verb == 'show':
+            if self.args.show_command == "nodes":
+                config.cloud_operator().show_nodes(self.args.show_node_command)
         elif self.verb == 'net':
             print("Not implemented")
         elif self.verb == 'vpc':

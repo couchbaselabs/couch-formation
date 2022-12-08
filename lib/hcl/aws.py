@@ -228,7 +228,7 @@ class CloudDriver(object):
 
         if cluster_build:
             locals_block = Locals.construct(LocalVar.build()
-                                            .add("cluster_init_name", config.env_name)
+                                            .add("cluster_init_name", "${var.cb_cluster_name}")
                                             .add("rally_node", "${element([for node in aws_instance.couchbase_nodes: node.private_ip], 0)}")
                                             .add("rally_node_public", "${element([for node in aws_instance.couchbase_nodes: node.public_ip], 0)}")
                                             .as_dict)
@@ -403,6 +403,70 @@ class CloudDriver(object):
             tf.apply()
         except Exception as err:
             raise AWSDriverError(f"can not deploy nodes: {err}")
+
+        self.show_nodes(node_type)
+
+    def show_nodes(self, node_type: str):
+        print(f"Cloud: {config.cloud} :: Environment {config.env_name}")
+        env_data = self.list_nodes(node_type)
+        for item in env_data:
+            print(f"  [{item}]")
+            if type(env_data[item]['value']) == list:
+                for n, host in enumerate(env_data[item]['value']):
+                    print(f"    {n + 1:d}) {host}")
+            else:
+                print(f"    {env_data[item]['value']}")
+
+    def list_nodes(self, node_type: str):
+        if node_type == "app":
+            path_type = PathType.APP
+            path_file = CloudDriver.MAIN_CONFIG
+        elif node_type == "sgw":
+            path_type = PathType.SGW
+            path_file = CloudDriver.MAIN_CONFIG
+        elif node_type == "generic":
+            path_type = PathType.GENERIC
+            path_file = CloudDriver.MAIN_CONFIG
+        else:
+            path_type = PathType.CLUSTER
+            path_file = CloudDriver.MAIN_CONFIG
+
+        self.path_map.map(path_type)
+        cfg_file: ConfigFile
+        cfg_file = self.path_map.use(path_file, path_type)
+        try:
+            tf = tf_run(working_dir=cfg_file.file_path)
+            node_data = tf.output(quiet=True)
+            return node_data
+        except Exception as err:
+            raise AWSDriverError(f"can not list nodes: {err}")
+
+    def destroy_nodes(self, node_type: str):
+        if node_type == "app":
+            path_type = PathType.APP
+            path_file = CloudDriver.MAIN_CONFIG
+        elif node_type == "sgw":
+            path_type = PathType.SGW
+            path_file = CloudDriver.MAIN_CONFIG
+        elif node_type == "generic":
+            path_type = PathType.GENERIC
+            path_file = CloudDriver.MAIN_CONFIG
+        else:
+            path_type = PathType.CLUSTER
+            path_file = CloudDriver.MAIN_CONFIG
+
+        self.path_map.map(path_type)
+        cfg_file: ConfigFile
+        cfg_file = self.path_map.use(path_file, path_type)
+
+        try:
+            if Inquire().ask_yn(f"Remove {self.path_map.last_mapped} nodes for {config.env_name}", default=False):
+                tf = tf_run(working_dir=cfg_file.file_path)
+                if not tf.validate():
+                    tf.init()
+                tf.destroy()
+        except Exception as err:
+            raise AWSDriverError(f"can not destroy nodes: {err}")
 
     def create_net(self):
         cidr_util = NetworkDriver()
