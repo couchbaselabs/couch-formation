@@ -33,6 +33,22 @@ class ClusterCollect(object):
         services = []
 
         print("")
+        in_progress = self.env_cfg.get(f"{config.cloud}_map_in_progress")
+        if in_progress is not None and in_progress is False:
+            print("Node configuration is complete")
+            print("")
+
+            self.cluster_map = self.env_cfg.get(f"{config.cloud}_node_map")
+            for item in self.cluster_map:
+                print(f"  [{item}]")
+                for element in self.cluster_map[item]:
+                    print(f"    {element.ljust(15)} = {self.cluster_map[item][element]}")
+
+            print("")
+            if not Inquire().ask_bool("Create new node configuration", recommendation='false'):
+                return
+
+        self.env_cfg.update(**{f"{config.cloud}_map_in_progress": True})
 
         if node_type == "app":
             min_nodes = 1
@@ -105,6 +121,10 @@ class ClusterCollect(object):
                             availability_zone,
                             str(node_ram),
                             self.node_swap,
+                            dc.instance_type,
+                            str(dc.disk_iops),
+                            str(dc.disk_size),
+                            dc.disk_type,
                             None,
                             None,
                             None
@@ -119,3 +139,5 @@ class ClusterCollect(object):
             node += 1
 
         self.cluster_map = var_map.as_dict
+        self.env_cfg.update(**{f"{config.cloud}_node_map": self.cluster_map})
+        self.env_cfg.update(**{f"{config.cloud}_map_in_progress": False})

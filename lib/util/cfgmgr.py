@@ -36,9 +36,11 @@ class AWSSettings(object):
     root_iops = attr.ib(validator=attr.validators.optional(io(str)), default=None)
     root_size = attr.ib(validator=attr.validators.optional(io(str)), default=None)
     root_type = attr.ib(validator=attr.validators.optional(io(str)), default=None)
+    node_map = attr.ib(validator=attr.validators.optional(io(dict)), default=None)
     base_in_progress = attr.ib(validator=attr.validators.optional(io(bool)), default=None)
     image_in_progress = attr.ib(validator=attr.validators.optional(io(bool)), default=None)
     node_in_progress = attr.ib(validator=attr.validators.optional(io(bool)), default=None)
+    map_in_progress = attr.ib(validator=attr.validators.optional(io(bool)), default=None)
 
     @property
     def as_dict(self):
@@ -57,10 +59,30 @@ class CBSettings(object):
 
 
 @attr.s
+class NetSettings(object):
+    use_public_ip = attr.ib(validator=attr.validators.optional(io(bool)), default=None)
+
+    @property
+    def as_dict(self):
+        return self.__dict__
+
+
+@attr.s
+class GeneralConfig(object):
+    map_in_progress = attr.ib(validator=attr.validators.optional(io(bool)), default=None)
+
+    @property
+    def as_dict(self):
+        return self.__dict__
+
+
+@attr.s
 class Config(object):
     ssh = attr.ib(validator=attr.validators.optional(io(dict)), default=None, metadata={"_class_name": "SSHSettings"})
     aws = attr.ib(validator=attr.validators.optional(io(dict)), default=None, metadata={"_class_name": "AWSSettings"})
     cbs = attr.ib(validator=attr.validators.optional(io(dict)), default=None, metadata={"_class_name": "CBSettings"})
+    net = attr.ib(validator=attr.validators.optional(io(dict)), default=None, metadata={"_class_name": "NetSettings"})
+    cfg = attr.ib(validator=attr.validators.optional(io(dict)), default=None, metadata={"_class_name": "GeneralConfig"})
 
     @property
     def as_dict(self):
@@ -85,7 +107,9 @@ class ConfigMgr(object):
                 self.config_data = Config(
                     data_read.get('ssh'),
                     data_read.get('aws'),
-                    data_read.get('cbs')
+                    data_read.get('cbs'),
+                    data_read.get('net'),
+                    data_read.get('cfg')
                 ).as_dict
             return True
         except Exception as err:
@@ -116,6 +140,8 @@ class ConfigMgr(object):
                 _config_class = globals()[_class_name]
                 for attribute in _config_class.__attrs_attrs__:
                     if suffix == attribute.name:
+                        if self.config_data[prefix] is None:
+                            self.config_data[prefix] = {}
                         return self.config_data[prefix].get(suffix)
 
     def write_config(self) -> None:

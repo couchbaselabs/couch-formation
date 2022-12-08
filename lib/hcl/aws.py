@@ -20,7 +20,7 @@ from lib.hcl.aws_image import Packer, PackerElement, RequiredPlugins, AmazonPlug
     ImageBuild, BuildConfig, BuildElements, Shell, ShellElements, AWSImageDataRecord
 from lib.hcl.common import Variable, Variables, Locals, LocalVar, NodeMain, NullResource, NullResourceBlock, NullResourceBody, DependsOn, InLine, Connection, ConnectionElements, \
     RemoteExec, ForEach, Provisioner, Triggers, Output, OutputValue, Build, Entry, ResourceBlock, NodeBuild, TimeSleep
-from lib.hcl.aws_instance import AWSInstance, BlockDevice, EbsElements, RootElements, NodeConfiguration
+from lib.hcl.aws_instance import AWSInstance, BlockDevice, EbsElements, RootElements, NodeConfiguration, TerraformElement, RequiredProvider, AWSTerraformProvider
 
 
 class CloudDriver(object):
@@ -28,6 +28,7 @@ class CloudDriver(object):
     HOST_PREP_REPO = "couchbaselabs/couchbase-hostprep"
     DRIVER_CONFIG = "aws.json"
     NETWORK_CONFIG = "main.tf.json"
+    MAIN_CONFIG = "main.tf.json"
     IMAGE_CONFIG = "main.pkr.json"
     CONFIG_FILE = "config.json"
 
@@ -166,6 +167,12 @@ class CloudDriver(object):
         self.ask.list_dict(f"Images in cloud {config.cloud}", image_list, sort_key="date")
 
     def create_nodes(self, node_type: str):
+        cluster_build = False
+        sync_gateway_build = False
+        locals_block = None
+        null_resource_block = None
+        swap_disk_block = None
+
         dc = DataCollect()
         cluster = ClusterCollect()
 
@@ -185,10 +192,10 @@ class CloudDriver(object):
             ("vpc_id", dc.vpc_id, "VPC ID"),
             ("security_group_ids", [dc.security_group_id], "Security group"),
             ("instance_type", dc.instance_type, "Instance type"),
-            ("index_memory", dc.cb_index_mem_type, "Index memory setting"),
             ("root_volume_iops", str(dc.disk_iops), "Volume IOPS"),
             ("root_volume_size", str(dc.disk_size), "Volume size"),
             ("root_volume_type", dc.disk_type, "EBS type"),
+            ("use_public_ip", dc.use_public_ip, "Use public or private IP for SSH"),
             ("cluster_spec", cluster.cluster_map, "Node map"),
         ]
 
@@ -196,10 +203,18 @@ class CloudDriver(object):
             self.path_map.map(PathType.APP)
         elif node_type == "sgw":
             self.path_map.map(PathType.SGW)
+            sync_gateway_build = True
         elif node_type == "generic":
             self.path_map.map(PathType.GENERIC)
         else:
+            var_list.extend(
+                [
+                    ("index_memory", dc.cb_index_mem_type, "Index memory setting"),
+                    ("cb_cluster_name", f"{config.env_name}-db", "Couchbase cluster name")
+                ]
+            )
             self.path_map.map(PathType.CLUSTER)
+            cluster_build = True
 
         print(f"Configuring {self.path_map.last_mapped} nodes in region {dc.region}")
 
@@ -207,69 +222,95 @@ class CloudDriver(object):
         for item in var_list:
             var_block.add(Variable.construct(item[0], item[1], item[2]).as_dict)
 
-        locals_block = Locals.construct(LocalVar.build()
-                                        .add("cluster_init_name", config.env_name)
-                                        .add("rally_node", "${element([for node in aws_instance.couchbase_nodes: node.private_ip], 0)}")
-                                        .add("rally_node_public", "${element([for node in aws_instance.couchbase_nodes: node.public_ip], 0)}")
-                                        .as_dict)
+        header_block = TerraformElement.construct(RequiredProvider.construct(AWSTerraformProvider.construct("hashicorp/aws").as_dict).as_dict)
 
         provider_block = AWSProvider.for_region("region_name")
 
-        null_resource_block = NullResource.build().add(
-            NullResourceBlock.construct(
-                NullResourceBody
-                .build()
-                .add(Connection.build()
-                     .add(
-                    ConnectionElements.construct(
-                        "${var.use_public_ip ? each.value.public_ip : each.value.private_ip}",
-                        "ssh_private_key",
-                        "ssh_user").as_dict)
-                     .as_dict)
-                .add(DependsOn.build()
-                     .add("${aws_instance.couchbase_nodes}")
-                     .add("${time_sleep.pause}").as_dict)
-                .add(ForEach.construct("${aws_instance.couchbase_nodes}").as_dict)
-                .add(Provisioner.build()
-                     .add(RemoteExec.build()
-                          .add(InLine.build()
-                               .add("sudo /usr/local/hostprep/bin/clusterinit.sh -m config -r ${local.rally_node} -n ${local.cluster_init_name}")
-                               .as_dict)
-                          .as_dict)
-                     .as_dict)
-                .add(Triggers.build()
-                     .add("cb_nodes", "${join(\",\", keys(aws_instance.couchbase_nodes))}")
-                     .as_dict)
-                .as_dict
+        if cluster_build:
+            locals_block = Locals.construct(LocalVar.build()
+                                            .add("cluster_init_name", config.env_name)
+                                            .add("rally_node", "${element([for node in aws_instance.couchbase_nodes: node.private_ip], 0)}")
+                                            .add("rally_node_public", "${element([for node in aws_instance.couchbase_nodes: node.public_ip], 0)}")
+                                            .as_dict)
+
+            null_resource_block = NullResource.build().add(
+                NullResourceBlock.construct(
+                    NullResourceBody
+                    .build()
+                    .add(Connection.build()
+                         .add(
+                        ConnectionElements.construct(
+                            "var.use_public_ip ? each.value.public_ip : each.value.private_ip",
+                            "ssh_private_key",
+                            "ssh_user").as_dict)
+                         .as_dict)
+                    .add(DependsOn.build()
+                         .add("aws_instance.couchbase_nodes")
+                         .add("time_sleep.pause").as_dict)
+                    .add(ForEach.construct("${aws_instance.couchbase_nodes}").as_dict)
+                    .add(Provisioner.build()
+                         .add(RemoteExec.build()
+                              .add(InLine.build()
+                                   .add("sudo /usr/local/hostprep/bin/clusterinit.sh -m config -r ${local.rally_node} -n ${local.cluster_init_name}")
+                                   .as_dict)
+                              .as_dict)
+                         .as_dict)
+                    .add(Triggers.build()
+                         .add("cb_nodes", "${join(\",\", keys(aws_instance.couchbase_nodes))}")
+                         .as_dict)
+                    .as_dict
+                )
+                .as_name("couchbase-init")
+            ).add(
+                NullResourceBlock.construct(
+                    NullResourceBody
+                    .build()
+                    .add(Connection.build()
+                         .add(
+                        ConnectionElements.construct(
+                            "var.use_public_ip ? local.rally_node_public : local.rally_node",
+                            "ssh_private_key",
+                            "ssh_user").as_dict)
+                         .as_dict)
+                    .add(DependsOn.build()
+                         .add("null_resource.couchbase-init").as_dict)
+                    .add(Provisioner.build()
+                         .add(RemoteExec.build()
+                              .add(InLine.build()
+                                   .add("sudo /usr/local/hostprep/bin/clusterinit.sh -m rebalance -r ${local.rally_node}")
+                                   .as_dict)
+                              .as_dict)
+                         .as_dict)
+                    .add(Triggers.build()
+                         .add("cb_nodes", "${join(\",\", keys(aws_instance.couchbase_nodes))}")
+                         .as_dict)
+                    .as_dict
+                )
+                .as_name("couchbase-rebalance")
             )
-            .as_name("couchbase-init")
-        ).add(
-            NullResourceBlock.construct(
-                NullResourceBody
-                .build()
-                .add(Connection.build()
-                     .add(
-                    ConnectionElements.construct(
-                        "${var.use_public_ip ? local.rally_node_public : local.rally_node}",
-                        "ssh_private_key",
-                        "ssh_user").as_dict)
-                     .as_dict)
-                .add(DependsOn.build()
-                     .add("${null_resource.couchbase-init}").as_dict)
-                .add(Provisioner.build()
-                     .add(RemoteExec.build()
-                          .add(InLine.build()
-                               .add("sudo /usr/local/hostprep/bin/clusterinit.sh -m rebalance -r ${local.rally_node}")
-                               .as_dict)
-                          .as_dict)
-                     .as_dict)
-                .add(Triggers.build()
-                     .add("cb_nodes", "${join(\",\", keys(aws_instance.couchbase_nodes))}")
-                     .as_dict)
+
+            inline_build = InLine.build()\
+                .add("sudo /usr/local/hostprep/bin/refresh.sh")\
+                .add("sudo /usr/local/hostprep/bin/configure-swap.sh -o ${each.value.node_swap} -d /dev/xvdb")\
+                .add("sudo /usr/local/hostprep/bin/clusterinit.sh "
+                     "-m write "
+                     "-i ${self.private_ip} "
+                     "-e %{if var.use_public_ip}${self.public_ip}%{else}none%{endif} "
+                     "-s ${each.value.node_services} "
+                     "-o ${var.index_memory} "
+                     "-g ${each.value.node_zone}")\
                 .as_dict
-            )
-            .as_name("couchbase-rebalance")
-        )
+        elif sync_gateway_build:
+            inline_build = InLine.build()\
+                .add("sudo /usr/local/hostprep/bin/refresh.sh")\
+                .add("sudo /usr/local/hostprep/bin/hostprep.sh -t sgw -g ${var.sgw_version}")\
+                .add("sudo /usr/local/hostprep/bin/clusterinit.sh -m sgw -r ${var.cb_node_1}")\
+                .as_dict
+        else:
+            inline_build = InLine.build()\
+                .add("sudo /usr/local/hostprep/bin/refresh.sh")\
+                .add("sudo /usr/local/hostprep/bin/hostprep.sh -t sdk")\
+                .as_dict
 
         output_block = Output.build().add(
             OutputValue.build()
@@ -281,14 +322,16 @@ class CloudDriver(object):
             .as_name("node-public")
         )
 
-        swap_disk_block = BlockDevice.build().add(
-            EbsElements.construct(
-                "/dev/xvdb",
-                "root_volume_iops",
-                "node_ram",
-                "root_volume_type"
+        if cluster.node_swap:
+            swap_disk_block = BlockDevice.build().add(
+                EbsElements.construct(
+                    "/dev/xvdb",
+                    "root_volume_iops",
+                    "node_ram",
+                    "root_volume_type"
+                ).as_dict
             ).as_dict
-        ).as_dict
+
         instance_block = AWSInstance.build().add(
             NodeBuild.construct(
                 NodeConfiguration.construct(
@@ -301,18 +344,14 @@ class CloudDriver(object):
                     Provisioner.build()
                     .add(RemoteExec.build().add(Connection.build().add(
                           ConnectionElements.construct(
-                            "${var.use_public_ip ? each.value.public_ip : each.value.private_ip}",
+                            "var.use_public_ip ? self.public_ip : self.private_ip",
                             "ssh_private_key",
                             "ssh_user")
                           .as_dict)
                         .as_dict)
-                         .add(InLine.build()
-                              .add("sudo /usr/local/hostprep/bin/refresh.sh")
-                              .add("sudo /usr/local/hostprep/bin/configure-swap.sh -o ${each.value.node_swap} -d /dev/xvdb")
-                              .add("sudo /usr/local/hostprep/bin/clusterinit.sh -m write -i ${self.private_ip} -e %{if var.use_public_ip}${self.public_ip}%{else}none%{endif} -s ${each.value.node_services} -o ${var.index_memory} -g ${each.value.node_zone}")
-                              .as_dict)
+                         .add(inline_build)
                          .as_dict)
-                    .as_dict,
+                    .as_contents,
                     RootElements.construct(
                         "root_volume_iops",
                         "root_volume_size",
@@ -330,17 +369,40 @@ class CloudDriver(object):
 
         resource_block = ResourceBlock.build()
         resource_block.add(instance_block.as_dict)
-        resource_block.add(null_resource_block.as_dict)
         resource_block.add(time_sleep_block.as_dict)
 
-        main_config = NodeMain.build()\
-            .add(locals_block.as_dict) \
-            .add(provider_block.as_dict) \
-            .add(resource_block.as_dict) \
-            .add(output_block.as_dict) \
-            .add(var_block.as_dict).as_dict
+        main_config = NodeMain.build() \
+            .add(header_block.as_dict) \
+            .add(provider_block.as_dict)\
+            .add(resource_block.as_dict)\
+            .add(output_block.as_dict)\
+            .add(var_block.as_dict)
 
-        print(json.dumps(main_config, indent=2))
+        if cluster_build:
+            main_config.add(locals_block.as_dict)
+            resource_block.add(null_resource_block.as_dict)
+
+        # print(json.dumps(main_config.as_dict, indent=2))
+
+        self.path_map.map(PathType.CLUSTER)
+        cfg_file: ConfigFile
+        cfg_file = self.path_map.use(CloudDriver.MAIN_CONFIG, PathType.CLUSTER)
+        try:
+            with open(cfg_file.file_name, 'w') as cfg_file_h:
+                json.dump(main_config.as_dict, cfg_file_h, indent=2)
+        except Exception as err:
+            raise AWSDriverError(f"can not write to main config file {cfg_file.file_name}: {err}")
+
+        try:
+            print("")
+            print(f"Deploying nodes ...")
+            tf = tf_run(working_dir=cfg_file.file_path)
+            tf.init()
+            if not tf.validate():
+                raise AWSDriverError("Environment is not configured properly, please check the log and try again.")
+            tf.apply()
+        except Exception as err:
+            raise AWSDriverError(f"can not deploy nodes: {err}")
 
     def create_net(self):
         cidr_util = NetworkDriver()

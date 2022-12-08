@@ -16,6 +16,7 @@ class DataCollect(object):
 
     def __init__(self):
         self.logger = logging.getLogger(self.__class__.__name__)
+        self.use_public_ip = None
         self.vpc_id = None
         self.subnet_list = []
         self.security_group_id = None
@@ -53,10 +54,12 @@ class DataCollect(object):
             self.vpc_id = self.env_cfg.get("aws_vpc_id")
             self.subnet_list = self.env_cfg.get("aws_subnet_list")
             self.security_group_id = self.env_cfg.get("aws_security_group_id")
-            print(f"Region         = {self.region}")
-            print(f"VPC            = {self.vpc_id}")
-            print(f"Subnets        = {','.join(list(i['name'] for i in self.subnet_list))}")
-            print(f"Security Group = {self.security_group_id}")
+            self.use_public_ip = self.env_cfg.get("net_use_public_ip")
+            print(f"Region           = {self.region}")
+            print(f"VPC              = {self.vpc_id}")
+            print(f"Subnets          = {','.join(list(i['name'] for i in self.subnet_list))}")
+            print(f"Security Group   = {self.security_group_id}")
+            print(f"Assign Public IP = {self.use_public_ip}")
 
             if not Inquire().ask_bool("Update settings", recommendation='false'):
                 return
@@ -64,6 +67,8 @@ class DataCollect(object):
         self.env_cfg.update(aws_base_in_progress=True)
 
         self.region = config.cloud_base().region
+
+        self.use_public_ip = Inquire().ask_bool("Assign a public IP")
 
         try:
             vpc_list = config.cloud_network().list(filter_keys_exist=["environment_tag"])
@@ -88,6 +93,8 @@ class DataCollect(object):
                 self.vpc_id = selection.get("id")
 
         subnets = config.cloud_subnet().list(self.vpc_id)
+        subnets = sorted(subnets, key=lambda d: d['cidr'])
+        self.subnet_list.clear()
         for s in subnets:
             self.subnet_list.append(s)
 
@@ -103,6 +110,7 @@ class DataCollect(object):
         self.env_cfg.update(aws_vpc_id=self.vpc_id)
         self.env_cfg.update(aws_subnet_list=self.subnet_list)
         self.env_cfg.update(aws_security_group_id=self.security_group_id)
+        self.env_cfg.update(net_use_public_ip=self.use_public_ip)
         self.env_cfg.update(aws_base_in_progress=False)
 
     def get_image(self):

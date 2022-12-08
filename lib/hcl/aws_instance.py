@@ -7,6 +7,55 @@ from attr.validators import instance_of as io
 
 
 @attr.s
+class TerraformElement(object):
+    terraform = attr.ib(validator=io(list))
+
+    @classmethod
+    def construct(cls, element: dict):
+        return cls(
+            [
+                element
+            ]
+        )
+
+    @property
+    def as_dict(self):
+        return self.__dict__
+
+
+@attr.s
+class RequiredProvider(object):
+    required_providers = attr.ib(validator=io(list))
+
+    @classmethod
+    def construct(cls, element: dict):
+        return cls(
+           [
+                element
+           ]
+        )
+
+    @property
+    def as_dict(self):
+        return self.__dict__
+
+
+@attr.s
+class AWSTerraformProvider(object):
+    aws = attr.ib(validator=io(dict))
+
+    @classmethod
+    def construct(cls, source: str):
+        return cls(
+            {"source": source}
+        )
+
+    @property
+    def as_dict(self):
+        return self.__dict__
+
+
+@attr.s
 class AWSInstance(object):
     aws_instance = attr.ib(validator=io(dict))
 
@@ -56,9 +105,9 @@ class EbsElements(object):
     def construct(cls, device: str, iops: str, size: str, vol_type: str):
         return cls(
             device,
-            f"${{var.{iops}}}",
+            f"${{each.value.{iops}}}",
             f"${{each.value.{size}}}",
-            f"${{var.{vol_type}}}"
+            f"${{each.value.{vol_type}}}"
         )
 
     @property
@@ -75,9 +124,9 @@ class RootElements(object):
     @classmethod
     def construct(cls, iops: str, size: str, vol_type: str):
         return cls(
-            f"${{var.{iops}}}",
+            f"${{each.value.{iops}}}",
             f"${{each.value.{size}}}",
-            f"${{var.{vol_type}}}"
+            f"${{each.value.{vol_type}}}"
         )
 
     @property
@@ -117,7 +166,7 @@ class NodeConfiguration(object):
             f"${{var.{ami_id}}}",
             f"${{each.value.{zone}}}",
             f"${{var.{for_each}}}",
-            f"${{var.{machine_type}}}",
+            f"${{each.value.{machine_type}}}",
             f"${{var.{key_pair}}}",
             provisioner,
             [root],

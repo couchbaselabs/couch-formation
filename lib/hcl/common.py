@@ -39,6 +39,8 @@ class Variable(object):
             v_type: str = "list(string)"
         elif type(value) == dict:
             v_type: str = "map"
+        elif type(value) == bool:
+            v_type: str = "bool"
         else:
             v_type: str = "string"
         return cls(
@@ -86,6 +88,10 @@ class ClusterMapElement(object):
     node_zone = attr.ib(validator=io(str))
     node_ram = attr.ib(validator=io(str))
     node_swap = attr.ib(validator=io(bool))
+    instance_type = attr.ib(validator=io(str))
+    root_volume_iops = attr.ib(validator=io(str))
+    root_volume_size = attr.ib(validator=io(str))
+    root_volume_type = attr.ib(validator=io(str))
     node_gateway = attr.ib(validator=attr.validators.optional(io(str)), default=None)
     node_ip_address = attr.ib(validator=attr.validators.optional(io(str)), default=None)
     node_netmask = attr.ib(validator=attr.validators.optional(io(str)), default=None)
@@ -100,6 +106,10 @@ class ClusterMapElement(object):
                   zone: str,
                   ram_gb: str,
                   node_swap: bool,
+                  instance_type: str,
+                  root_volume_iops: str,
+                  root_volume_size: str,
+                  root_volume_type: str,
                   gateway: Union[str, None] = None,
                   ip_address: Union[str, None] = None,
                   netmask: Union[str, None] = None):
@@ -112,6 +122,10 @@ class ClusterMapElement(object):
             zone,
             ram_gb,
             node_swap,
+            instance_type,
+            root_volume_iops,
+            root_volume_size,
+            root_volume_type,
             gateway,
             ip_address,
             netmask
@@ -317,8 +331,8 @@ class ConnectionElements(object):
     @classmethod
     def construct(cls, host: str, private_key_file: str, user: str):
         return cls(
-            host,
-            f"${{file({private_key_file})}}",
+            f"${{{host}}}",
+            f"${{file(var.{private_key_file})}}",
             "ssh",
             f"${{var.{user}}}"
         )
@@ -379,6 +393,10 @@ class Provisioner(object):
     @property
     def as_dict(self):
         return self.__dict__
+
+    @property
+    def as_contents(self):
+        return self.__dict__['provisioner']
 
 
 @attr.s
@@ -503,7 +521,7 @@ class TimeSleepPause(object):
                 {
                     "create_duration": "5s",
                     "depends_on": [
-                        f"${{{resource_type}.{resource_name}}}"
+                        f"{resource_type}.{resource_name}"
                     ]
                 }
             ]
