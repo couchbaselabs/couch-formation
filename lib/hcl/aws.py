@@ -200,12 +200,23 @@ class CloudDriver(object):
         ]
 
         if node_type == "app":
-            self.path_map.map(PathType.APP)
+            path_type = PathType.APP
+            path_file = CloudDriver.MAIN_CONFIG
         elif node_type == "sgw":
-            self.path_map.map(PathType.SGW)
+            path_type = PathType.SGW
+            path_file = CloudDriver.MAIN_CONFIG
             sync_gateway_build = True
+            cluster_data = self.list_nodes('cluster')
+            cluster.create_sgw(cluster_data)
+            var_list.extend(
+                [
+                    ("cb_node_1", cluster.cluster_node_list[0], "CBS node IP address"),
+                    ("sgw_version", cluster.sgw_version, "SGW software version")
+                ]
+            )
         elif node_type == "generic":
-            self.path_map.map(PathType.GENERIC)
+            path_type = PathType.GENERIC
+            path_file = CloudDriver.MAIN_CONFIG
         else:
             var_list.extend(
                 [
@@ -213,7 +224,8 @@ class CloudDriver(object):
                     ("cb_cluster_name", f"{config.env_name}-db", "Couchbase cluster name")
                 ]
             )
-            self.path_map.map(PathType.CLUSTER)
+            path_type = PathType.CLUSTER
+            path_file = CloudDriver.MAIN_CONFIG
             cluster_build = True
 
         print(f"Configuring {self.path_map.last_mapped} nodes in region {dc.region}")
@@ -382,16 +394,19 @@ class CloudDriver(object):
             main_config.add(locals_block.as_dict)
             resource_block.add(null_resource_block.as_dict)
 
-        # print(json.dumps(main_config.as_dict, indent=2))
-
-        self.path_map.map(PathType.CLUSTER)
+        self.path_map.map(path_type)
         cfg_file: ConfigFile
-        cfg_file = self.path_map.use(CloudDriver.MAIN_CONFIG, PathType.CLUSTER)
+        cfg_file = self.path_map.use(path_file, path_type)
         try:
             with open(cfg_file.file_name, 'w') as cfg_file_h:
                 json.dump(main_config.as_dict, cfg_file_h, indent=2)
         except Exception as err:
             raise AWSDriverError(f"can not write to main config file {cfg_file.file_name}: {err}")
+
+        print("")
+        if not Inquire().ask_yn(f"Proceed with deployment for {self.path_map.last_mapped} nodes for {config.env_name}", default=True):
+            return
+        print("")
 
         try:
             print("")

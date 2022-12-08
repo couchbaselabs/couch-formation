@@ -36,11 +36,19 @@ class AWSSettings(object):
     root_iops = attr.ib(validator=attr.validators.optional(io(str)), default=None)
     root_size = attr.ib(validator=attr.validators.optional(io(str)), default=None)
     root_type = attr.ib(validator=attr.validators.optional(io(str)), default=None)
-    node_map = attr.ib(validator=attr.validators.optional(io(dict)), default=None)
+    node_map_cluster = attr.ib(validator=attr.validators.optional(io(dict)), default=None)
+    node_map_app = attr.ib(validator=attr.validators.optional(io(dict)), default=None)
+    node_map_sgw = attr.ib(validator=attr.validators.optional(io(dict)), default=None)
+    node_map_generic = attr.ib(validator=attr.validators.optional(io(dict)), default=None)
+    sgw_node_list = attr.ib(validator=attr.validators.optional(io(list)), default=None)
     base_in_progress = attr.ib(validator=attr.validators.optional(io(bool)), default=None)
     image_in_progress = attr.ib(validator=attr.validators.optional(io(bool)), default=None)
     node_in_progress = attr.ib(validator=attr.validators.optional(io(bool)), default=None)
-    map_in_progress = attr.ib(validator=attr.validators.optional(io(bool)), default=None)
+    map_in_progress_cluster = attr.ib(validator=attr.validators.optional(io(bool)), default=None)
+    map_in_progress_app = attr.ib(validator=attr.validators.optional(io(bool)), default=None)
+    map_in_progress_sgw = attr.ib(validator=attr.validators.optional(io(bool)), default=None)
+    map_in_progress_generic = attr.ib(validator=attr.validators.optional(io(bool)), default=None)
+    sgw_in_progress = attr.ib(validator=attr.validators.optional(io(bool)), default=None)
 
     @property
     def as_dict(self):
@@ -51,6 +59,7 @@ class AWSSettings(object):
 class CBSettings(object):
     index_memory = attr.ib(validator=attr.validators.optional(io(str)), default=None)
     version = attr.ib(validator=attr.validators.optional(io(str)), default=None)
+    sgw_version = attr.ib(validator=attr.validators.optional(io(str)), default=None)
     in_progress = attr.ib(validator=attr.validators.optional(io(bool)), default=None)
 
     @property

@@ -11,6 +11,7 @@ from lib.util.cfgmgr import ConfigMgr
 import lib.config as config
 from lib.util.envmgr import PathMap, PathType, ConfigFile
 from lib.hcl.common import ClusterMapElement, VariableMap
+from lib.drivers.cbrelease import CBRelease
 
 
 class ClusterCollect(object):
@@ -20,6 +21,8 @@ class ClusterCollect(object):
         self.node_swap = None
         self.availability_zone_cycle = None
         self.cluster_map = None
+        self.cluster_node_list = []
+        self.sgw_version = None
 
         self.path_map = PathMap(config.env_name, config.cloud)
         self.path_map.map(PathType.CONFIG)
@@ -32,24 +35,6 @@ class ClusterCollect(object):
         node = 1
         services = []
 
-        print("")
-        in_progress = self.env_cfg.get(f"{config.cloud}_map_in_progress")
-        if in_progress is not None and in_progress is False:
-            print("Node configuration is complete")
-            print("")
-
-            self.cluster_map = self.env_cfg.get(f"{config.cloud}_node_map")
-            for item in self.cluster_map:
-                print(f"  [{item}]")
-                for element in self.cluster_map[item]:
-                    print(f"    {element.ljust(15)} = {self.cluster_map[item][element]}")
-
-            print("")
-            if not Inquire().ask_bool("Create new node configuration", recommendation='false'):
-                return
-
-        self.env_cfg.update(**{f"{config.cloud}_map_in_progress": True})
-
         if node_type == "app":
             min_nodes = 1
             prefix_text = 'app'
@@ -60,11 +45,30 @@ class ClusterCollect(object):
             min_nodes = 1
             prefix_text = 'node'
         else:
+            node_type = 'cluster'
             services = ['data', 'index', 'query', 'fts', 'analytics', 'eventing']
             prefix_text = 'cb'
             min_nodes = config.cb_node_min
 
-        print(f" ==> Creating {node_env} node configuration <==")
+        print("")
+        in_progress = self.env_cfg.get(f"{config.cloud}_map_in_progress_{node_type}")
+        if in_progress is not None and in_progress is False:
+            print("Node configuration is complete")
+            print("")
+
+            self.cluster_map = self.env_cfg.get(f"{config.cloud}_node_map_{node_type}")
+            for item in self.cluster_map:
+                print(f"  [{item}]")
+                for element in self.cluster_map[item]:
+                    print(f"    {element.ljust(16)} = {self.cluster_map[item][element]}")
+
+            print("")
+            if not Inquire().ask_bool("Create new node configuration", recommendation='false'):
+                return
+
+        self.env_cfg.update(**{f"{config.cloud}_map_in_progress_{node_type}": True})
+
+        print(f" ==> Creating {node_env} {node_type} node configuration <==")
         print("")
 
         if config.cloud_zone:
@@ -139,5 +143,43 @@ class ClusterCollect(object):
             node += 1
 
         self.cluster_map = var_map.as_dict
-        self.env_cfg.update(**{f"{config.cloud}_node_map": self.cluster_map})
-        self.env_cfg.update(**{f"{config.cloud}_map_in_progress": False})
+        self.env_cfg.update(**{f"{config.cloud}_node_map_{node_type}": self.cluster_map})
+        self.env_cfg.update(**{f"{config.cloud}_map_in_progress_{node_type}": False})
+
+    def create_sgw(self, data: dict):
+        print("")
+        in_progress = self.env_cfg.get(f"{config.cloud}_sgw_in_progress")
+        if in_progress is not None and in_progress is False:
+            print("Sync Gateway configuration is complete")
+            print("")
+
+            self.sgw_version = self.env_cfg.get(f"cbs_sgw_version")
+            self.cluster_node_list = self.env_cfg.get(f"{config.cloud}_sgw_node_list")
+            print(f"SGW Version                    = {self.sgw_version}")
+            print(f"Sync Gateway connected cluster = {','.join(list(i for i in self.cluster_node_list))}")
+
+            print("")
+            if not Inquire().ask_bool("Create new SGW configuration", recommendation='false'):
+                return
+
+        self.env_cfg.update(**{f"{config.cloud}_sgw_in_progress": True})
+
+        for item in data:
+            if item == 'node-private':
+                self.cluster_node_list.clear()
+                for n, host in enumerate(data[item]['value']):
+                    self.cluster_node_list.append(host)
+
+        if len(self.cluster_node_list) == 0:
+            print("")
+            answer = Inquire().ask_ip("IP address to connect to Couchbase Server")
+            self.cluster_node_list.clear()
+            self.cluster_node_list.append(answer)
+
+        versions_list = CBRelease().get_sgw_versions()
+        release_list = sorted(versions_list, reverse=True)
+        self.sgw_version = Inquire().ask_list_basic('Select Sync Gateway version', release_list)
+
+        self.env_cfg.update(**{f"cbs_sgw_version": self.sgw_version})
+        self.env_cfg.update(**{f"{config.cloud}_sgw_node_list": self.cluster_node_list})
+        self.env_cfg.update(**{f"{config.cloud}_sgw_in_progress": False})

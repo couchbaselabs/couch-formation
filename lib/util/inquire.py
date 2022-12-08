@@ -454,18 +454,10 @@ class Inquire(object):
 
         return self.ask_list_dict(question, select_list)
 
-    def ask_text(self, question, recommendation=None, default=None):
-        """Get text input"""
-        print("%s:" % question)
-        if default:
-            if self.ask_yn("Use previous value: \"%s\"" % default, default=True):
-                return default
+    @staticmethod
+    def ask_text(question: str) -> str:
         while True:
-            if recommendation:
-                suffix = ' [q=quit enter="' + recommendation + '"]'
-            else:
-                suffix = ' [q=quit]'
-            prompt = 'Selection' + suffix + ': '
+            prompt = f"{question} [q=quit]: "
             answer = input(prompt)
             answer = answer.rstrip("\n")
             if answer == 'q':
@@ -473,11 +465,8 @@ class Inquire(object):
             if len(answer) > 0:
                 return answer
             else:
-                if recommendation:
-                    return recommendation
-                else:
-                    print("Response can not be empty.")
-                    continue
+                print("Response can not be empty.")
+                continue
 
     @staticmethod
     def ask_int(question: str,
@@ -543,16 +532,19 @@ class Inquire(object):
             else:
                 print(" [!] Unrecognized answer, please try again...")
 
-    def ask_ip(self, question):
+    @staticmethod
+    def ask_ip(question: str) -> str:
         while True:
-            prompt = question + ': '
+            prompt = f"{question} [q=quit]: "
             answer = input(prompt)
             answer = answer.rstrip("\n")
+            if answer == 'q':
+                sys.exit(0)
             try:
                 ip = ipaddress.ip_address(answer)
                 return answer
             except ValueError:
-                print("%s does not appear to be an IP address." % answer)
+                print(f"{answer} does not appear to be a valid IP address")
                 continue
 
     def ask_net(self, question):
