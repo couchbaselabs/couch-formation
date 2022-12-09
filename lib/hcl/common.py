@@ -530,3 +530,22 @@ class TimeSleepPause(object):
     @property
     def as_dict(self):
         return self.__dict__
+
+
+@attr.s
+class DataResource(object):
+    data = attr.ib(validator=io(dict))
+
+    @classmethod
+    def build(cls):
+        return cls(
+            {}
+        )
+
+    def add(self, element: dict):
+        self.data.update(element)
+        return self
+
+    @property
+    def as_dict(self):
+        return self.__dict__
