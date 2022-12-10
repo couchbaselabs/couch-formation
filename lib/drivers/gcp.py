@@ -4,18 +4,31 @@
 import logging
 import os
 import json
+import attr
 import configparser
-from Crypto.PublicKey import RSA
 import googleapiclient.discovery
 import googleapiclient.errors
 from google.oauth2 import service_account
-from google.cloud import compute_v1
 from lib.exceptions import GCPDriverError, EmptyResultSet
-from lib.util.filemgr import FileManager
 from typing import Union
 from itertools import cycle
 import lib.config as config
 import time
+
+
+@attr.s
+class GCPDiskTypes(object):
+    disk_type_list = [
+        {
+            "type": 'pd-standard'
+        },
+        {
+            "type": 'pd-balanced'
+        },
+        {
+            "type": 'pd-ssd'
+        }
+    ]
 
 
 class CloudBase(object):
@@ -32,6 +45,7 @@ class CloudBase(object):
         self.gcp_project = None
         self.gcp_region = None
         self.gcp_account_file = None
+        self.gcp_account_email = None
         self.gcp_zone_list = []
         self.gcp_zone = None
 
@@ -44,20 +58,24 @@ class CloudBase(object):
                 self.gcp_account_file = os.environ['GCP_ACCOUNT_FILE']
             else:
                 print(f"environment variable GCP_ACCOUNT_FILE = {os.environ['GCP_ACCOUNT_FILE']}: file not found")
-        elif not self.gcp_account_file:
+        if not self.gcp_account_file:
             print("Please set GCP_ACCOUNT_FILE to reference the path to your auth json file")
             raise GCPDriverError("can not locate auth file")
 
+        self.read_auth_file()
+        if not self.gcp_account_email:
+            raise GCPDriverError(f"can not get account email from auth file {self.gcp_account_file}")
+
         if 'GCP_DEFAULT_REGION' in os.environ:
             self.gcp_region = os.environ['GCP_DEFAULT_REGION']
-        elif not self.gcp_region:
+        if not self.gcp_region:
             print("Please set GCP_DEFAULT_REGION to specify a GCP region")
             print("Or set your default region with: gcloud config set compute/region region-name")
             raise GCPDriverError("no default region")
 
         if 'GCP_PROJECT_ID' in os.environ:
             self.gcp_project = os.environ['GCP_PROJECT_ID']
-        elif not self.gcp_project:
+        if not self.gcp_project:
             file_handle = open(self.gcp_account_file, 'r')
             auth_data = json.load(file_handle)
             file_handle.close()
@@ -79,18 +97,25 @@ class CloudBase(object):
 
     def read_config(self):
         if os.path.exists(self.config_default):
-            config = configparser.ConfigParser()
+            config_data = configparser.ConfigParser()
             try:
-                config.read(self.config_default)
+                config_data.read(self.config_default)
             except Exception as err:
                 raise GCPDriverError(f"can not read config file {self.config_default}: {err}")
 
-            if 'core' in config:
-                self.gcp_account = config['core'].get('account', None)
-                self.gcp_project = config['core'].get('project', None)
+            if 'core' in config_data:
+                self.gcp_account = config_data['core'].get('account', None)
+                self.gcp_project = config_data['core'].get('project', None)
 
-            if 'compute' in config:
-                self.gcp_region = config['compute'].get('region', None)
+            if 'compute' in config_data:
+                self.gcp_region = config_data['compute'].get('region', None)
+
+    def read_auth_file(self):
+        file_handle = open(self.gcp_account_file, 'r')
+        auth_data = json.load(file_handle)
+        file_handle.close()
+        if 'client_email' in auth_data:
+            self.gcp_account_email = auth_data['client_email']
 
     def zones(self) -> list:
         request = self.gcp_client.zones().list(project=self.gcp_project)
@@ -102,7 +127,7 @@ class CloudBase(object):
                 self.gcp_zone_list.append(zone['name'])
             request = self.gcp_client.zones().list_next(previous_request=request, previous_response=response)
 
-        self.gcp_zone_list = sorted(self.gcp_zone_list)
+        self.gcp_zone_list = sorted(set(self.gcp_zone_list))
 
         if len(self.gcp_zone_list) == 0:
             raise GCPDriverError("can not get GCP availability zones")
@@ -192,10 +217,18 @@ class Network(CloudBase):
                 response = request.execute()
 
                 for network in response['items']:
+                    subnet_list = []
+                    for subnet in network['subnetworks']:
+                        subnet_name = subnet.rsplit('/', 4)[-1]
+                        region_name = subnet.rsplit('/', 4)[-3]
+                        if region_name != self.region:
+                            continue
+                        result = Subnet().details(self.region, subnet_name)
+                        subnet_list.append(result)
                     network_block = {'cidr': network.get('IPv4Range', None),
                                      'name': network['name'],
                                      'description': network.get('description', None),
-                                     'subnets': network['subnetworks'],
+                                     'subnets': subnet_list,
                                      'id': network['id']}
                     network_list.append(network_block)
                 request = self.gcp_client.networks().list_next(previous_request=request, previous_response=response)
@@ -203,14 +236,15 @@ class Network(CloudBase):
             raise GCPDriverError(f"error listing networks: {err}")
 
         if len(network_list) == 0:
-            raise GCPDriverError(f"no networks found")
+            raise EmptyResultSet(f"no networks found")
         else:
             return network_list
 
     @property
     def cidr_list(self):
-        for item in Subnet().list():
-            yield item['cidr']
+        for network in self.list():
+            for item in Subnet().list(network['name']):
+                yield item['cidr']
 
     def create(self, name: str) -> str:
         network_body = {
@@ -253,7 +287,7 @@ class Subnet(CloudBase):
         super().__init__()
         self.logger = logging.getLogger(self.__class__.__name__)
 
-    def list(self):
+    def list(self, network: str, region: Union[str, None] = None) -> list[dict]:
         subnet_list = []
 
         try:
@@ -261,11 +295,19 @@ class Subnet(CloudBase):
             while request is not None:
                 response = request.execute()
                 for subnet in response['items']:
+                    network_name = subnet['network'].rsplit('/', 1)[-1]
+                    region_name = subnet['region'].rsplit('/', 1)[-1]
+                    if region:
+                        if region != region_name:
+                            continue
+                    if network != network_name:
+                        continue
                     subnet_block = {'cidr': subnet['ipCidrRange'],
                                     'name': subnet['name'],
                                     'description': subnet.get('description', None),
                                     'gateway': subnet['gatewayAddress'],
-                                    'network': subnet['network'],
+                                    'network': network_name,
+                                    'region': region_name,
                                     'id': subnet['id']}
                     subnet_list.append(subnet_block)
                 request = self.gcp_client.subnetworks().list_next(previous_request=request, previous_response=response)
@@ -273,7 +315,7 @@ class Subnet(CloudBase):
             raise GCPDriverError(f"error listing subnets: {err}")
 
         if len(subnet_list) == 0:
-            raise GCPDriverError(f"no subnets found")
+            raise EmptyResultSet(f"no subnets found")
         else:
             return subnet_list
 
@@ -305,6 +347,23 @@ class Subnet(CloudBase):
             self.wait_for_regional_operation(operation['name'])
         except Exception as err:
             raise GCPDriverError(f"error deleting network: {err}")
+
+    def details(self, region: str, subnet: str) -> dict:
+        try:
+            request = self.gcp_client.subnetworks().get(project=self.gcp_project, region=region, subnetwork=subnet)
+            result = request.execute()
+            network_name = result['network'].rsplit('/', 1)[-1]
+            region_name = result['region'].rsplit('/', 1)[-1]
+            subnet_block = {'cidr': result['ipCidrRange'],
+                            'name': result['name'],
+                            'description': result.get('description', None),
+                            'gateway': result['gatewayAddress'],
+                            'network': network_name,
+                            'region': region_name,
+                            'id': result['id']}
+            return subnet_block
+        except Exception as err:
+            raise GCPDriverError(f"error getting network link: {err}")
 
 
 class SecurityGroup(CloudBase):
@@ -432,24 +491,6 @@ class SSHKey(CloudBase):
         super().__init__()
         self.logger = logging.getLogger(self.__class__.__name__)
 
-    @staticmethod
-    def public_key(key_file: str) -> str:
-        if not os.path.isabs(key_file):
-            key_file = FileManager.ssh_key_absolute_path(key_file)
-        fh = open(key_file, 'r')
-        key_pem = fh.read()
-        fh.close()
-        rsa_key = RSA.importKey(key_pem)
-        modulus = rsa_key.n
-        pubExpE = rsa_key.e
-        priExpD = rsa_key.d
-        primeP = rsa_key.p
-        primeQ = rsa_key.q
-        private_key = RSA.construct((modulus, pubExpE, priExpD, primeP, primeQ))
-        public_key = private_key.public_key().exportKey('OpenSSH')
-        ssh_public_key = public_key.decode('utf-8')
-        return ssh_public_key
-
 
 class Image(CloudBase):
 
@@ -506,7 +547,7 @@ class Image(CloudBase):
 
         return image_block
 
-    def create(self, name: str, source_image: str, description=None, root_type="pd-ssd", root_size=100) -> str:
+    def create(self, name: str, source_image: str, description=None, root_size=100) -> str:
         image_detail = Image().market_search(source_image)
         if not image_detail:
             raise GCPDriverError(f"can not find image {source_image}")

@@ -84,8 +84,8 @@ class AttachedDisk(object):
             []
         )
 
-    def add(self, source: str):
-        self.attached_disk.append({"source": source})
+    def add(self, name: str):
+        self.attached_disk.append({"source": f"${{google_compute_disk.{name}[each.key].self_link}}"})
         return self
 
     @property
@@ -107,7 +107,7 @@ class BootDisk(object):
 
     @property
     def as_dict(self):
-        return self.__dict__
+        return self.__dict__['boot_disk']
 
 
 @attr.s
@@ -145,7 +145,7 @@ class Metadata(object):
 
     @property
     def as_dict(self):
-        return self.__dict__
+        return self.__dict__['metadata']
 
 
 @attr.s
@@ -175,7 +175,7 @@ class NetworkInterface(object):
 
     @property
     def as_dict(self):
-        return self.__dict__
+        return self.__dict__['network_interface']
 
 
 @attr.s
@@ -197,7 +197,7 @@ class ServiceAccount(object):
 
     @property
     def as_dict(self):
-        return self.__dict__
+        return self.__dict__['service_account']
 
 
 @attr.s
@@ -221,16 +221,61 @@ class ImageData(object):
 
 
 @attr.s
+class GCPProviderBlock(object):
+    provider = attr.ib(validator=io(dict))
+
+    @classmethod
+    def construct(cls, account_file: str, project: str, region: str):
+        return cls(
+            {"google": [
+                {
+                    "credentials": f"${{file(var.{account_file})}}",
+                    "project": f"${{var.{project}}}",
+                    "region": f"${{var.{region}}}"
+                }
+            ]}
+        )
+
+    @property
+    def as_dict(self):
+        return self.__dict__
+
+
+@attr.s
+class GCPDisk(object):
+    google_compute_disk = attr.ib(validator=io(dict))
+
+    @classmethod
+    def construct(cls, name: str, for_each: str, project: str, size: str, vol_type: str, zone: str):
+        return cls(
+            {f"{name}": [
+                {
+                    "for_each": f"${{var.{for_each}}}",
+                    "name": "${each.key}-disk",
+                    "project": f"${{var.{project}}}",
+                    "size": f"${{each.value.{size}}}",
+                    "type": f"${{each.value.{vol_type}}}",
+                    "zone": f"${{each.value.{zone}}}"
+                }
+            ]}
+        )
+
+    @property
+    def as_dict(self):
+        return self.__dict__
+
+
+@attr.s
 class NodeConfiguration(object):
-    boot_disk = attr.ib(validator=io(dict))
+    boot_disk = attr.ib(validator=io(list))
     for_each = attr.ib(validator=io(str))
     machine_type = attr.ib(validator=io(str))
     metadata = attr.ib(validator=io(dict))
     name = attr.ib(validator=io(str))
-    network_interface = attr.ib(validator=io(dict))
+    network_interface = attr.ib(validator=io(list))
     project = attr.ib(validator=io(str))
     provisioner = attr.ib(validator=io(dict))
-    service_account = attr.ib(validator=io(dict))
+    service_account = attr.ib(validator=io(list))
     zone = attr.ib(validator=io(str))
     attached_disk = attr.ib(validator=attr.validators.optional(io(dict)), default=None)
 

@@ -119,3 +119,15 @@ class FileManagerError(fatalError):
 
 class ConfigManagerError(fatalError):
     pass
+
+
+class AWSDataError(fatalError):
+    pass
+
+
+class GCPDataError(fatalError):
+    pass
+
+
+class AzureDataError(fatalError):
+    pass

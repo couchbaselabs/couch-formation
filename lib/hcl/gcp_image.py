@@ -5,6 +5,34 @@ from attr.validators import instance_of as io
 
 
 @attr.s
+class GCPImageDataRecord(object):
+    version = attr.ib(validator=io(str))
+    image = attr.ib(validator=io(str))
+    family = attr.ib(validator=io(str))
+    user = attr.ib(validator=io(str))
+
+    @classmethod
+    def from_config(cls, json_data):
+        return cls(
+            json_data.get("version"),
+            json_data.get("image"),
+            json_data.get("family"),
+            json_data.get("user"),
+            )
+
+    @classmethod
+    def by_version(cls, distro: str, version: str, json_data: dict):
+        distro_list = json_data.get(distro)
+        version_data = next((i for i in distro_list if i['version'] == version), {})
+        return cls(
+            version_data.get("version"),
+            version_data.get("image"),
+            version_data.get("family"),
+            version_data.get("user"),
+        )
+
+
+@attr.s
 class ImageMain(object):
     elements = attr.ib(validator=io(dict))
 

@@ -143,7 +143,7 @@ class SubnetElements(object):
     def construct(cls, subnet_var: str, name: str, vpc_name: str, region: str):
         return cls(
             f"${{var.{subnet_var}}}",
-            f"${{var.{name}}}-vpc",
+            f"${{var.{name}}}-subnet",
             f"${{google_compute_network.{vpc_name}.id}}",
             f"${{var.{region}}}"
         )

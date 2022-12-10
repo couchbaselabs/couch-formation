@@ -2,6 +2,7 @@
 
 import warnings
 from lib.drivers.network import NetworkDriver
+from lib.util.filemgr import FileManager
 
 
 def test_gcp_driver_1():
@@ -12,10 +13,8 @@ def test_gcp_driver_1():
     base = getattr(driver, 'CloudBase')
     network = getattr(driver, 'Network')
     subnet = getattr(driver, 'Subnet')
-    # security_group = getattr(driver, 'SecurityGroup')
     machine_type = getattr(driver, 'MachineType')
     instance = getattr(driver, 'Instance')
-    ssh_key = getattr(driver, 'SSHKey')
     image = getattr(driver, 'Image')
 
     for net in network().cidr_list:
@@ -38,8 +37,7 @@ def test_gcp_driver_1():
     print(f"Zone   : {zone_list[0]}")
 
     network_name = network().create("pytest-vpc")
-    # sg_id = AWSSecurityGroup().create("pytest-sg", "TestSG", vpc_id)
-    ssh_key = ssh_key().public_key("mminichino-default-key-pair")
+    ssh_key = FileManager.get_ssh_public_key("mminichino-default-key-pair")
     subnet_name = subnet().create("pytest-subnet-01", network_name, subnet_list[1])
 
     instance_name = instance().run("pytest-instance", "ubuntu-2004-focal-v20220110", zone_list[0], network_name, subnet_name, ssh_key)
