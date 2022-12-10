@@ -17,8 +17,8 @@ from lib.hcl.gcp_vpc import GCPProvider, NetworkResource, SubnetResource, Firewa
 from lib.hcl.gcp_image import Packer, PackerElement, RequiredPlugins, GooglePlugin, GooglePluginSettings, ImageMain, Source, SourceType, NodeType, NodeElements, \
     ImageBuild, BuildConfig, BuildElements, Shell, ShellElements, GCPImageDataRecord
 from lib.hcl.common import Variable, Variables, Locals, LocalVar, NodeMain, NullResource, NullResourceBlock, NullResourceBody, DependsOn, InLine, Connection, ConnectionElements, \
-    RemoteExec, ForEach, Provisioner, Triggers, Output, OutputValue, Build, Entry, ResourceBlock, NodeBuild, TimeSleep
-from lib.hcl.gcp_instance import NodeConfiguration, TerraformElement, RequiredProvider, GCPInstance, GCPTerraformProvider, GCPDisk, GCPProviderBlock
+    RemoteExec, ForEach, Provisioner, Triggers, Output, OutputValue, Build, Entry, ResourceBlock, NodeBuild, TimeSleep, DataResource
+from lib.hcl.gcp_instance import NodeConfiguration, TerraformElement, RequiredProvider, GCPInstance, GCPTerraformProvider, GCPDisk, GCPProviderBlock, ImageData
 
 
 class CloudDriver(object):
@@ -191,6 +191,7 @@ class CloudDriver(object):
         dc.get_keys()
         dc.get_image()
         dc.get_cluster_settings()
+        dc.get_node_settings()
         cluster.create_cloud(node_type, dc)
 
         var_list = [
@@ -253,8 +254,8 @@ class CloudDriver(object):
         if cluster_build:
             locals_block = Locals.construct(LocalVar.build()
                                             .add("cluster_init_name", "${var.cb_cluster_name}")
-                                            .add("rally_node", "${element([for node in google_compute_instance.couchbase_nodes: node.private_ip], 0)}")
-                                            .add("rally_node_public", "${element([for node in google_compute_instance.couchbase_nodes: node.public_ip], 0)}")
+                                            .add("rally_node", "${element([for node in google_compute_instance.couchbase_nodes: node.network_interface.0.network_ip], 0)}")
+                                            .add("rally_node_public", "${var.use_public_ip ? element([for node in google_compute_instance.couchbase_nodes: node.network_interface.0.access_config.0.nat_ip], 0) : null}")
                                             .as_dict)
 
             null_resource_block = NullResource.build().add(
@@ -318,8 +319,8 @@ class CloudDriver(object):
                 .add("sudo /usr/local/hostprep/bin/configure-swap.sh -o ${each.value.node_swap} -d /dev/xvdb") \
                 .add("sudo /usr/local/hostprep/bin/clusterinit.sh "
                      "-m write "
-                     "-i ${self.private_ip} "
-                     "-e %{if var.use_public_ip}${self.public_ip}%{else}none%{endif} "
+                     "-i ${self.network_interface.0.network_ip} "
+                     "-e %{if var.use_public_ip}${self.network_interface.0.access_config.0.nat_ip}%{else}none%{endif} "
                      "-s ${each.value.node_services} "
                      "-o ${var.index_memory} "
                      "-g ${each.value.node_zone}") \
@@ -338,11 +339,11 @@ class CloudDriver(object):
 
         output_block = Output.build().add(
             OutputValue.build()
-            .add("${[for instance in google_compute_instance.couchbase_nodes: instance.private_ip]}")
+            .add("${[for instance in google_compute_instance.couchbase_nodes: instance.network_interface.0.network_ip]}")
             .as_name("node-private")
         ).add(
             OutputValue.build()
-            .add("${var.use_public_ip ? [for instance in google_compute_instance.couchbase_nodes: instance.public_ip] : null}")
+            .add("${var.use_public_ip ? [for instance in google_compute_instance.couchbase_nodes: instance.network_interface.0.access_config.0.nat_ip] : null}")
             .as_name("node-public")
         )
 
@@ -359,7 +360,7 @@ class CloudDriver(object):
         instance_block = GCPInstance.build().add(
             NodeBuild.construct(
                 NodeConfiguration.construct(
-                    "image",
+                    "cb_image",
                     "root_volume_size",
                     "root_volume_type",
                     "cluster_spec",
@@ -371,7 +372,7 @@ class CloudDriver(object):
                     Provisioner.build()
                     .add(RemoteExec.build().add(Connection.build().add(
                         ConnectionElements.construct(
-                            "var.use_public_ip ? self.public_ip : self.private_ip",
+                            "var.use_public_ip ? self.network_interface.0.access_config.0.nat_ip : self.network_interface.0.network_ip",
                             "ssh_private_key",
                             "ssh_user")
                         .as_dict)
@@ -388,6 +389,10 @@ class CloudDriver(object):
 
         time_sleep_block = TimeSleep.construct("google_compute_instance", "couchbase_nodes")
 
+        data_block = DataResource.build().add(
+            ImageData.construct("cb_image", "image", "gcp_project").as_dict
+        )
+
         resource_block = ResourceBlock.build()
         resource_block.add(instance_block.as_dict)
         resource_block.add(time_sleep_block.as_dict)
@@ -395,6 +400,7 @@ class CloudDriver(object):
         main_config = NodeMain.build() \
             .add(header_block.as_dict) \
             .add(provider_block.as_dict) \
+            .add(data_block.as_dict) \
             .add(resource_block.as_dict) \
             .add(output_block.as_dict) \
             .add(var_block.as_dict)
