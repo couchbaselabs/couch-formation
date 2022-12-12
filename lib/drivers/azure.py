@@ -4,6 +4,7 @@
 import logging
 import os
 import configparser
+import attr
 from typing import Union
 from Crypto.PublicKey import RSA
 from azure.identity import AzureCliCredential
@@ -16,6 +17,30 @@ from lib.util.filemgr import FileManager
 from itertools import cycle
 from lib.exceptions import AzureDriverError
 import lib.config as config
+
+
+@attr.s
+class AzureDiskTypes(object):
+    disk_type_list = [
+        {
+            "type": 'Standard_LRS'
+        },
+        {
+            "type": 'StandardSSD_ZRS'
+        },
+        {
+            "type": 'Premium_LRS'
+        },
+        {
+            "type": 'Premium_ZRS'
+        },
+        {
+            "type": 'StandardSSD_LRS'
+        },
+        {
+            "type": 'UltraSSD_LRS'
+        }
+    ]
 
 
 class CloudBase(object):

@@ -40,31 +40,6 @@ class Entry(object):
             )
 
 
-@attr.s
-class Record(object):
-    version = attr.ib(validator=io(str))
-    type = attr.ib(validator=io(str))
-    publisher = attr.ib(validator=io(str))
-    offer = attr.ib(validator=io(str))
-    sku = attr.ib(validator=io(str))
-    user = attr.ib(validator=io(str))
-    vars = attr.ib(validator=io(str))
-    hcl = attr.ib(validator=io(str))
-
-    @classmethod
-    def from_config(cls, json_data):
-        return cls(
-            json_data.get("version"),
-            json_data.get("type"),
-            json_data.get("publisher"),
-            json_data.get("offer"),
-            json_data.get("sku"),
-            json_data.get("user"),
-            json_data.get("vars"),
-            json_data.get("hcl"),
-            )
-
-
 class CloudDriver(object):
     VERSION = '3.0.0'
     HOST_PREP_REPO = "couchbaselabs/couchbase-hostprep"

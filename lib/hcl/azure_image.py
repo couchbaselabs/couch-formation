@@ -5,6 +5,40 @@ from attr.validators import instance_of as io
 
 
 @attr.s
+class AzureImageDataRecord(object):
+    version = attr.ib(validator=io(str))
+    type = attr.ib(validator=io(str))
+    publisher = attr.ib(validator=io(str))
+    offer = attr.ib(validator=io(str))
+    sku = attr.ib(validator=io(str))
+    user = attr.ib(validator=io(str))
+
+    @classmethod
+    def from_config(cls, json_data):
+        return cls(
+            json_data.get("version"),
+            json_data.get("type"),
+            json_data.get("publisher"),
+            json_data.get("offer"),
+            json_data.get("sku"),
+            json_data.get("user"),
+            )
+
+    @classmethod
+    def by_version(cls, distro: str, version: str, json_data: dict):
+        distro_list = json_data.get(distro)
+        version_data = next((i for i in distro_list if i['version'] == version), {})
+        return cls(
+            version_data.get("version"),
+            version_data.get("type"),
+            version_data.get("publisher"),
+            version_data.get("offer"),
+            version_data.get("sku"),
+            version_data.get("user"),
+        )
+
+
+@attr.s
 class ImageMain(object):
     elements = attr.ib(validator=io(dict))
 
