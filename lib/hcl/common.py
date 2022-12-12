@@ -192,6 +192,23 @@ class NodeBuild(object):
 
 
 @attr.s
+class ResourceBuild(object):
+    resource_block = attr.ib(validator=io(list))
+
+    @classmethod
+    def construct(cls, entry: dict):
+        return cls(
+            [
+                entry
+            ]
+        )
+
+    def as_name(self, name: str):
+        response = {name: self.__dict__['resource_block']}
+        return response
+
+
+@attr.s
 class Locals(object):
     locals = attr.ib(validator=io(list))
 
