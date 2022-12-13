@@ -96,6 +96,7 @@ class AzureSettings(object):
     network = attr.ib(validator=attr.validators.optional(io(str)), default=None)
     subnet_list = attr.ib(validator=attr.validators.optional(io(list[str])), default=None)
     resource_group = attr.ib(validator=attr.validators.optional(io(str)), default=None)
+    image_resource_group = attr.ib(validator=attr.validators.optional(io(str)), default=None)
     security_group = attr.ib(validator=attr.validators.optional(io(str)), default=None)
     root_size = attr.ib(validator=attr.validators.optional(io(str)), default=None)
     root_type = attr.ib(validator=attr.validators.optional(io(str)), default=None)
@@ -153,7 +154,7 @@ class Config(object):
     ssh = attr.ib(validator=attr.validators.optional(io(dict)), default=None, metadata={"_class_name": "SSHSettings"})
     aws = attr.ib(validator=attr.validators.optional(io(dict)), default=None, metadata={"_class_name": "AWSSettings"})
     gcp = attr.ib(validator=attr.validators.optional(io(dict)), default=None, metadata={"_class_name": "GCPSettings"})
-    azr = attr.ib(validator=attr.validators.optional(io(dict)), default=None, metadata={"_class_name": "AzureSettings"})
+    azure = attr.ib(validator=attr.validators.optional(io(dict)), default=None, metadata={"_class_name": "AzureSettings"})
     cbs = attr.ib(validator=attr.validators.optional(io(dict)), default=None, metadata={"_class_name": "CBSettings"})
     net = attr.ib(validator=attr.validators.optional(io(dict)), default=None, metadata={"_class_name": "NetSettings"})
     cfg = attr.ib(validator=attr.validators.optional(io(dict)), default=None, metadata={"_class_name": "GeneralConfig"})
@@ -182,7 +183,7 @@ class ConfigMgr(object):
                     data_read.get('ssh'),
                     data_read.get('aws'),
                     data_read.get('gcp'),
-                    data_read.get('azr'),
+                    data_read.get('azure'),
                     data_read.get('cbs'),
                     data_read.get('net'),
                     data_read.get('cfg')

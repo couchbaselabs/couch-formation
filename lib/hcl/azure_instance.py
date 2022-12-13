@@ -254,7 +254,7 @@ class NodeConfiguration(object):
             provisioner,
             f"${{var.{resource_group}}}",
             f"${{each.value.{machine_type}}}",
-            f"${{var.{image}}}",
+            f"${{data.azurerm_image.{image}.id}}",
             f"${{each.value.{zone}}}",
         )
 

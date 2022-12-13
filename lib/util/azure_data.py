@@ -15,13 +15,27 @@ from lib.drivers.azure import AzureDiskTypes
 class DataCollect(object):
 
     def __init__(self):
+        self.logger = logging.getLogger(self.__class__.__name__)
+        self.azure_image_rg = None
+        self.disk_iops = 0
+        self.disk_size = None
+        self.disk_type = None
+        self.instance_type = None
+        self.cb_index_mem_type = None
+        self.image_user = None
+        self.image_version = None
+        self.image_type = None
+        self.image_release = None
+        self.image = None
+        self.public_key = None
+        self.ssh_fingerprint = None
+        self.private_key = None
         self.azure_nsg = None
         self.subnet_list = []
         self.network = None
         self.use_public_ip = None
         self.azure_resource_group = None
         self.region = None
-        self.logger = logging.getLogger(self.__class__.__name__)
 
         self.path_map = PathMap(config.env_name, config.cloud)
         self.path_map.map(PathType.CONFIG)
@@ -33,16 +47,16 @@ class DataCollect(object):
         rg_list = []
 
         print("")
-        in_progress = self.env_cfg.get("azr_base_in_progress")
+        in_progress = self.env_cfg.get("azure_base_in_progress")
 
         if in_progress is not None and in_progress is False:
             print("Cloud infrastructure is configured")
 
-            self.region = self.env_cfg.get("azr_region")
-            self.azure_resource_group = self.env_cfg.get("azr_resource_group")
-            self.azure_nsg = self.env_cfg.get("azr_security_group")
-            self.network = self.env_cfg.get("azr_network")
-            self.subnet_list = self.env_cfg.get("azr_subnet_list")
+            self.region = self.env_cfg.get("azure_region")
+            self.azure_resource_group = self.env_cfg.get("azure_resource_group")
+            self.azure_nsg = self.env_cfg.get("azure_security_group")
+            self.network = self.env_cfg.get("azure_network")
+            self.subnet_list = self.env_cfg.get("azure_subnet_list")
             self.use_public_ip = self.env_cfg.get("net_use_public_ip")
             print(f"Location         = {self.region}")
             print(f"Resource Group   = {self.azure_resource_group}")
@@ -55,7 +69,7 @@ class DataCollect(object):
             if not Inquire().ask_bool("Update settings", recommendation='false'):
                 return
 
-        self.env_cfg.update(azr_base_in_progress=True)
+        self.env_cfg.update(azure_base_in_progress=True)
 
         self.region = config.cloud_base().region
 
@@ -109,50 +123,54 @@ class DataCollect(object):
 
         self.azure_nsg = subnet_data['nsg']
 
-        self.env_cfg.update(azr_region=self.region)
-        self.env_cfg.update(azr_resource_group=self.azure_resource_group)
-        self.env_cfg.update(azr_security_group=self.azure_nsg)
-        self.env_cfg.update(azr_network=self.network)
-        self.env_cfg.update(azr_subnet_list=self.subnet_list)
+        self.env_cfg.update(azure_region=self.region)
+        self.env_cfg.update(azure_resource_group=self.azure_resource_group)
+        self.env_cfg.update(azure_security_group=self.azure_nsg)
+        self.env_cfg.update(azure_network=self.network)
+        self.env_cfg.update(azure_subnet_list=self.subnet_list)
         self.env_cfg.update(net_use_public_ip=self.use_public_ip)
-        self.env_cfg.update(azr_base_in_progress=False)
+        self.env_cfg.update(azure_base_in_progress=False)
 
     def get_image(self):
-        in_progress = self.env_cfg.get("gcp_image_in_progress")
+        in_progress = self.env_cfg.get("azure_image_in_progress")
 
         print("")
         if in_progress is not None and in_progress is False:
             print("Image is configured")
 
             self.image_user = self.env_cfg.get("ssh_user_name")
-            self.image = self.env_cfg.get("gcp_image")
+            self.image = self.env_cfg.get("azure_image")
+            self.azure_image_rg = self.env_cfg.get("azure_image_resource_group")
             self.image_version = self.env_cfg.get("cbs_version")
-            print(f"SSH User Name = {self.image_user}")
-            print(f"Image Name    = {self.image}")
-            print(f"CBS Version   = {self.image_version}")
+            print(f"SSH User Name        = {self.image_user}")
+            print(f"Image Name           = {self.image}")
+            print(f"Image Resource Group = {self.azure_image_rg}")
+            print(f"CBS Version          = {self.image_version}")
 
             if not Inquire().ask_bool("Update settings", recommendation='false'):
                 return
 
-        self.env_cfg.update(gcp_image_in_progress=True)
+        self.env_cfg.update(azure_image_in_progress=True)
 
         image_list = config.cloud_image().list(filter_keys_exist=["release_tag", "type_tag", "version_tag"])
 
-        image = Inquire().ask_list_dict(f"Select {config.cloud} image", image_list, sort_key="date", hide_key=["link"])
+        image = Inquire().ask_list_dict(f"Select {config.cloud} image", image_list, sort_key="name", hide_key=["id"])
 
         self.image = image['name']
+        self.azure_image_rg = image['resource_group']
         self.image_release = image['release_tag']
         self.image_type = image['type_tag']
         self.image_version = image['version_tag']
 
-        distro_table = GCPImageDataRecord.by_version(self.image_type, self.image_release, config.cloud_operator().config.build)
+        distro_table = AzureImageDataRecord.by_version(self.image_type, self.image_release, config.cloud_operator().config.build)
 
         self.image_user = distro_table.user
 
         self.env_cfg.update(ssh_user_name=self.image_user)
-        self.env_cfg.update(gcp_image=self.image)
+        self.env_cfg.update(azure_image=self.image)
+        self.env_cfg.update(azure_image_resource_group=self.azure_image_rg)
         self.env_cfg.update(cbs_version=self.image_version)
-        self.env_cfg.update(gcp_image_in_progress=False)
+        self.env_cfg.update(azure_image_in_progress=False)
 
     def get_keys(self):
         in_progress = self.env_cfg.get("ssh_in_progress")
@@ -179,7 +197,7 @@ class DataCollect(object):
             self.private_key = ssh_key.get("file")
             self.ssh_fingerprint = ssh_key.get("fingerprint")
         except EmptyResultSet:
-            raise GCPDataError(f"can not find any SSH private key files, please create a SSH key")
+            raise AzureDataError(f"can not find any SSH private key files, please create a SSH key")
 
         self.public_key = FileManager().get_ssh_public_key_file(self.private_key)
 
@@ -221,15 +239,15 @@ class DataCollect(object):
         self.env_cfg.update(cbs_in_progress=False)
 
     def get_node_settings(self, default: bool = True):
-        in_progress = self.env_cfg.get("gcp_node_in_progress")
+        in_progress = self.env_cfg.get("azure_node_in_progress")
 
         print("")
         if in_progress is not None and (in_progress is False or default is False):
             print("Node settings")
 
-            self.instance_type = self.env_cfg.get("gcp_machine_type")
-            self.disk_type = self.env_cfg.get("gcp_root_type")
-            self.disk_size = self.env_cfg.get("gcp_root_size")
+            self.instance_type = self.env_cfg.get("azure_machine_type")
+            self.disk_type = self.env_cfg.get("azure_root_type")
+            self.disk_size = self.env_cfg.get("azure_root_size")
             print(f"Machine Type = {self.instance_type}")
             print(f"Disk Type    = {self.disk_type}")
             print(f"Disk Size    = {self.disk_size}")
@@ -237,7 +255,7 @@ class DataCollect(object):
             if not Inquire().ask_bool("Update settings", recommendation='false'):
                 return
 
-        self.env_cfg.update(gcp_node_in_progress=True)
+        self.env_cfg.update(azure_node_in_progress=True)
 
         machine_list = config.cloud_machine_type().list()
 
@@ -245,11 +263,11 @@ class DataCollect(object):
 
         self.instance_type = selection['name']
 
-        selection = Inquire().ask_list_dict("Select disk type", GCPDiskTypes.disk_type_list, default_value=("type", "pd-ssd"))
+        selection = Inquire().ask_list_dict("Select disk type", AzureDiskTypes.disk_type_list, default_value=("type", "pd-ssd"))
         self.disk_type = selection['type']
         self.disk_size = Inquire().ask_int("Volume size", 250, 100)
 
-        self.env_cfg.update(gcp_machine_type=self.instance_type)
-        self.env_cfg.update(gcp_root_type=self.disk_type)
-        self.env_cfg.update(gcp_root_size=self.disk_size)
-        self.env_cfg.update(gcp_node_in_progress=False)
+        self.env_cfg.update(azure_machine_type=self.instance_type)
+        self.env_cfg.update(azure_root_type=self.disk_type)
+        self.env_cfg.update(azure_root_size=self.disk_size)
+        self.env_cfg.update(azure_node_in_progress=False)

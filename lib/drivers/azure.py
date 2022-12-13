@@ -809,6 +809,7 @@ class Image(CloudBase):
         for image in list(images):
             image_block = {'name': image.name,
                            'id': image.id,
+                           'resource_group': resource_group,
                            'location': image.location}
             image_block.update(self.process_tags(image.tags))
             if filter_keys_exist:
@@ -828,6 +829,7 @@ class Image(CloudBase):
         image = request.result()
         image_block = {'name': image.name,
                        'id': image.id,
+                       'resource_group': resource_group,
                        'location': image.location}
         image_block.update(self.process_tags(image.tags))
         return image_block

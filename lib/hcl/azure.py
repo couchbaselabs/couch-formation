@@ -17,10 +17,10 @@ from lib.hcl.azure_vpc import AzureProvider, RGResource, Resources, VPCConfig, V
 from lib.hcl.azure_image import Packer, PackerElement, RequiredPlugins, AzurePlugin, AzurePluginSettings, ImageMain, Source, SourceType, NodeType, NodeElements, \
     ImageBuild, BuildConfig, BuildElements, Shell, ShellElements, AzureImageDataRecord
 from lib.hcl.common import Variable, Variables, Locals, LocalVar, NodeMain, NullResource, NullResourceBlock, NullResourceBody, DependsOn, InLine, Connection, ConnectionElements, \
-    RemoteExec, ForEach, Provisioner, Triggers, Output, OutputValue, Build, Entry, ResourceBlock, NodeBuild, TimeSleep, DataResource
+    RemoteExec, ForEach, Provisioner, Triggers, Output, OutputValue, Build, Entry, ResourceBlock, NodeBuild, TimeSleep, DataResource, ResourceBuild
 from lib.hcl.azure_instance import NodeConfiguration, TerraformElement, RequiredProvider, AzureInstance, AzureTerraformProvider, AzureProviderBlock, NICConfiguration, \
     NSGData, NICNSGConfiguration, AzureNetworkInterfaceNSG, AzureNetworkInterface, PublicIPConfiguration, DiskConfiguration, \
-    SubnetData, AzureManagedDisk, AzureDiskAttachment, AttachedDiskConfiguration
+    SubnetData, AzureManagedDisk, AzureDiskAttachment, AttachedDiskConfiguration, ImageData, AzurePublicIP
 
 
 class CloudDriver(object):
@@ -192,16 +192,17 @@ class CloudDriver(object):
         locals_block = None
         null_resource_block = None
         swap_disk_block = None
+        swap_disk_block_attach = None
 
         dc = DataCollect()
         cluster = ClusterCollect()
 
         dc.get_infrastructure()
-        # dc.get_keys()
-        # dc.get_image()
-        # dc.get_cluster_settings()
-        # dc.get_node_settings()
-        # cluster.create_cloud(node_type, dc)
+        dc.get_keys()
+        dc.get_image()
+        dc.get_cluster_settings()
+        dc.get_node_settings()
+        cluster.create_cloud(node_type, dc)
 
         var_list = [
             ("cf_env_name", config.env_name, "Environment Name"),
@@ -211,10 +212,10 @@ class CloudDriver(object):
             ("ssh_public_key", dc.public_key, "SSH public key filename"),
             ("ssh_private_key", dc.private_key, "SSH private key filename"),
             ("network", dc.network, "Network name"),
-            ("gcp_project", dc.gcp_project, "Security group"),
+            ("azure_resource_group", dc.azure_resource_group, "Security group"),
+            ("image_resource_group", dc.azure_image_rg, "Image security group"),
             ("instance_type", dc.instance_type, "Instance type"),
-            ("gcp_account_file", dc.gcp_account_file, "Account file"),
-            ("gcp_service_account_email", dc.gcp_account_email, "Account email"),
+            ("azure_nsg", dc.azure_nsg, "Account file"),
             ("root_volume_size", str(dc.disk_size), "Volume size"),
             ("root_volume_type", dc.disk_type, "Disk type"),
             ("use_public_ip", dc.use_public_ip, "Use public or private IP for SSH"),
@@ -251,6 +252,258 @@ class CloudDriver(object):
             cluster_build = True
 
         print(f"Configuring {self.path_map.last_mapped} nodes in region {dc.region}")
+
+        var_block = Variables.build()
+        for item in var_list:
+            var_block.add(Variable.construct(item[0], item[1], item[2]).as_dict)
+
+        header_block = TerraformElement.construct(RequiredProvider.construct(AzureTerraformProvider.construct("hashicorp/azurerm").as_dict).as_dict)
+
+        provider_block = AzureProviderBlock.construct()
+
+        if cluster_build:
+            locals_block = Locals.construct(LocalVar.build()
+                                            .add("cluster_init_name", "${var.cb_cluster_name}")
+                                            .add("rally_node", "${element([for node in azurerm_linux_virtual_machine.couchbase_nodes: node.private_ip_address], 0)}")
+                                            .add("rally_node_public",
+                                                 "${element([for node in azurerm_linux_virtual_machine.couchbase_nodes: node.public_ip_address], 0)}")
+                                            .as_dict)
+
+            null_resource_block = NullResource.build().add(
+                NullResourceBlock.construct(
+                    NullResourceBody
+                    .build()
+                    .add(Connection.build()
+                         .add(
+                        ConnectionElements.construct(
+                            "var.use_public_ip ? each.value.public_ip_address : each.value.private_ip_address",
+                            "ssh_private_key",
+                            "ssh_user").as_dict)
+                         .as_dict)
+                    .add(DependsOn.build()
+                         .add("azurerm_linux_virtual_machine.couchbase_nodes")
+                         .add("time_sleep.pause").as_dict)
+                    .add(ForEach.construct("${azurerm_linux_virtual_machine.couchbase_nodes}").as_dict)
+                    .add(Provisioner.build()
+                         .add(RemoteExec.build()
+                              .add(InLine.build()
+                                   .add("sudo /usr/local/hostprep/bin/clusterinit.sh -m config -r ${local.rally_node} -n ${local.cluster_init_name}")
+                                   .as_dict)
+                              .as_dict)
+                         .as_dict)
+                    .add(Triggers.build()
+                         .add("cb_nodes", "${join(\",\", keys(azurerm_linux_virtual_machine.couchbase_nodes))}")
+                         .as_dict)
+                    .as_dict
+                )
+                .as_name("couchbase-init")
+            ).add(
+                NullResourceBlock.construct(
+                    NullResourceBody
+                    .build()
+                    .add(Connection.build()
+                         .add(
+                        ConnectionElements.construct(
+                            "var.use_public_ip ? local.rally_node_public : local.rally_node",
+                            "ssh_private_key",
+                            "ssh_user").as_dict)
+                         .as_dict)
+                    .add(DependsOn.build()
+                         .add("null_resource.couchbase-init").as_dict)
+                    .add(Provisioner.build()
+                         .add(RemoteExec.build()
+                              .add(InLine.build()
+                                   .add("sudo /usr/local/hostprep/bin/clusterinit.sh -m rebalance -r ${local.rally_node}")
+                                   .as_dict)
+                              .as_dict)
+                         .as_dict)
+                    .add(Triggers.build()
+                         .add("cb_nodes", "${join(\",\", keys(azurerm_linux_virtual_machine.couchbase_nodes))}")
+                         .as_dict)
+                    .as_dict
+                )
+                .as_name("couchbase-rebalance")
+            )
+
+            inline_build = InLine.build() \
+                .add("sudo /usr/local/hostprep/bin/refresh.sh") \
+                .add("sudo /usr/local/hostprep/bin/configure-swap.sh -o ${each.value.node_swap} -d /dev/xvdb") \
+                .add("sudo /usr/local/hostprep/bin/clusterinit.sh "
+                     "-m write "
+                     "-i ${self.private_ip_address} "
+                     "-e %{if var.use_public_ip}${self.public_ip_address}%{else}none%{endif} "
+                     "-s ${each.value.node_services} "
+                     "-o ${var.index_memory} "
+                     "-g ${each.value.node_zone}") \
+                .as_dict
+        elif sync_gateway_build:
+            inline_build = InLine.build() \
+                .add("sudo /usr/local/hostprep/bin/refresh.sh") \
+                .add("sudo /usr/local/hostprep/bin/hostprep.sh -t sgw -g ${var.sgw_version}") \
+                .add("sudo /usr/local/hostprep/bin/clusterinit.sh -m sgw -r ${var.cb_node_1}") \
+                .as_dict
+        else:
+            inline_build = InLine.build() \
+                .add("sudo /usr/local/hostprep/bin/refresh.sh") \
+                .add("sudo /usr/local/hostprep/bin/hostprep.sh -t sdk") \
+                .as_dict
+
+        output_block = Output.build().add(
+            OutputValue.build()
+            .add("${[for instance in azurerm_linux_virtual_machine.couchbase_nodes: instance.private_ip_address]}")
+            .as_name("node-private")
+        ).add(
+            OutputValue.build()
+            .add("${var.use_public_ip ? [for instance in azurerm_linux_virtual_machine.couchbase_nodes: instance.public_ip_address] : null}")
+            .as_name("node-public")
+        )
+
+        time_sleep_block = TimeSleep.construct("azurerm_linux_virtual_machine", "couchbase_nodes")
+
+        data_block = DataResource.build().add(
+            ImageData.construct("cb_image", "image", "image_resource_group").as_dict
+        ).add(
+            NSGData.construct("cluster_nsg", "azure_nsg", "azure_resource_group").as_dict
+        ).add(
+            SubnetData.construct("cb_subnet", "cluster_spec", "node_subnet", "azure_resource_group", "network").as_dict
+        )
+
+        if cluster.node_swap:
+            swap_disk_block = AzureManagedDisk.build().add(
+                ResourceBuild.construct(
+                    DiskConfiguration.construct(
+                        "node_ram",
+                        "cluster_spec",
+                        "region_name",
+                        "azure_resource_group",
+                        "root_volume_type",
+                        "node_zone").as_dict
+                ).as_name("swap_disk")
+            )
+            swap_disk_block_attach = AzureDiskAttachment.build().add(
+                ResourceBuild.construct(
+                    AttachedDiskConfiguration.construct(
+                        "cluster_spec",
+                        "swap_disk",
+                        "couchbase_nodes"
+                    ).as_dict
+                ).as_name("swap_disk")
+            )
+
+        instance_block = AzureInstance.build().add(
+            NodeBuild.construct(
+                NodeConfiguration.construct(
+                    "cb_image",
+                    "root_volume_size",
+                    "root_volume_type",
+                    "cluster_spec",
+                    "instance_type",
+                    "ssh_user",
+                    "ssh_public_key",
+                    "region_name",
+                    "azure_resource_group",
+                    Provisioner.build()
+                    .add(RemoteExec.build().add(Connection.build().add(
+                        ConnectionElements.construct(
+                            "var.use_public_ip ? self.public_ip_address : self.private_ip_address",
+                            "ssh_private_key",
+                            "ssh_user")
+                        .as_dict)
+                        .as_dict)
+                         .add(inline_build)
+                         .as_dict)
+                    .as_contents,
+                    "node_nic",
+                    "node_zone",
+                ).as_dict
+            ).as_name("couchbase_nodes")
+        )
+
+        network_block = AzureNetworkInterface.build().add(
+            ResourceBuild.construct(
+                NICConfiguration.construct(
+                    "cluster_spec",
+                    "node_external",
+                    "cb_subnet",
+                    "region_name",
+                    "azure_resource_group"
+                ).as_dict
+            ).as_name("node_nic")
+        )
+
+        network_attach_block = AzureNetworkInterfaceNSG.build().add(
+            ResourceBuild.construct(
+                NICNSGConfiguration.construct(
+                    "cluster_spec",
+                    "node_nic",
+                    "cluster_nsg"
+                ).as_dict
+            ).as_name("node_nsg")
+        )
+
+        public_ip_block = AzurePublicIP.build().add(
+            ResourceBuild.construct(
+                PublicIPConfiguration.construct(
+                    "cluster_spec",
+                    "use_public_ip",
+                    "region_name",
+                    "azure_resource_group",
+                    "node_zone"
+                ).as_dict
+            ).as_name("node_external")
+        )
+
+        resource_block = ResourceBlock.build()
+        resource_block.add(instance_block.as_dict)
+        resource_block.add(network_block.as_dict)
+        resource_block.add(network_attach_block.as_dict)
+        resource_block.add(public_ip_block.as_dict)
+        resource_block.add(time_sleep_block.as_dict)
+
+        if cluster_build:
+            resource_block.add(null_resource_block.as_dict)
+
+        if cluster.node_swap:
+            resource_block.add(swap_disk_block.as_dict)
+            resource_block.add(swap_disk_block_attach.as_dict)
+
+        main_config = NodeMain.build() \
+            .add(header_block.as_dict) \
+            .add(provider_block.as_dict) \
+            .add(data_block.as_dict) \
+            .add(resource_block.as_dict) \
+            .add(output_block.as_dict) \
+            .add(var_block.as_dict)
+
+        if cluster_build:
+            main_config.add(locals_block.as_dict)
+
+        self.path_map.map(path_type)
+        cfg_file: ConfigFile
+        cfg_file = self.path_map.use(path_file, path_type)
+        try:
+            with open(cfg_file.file_name, 'w') as cfg_file_h:
+                json.dump(main_config.as_dict, cfg_file_h, indent=2)
+        except Exception as err:
+            raise AzureDriverError(f"can not write to main config file {cfg_file.file_name}: {err}")
+
+        print("")
+        if not Inquire().ask_yn(f"Proceed with deployment for {self.path_map.last_mapped} nodes for {config.env_name}", default=True):
+            return
+        print("")
+
+        try:
+            print("")
+            print(f"Deploying nodes ...")
+            tf = tf_run(working_dir=cfg_file.file_path)
+            tf.init()
+            if not tf.validate():
+                raise AzureDriverError("Environment is not configured properly, please check the log and try again.")
+            tf.apply()
+        except Exception as err:
+            raise AzureDriverError(f"can not deploy nodes: {err}")
+
+        self.show_nodes(node_type)
 
     def show_nodes(self, node_type: str):
         print(f"Cloud: {config.cloud} :: Environment {config.env_name}")
@@ -316,14 +569,12 @@ class CloudDriver(object):
 
     def create_net(self):
         cidr_util = NetworkDriver()
-        subnet_count = 0
 
         for net in config.cloud_network().cidr_list:
             cidr_util.add_network(net)
 
         vpc_cidr = cidr_util.get_next_network()
         subnet_list = list(cidr_util.get_next_subnet())
-        zone_list = config.cloud_base().zones()
         region = config.cloud_base().region
 
         print(f"Configuring VPC in region {region}")
