@@ -229,7 +229,7 @@ class Network(CloudBase):
         super().__init__()
         self.logger = logging.getLogger(self.__class__.__name__)
 
-    def list(self, resource_group: Union[str, None] = None) -> list[dict]:
+    def list(self, resource_group: Union[str, None] = None, filter_keys_exist: Union[list[str], None] = None) -> list[dict]:
         if not resource_group:
             resource_group = self.azure_resource_group
         vnet_list = []
@@ -246,6 +246,10 @@ class Network(CloudBase):
                              'name': group.name,
                              'subnets': [s.name for s in group.subnets],
                              'id': group.id}
+            network_block.update(self.process_tags(group.tags))
+            if filter_keys_exist:
+                if not all(key in network_block for key in filter_keys_exist):
+                    continue
             vnet_list.append(network_block)
 
         if len(vnet_list) == 0:
@@ -308,6 +312,7 @@ class Network(CloudBase):
                          'name': info.name,
                          'subnets': [s.name for s in info.subnets],
                          'id': info.id}
+        network_block.update(self.process_tags(info.tags))
 
         return network_block
 
@@ -390,7 +395,7 @@ class Subnet(CloudBase):
         super().__init__()
         self.logger = logging.getLogger(self.__class__.__name__)
 
-    def list(self, vnet: str, resource_group: Union[str, None] = None) -> list[dict]:
+    def list(self, vnet: str, resource_group: Union[str, None] = None, filter_keys_exist: Union[list[str], None] = None) -> list[dict]:
         if not resource_group:
             resource_group = self.azure_resource_group
         subnet_list = []
@@ -406,6 +411,10 @@ class Subnet(CloudBase):
                             'routes': group.route_table.routes,
                             'nsg': group.network_security_group,
                             'id': group.id}
+            subnet_block.update(self.process_tags(group.tags))
+            if filter_keys_exist:
+                if not all(key in subnet_block for key in filter_keys_exist):
+                    continue
             subnet_list.append(subnet_block)
 
         if len(subnet_list) == 0:
@@ -468,7 +477,7 @@ class SecurityGroup(CloudBase):
         super().__init__()
         self.logger = logging.getLogger(self.__class__.__name__)
 
-    def list(self, resource_group: Union[str, None] = None) -> list[dict]:
+    def list(self, resource_group: Union[str, None] = None, filter_keys_exist: Union[list[str], None] = None) -> list[dict]:
         if not resource_group:
             resource_group = self.azure_resource_group
         nsg_list = []
@@ -486,6 +495,10 @@ class SecurityGroup(CloudBase):
                          'rules': [r.__dict__ for r in group.security_rules] if group.security_rules else [],
                          'subnets': [s.__dict__ for s in group.subnets] if group.subnets else [],
                          'id': group.id}
+            nsg_block.update(self.process_tags(group.tags))
+            if filter_keys_exist:
+                if not all(key in nsg_block for key in filter_keys_exist):
+                    continue
             nsg_list.append(nsg_block)
 
         if len(nsg_list) == 0:
@@ -566,6 +579,7 @@ class SecurityGroup(CloudBase):
                      'rules': [r.__dict__ for r in info.security_rules] if info.security_rules else [],
                      'subnets': [s.__dict__ for s in info.subnets] if info.subnets else [],
                      'id': info.id}
+        nsg_block.update(self.process_tags(info.tags))
 
         return nsg_block
 

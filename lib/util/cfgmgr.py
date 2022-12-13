@@ -88,6 +88,38 @@ class GCPSettings(object):
 
 
 @attr.s
+class AzureSettings(object):
+    region = attr.ib(validator=attr.validators.optional(io(str)), default=None)
+    image = attr.ib(validator=attr.validators.optional(io(str)), default=None)
+    machine_type = attr.ib(validator=attr.validators.optional(io(str)), default=None)
+    private_key = attr.ib(validator=attr.validators.optional(io(str)), default=None)
+    network = attr.ib(validator=attr.validators.optional(io(str)), default=None)
+    subnet_list = attr.ib(validator=attr.validators.optional(io(list[str])), default=None)
+    project = attr.ib(validator=attr.validators.optional(io(str)), default=None)
+    account_email = attr.ib(validator=attr.validators.optional(io(str)), default=None)
+    account_file = attr.ib(validator=attr.validators.optional(io(str)), default=None)
+    root_size = attr.ib(validator=attr.validators.optional(io(str)), default=None)
+    root_type = attr.ib(validator=attr.validators.optional(io(str)), default=None)
+    node_map_cluster = attr.ib(validator=attr.validators.optional(io(dict)), default=None)
+    node_map_app = attr.ib(validator=attr.validators.optional(io(dict)), default=None)
+    node_map_sgw = attr.ib(validator=attr.validators.optional(io(dict)), default=None)
+    node_map_generic = attr.ib(validator=attr.validators.optional(io(dict)), default=None)
+    sgw_node_list = attr.ib(validator=attr.validators.optional(io(list)), default=None)
+    base_in_progress = attr.ib(validator=attr.validators.optional(io(bool)), default=None)
+    image_in_progress = attr.ib(validator=attr.validators.optional(io(bool)), default=None)
+    node_in_progress = attr.ib(validator=attr.validators.optional(io(bool)), default=None)
+    map_in_progress_cluster = attr.ib(validator=attr.validators.optional(io(bool)), default=None)
+    map_in_progress_app = attr.ib(validator=attr.validators.optional(io(bool)), default=None)
+    map_in_progress_sgw = attr.ib(validator=attr.validators.optional(io(bool)), default=None)
+    map_in_progress_generic = attr.ib(validator=attr.validators.optional(io(bool)), default=None)
+    sgw_in_progress = attr.ib(validator=attr.validators.optional(io(bool)), default=None)
+
+    @property
+    def as_dict(self):
+        return self.__dict__
+
+
+@attr.s
 class CBSettings(object):
     index_memory = attr.ib(validator=attr.validators.optional(io(str)), default=None)
     version = attr.ib(validator=attr.validators.optional(io(str)), default=None)
@@ -122,6 +154,7 @@ class Config(object):
     ssh = attr.ib(validator=attr.validators.optional(io(dict)), default=None, metadata={"_class_name": "SSHSettings"})
     aws = attr.ib(validator=attr.validators.optional(io(dict)), default=None, metadata={"_class_name": "AWSSettings"})
     gcp = attr.ib(validator=attr.validators.optional(io(dict)), default=None, metadata={"_class_name": "GCPSettings"})
+    azr = attr.ib(validator=attr.validators.optional(io(dict)), default=None, metadata={"_class_name": "AzureSettings"})
     cbs = attr.ib(validator=attr.validators.optional(io(dict)), default=None, metadata={"_class_name": "CBSettings"})
     net = attr.ib(validator=attr.validators.optional(io(dict)), default=None, metadata={"_class_name": "NetSettings"})
     cfg = attr.ib(validator=attr.validators.optional(io(dict)), default=None, metadata={"_class_name": "GeneralConfig"})

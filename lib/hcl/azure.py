@@ -2,10 +2,7 @@
 ##
 
 import logging
-import attr
 import json
-from attr.validators import instance_of as io
-from typing import Iterable
 from lib.util.envmgr import PathMap, PathType, ConfigFile
 from lib.exceptions import AzureDriverError
 from lib.drivers.cbrelease import CBRelease
@@ -13,31 +10,17 @@ from lib.drivers.network import NetworkDriver
 from lib.util.inquire import Inquire
 import lib.config as config
 from lib.invoke import tf_run, packer_run
-from lib.hcl.azure_vpc import AzureProvider, RGResource, Resources, Variables, Variable, VPCConfig, VNetResource, NSGResource, NSGEntry, NSGElements
-from lib.hcl.azure_image import Packer, PackerElement, RequiredPlugins, AzurePlugin, AzurePluginSettings, ImageMain, Locals, LocalVar, Source, SourceType, NodeType, NodeElements, \
-    ImageBuild, BuildConfig, BuildElements, Shell, ShellElements
-
-
-@attr.s
-class Build(object):
-    build = attr.ib(validator=io(dict))
-
-    @classmethod
-    def from_config(cls, json_data: dict):
-        return cls(
-            json_data.get("build"),
-            )
-
-
-@attr.s
-class Entry(object):
-    versions = attr.ib(validator=io(Iterable))
-
-    @classmethod
-    def from_config(cls, distro: str, json_data: dict):
-        return cls(
-            json_data.get(distro),
-            )
+from lib.util.cfgmgr import ConfigMgr
+from lib.util.azure_data import DataCollect
+from lib.util.common_data import ClusterCollect
+from lib.hcl.azure_vpc import AzureProvider, RGResource, Resources, VPCConfig, VNetResource, NSGResource, NSGEntry, NSGElements
+from lib.hcl.azure_image import Packer, PackerElement, RequiredPlugins, AzurePlugin, AzurePluginSettings, ImageMain, Source, SourceType, NodeType, NodeElements, \
+    ImageBuild, BuildConfig, BuildElements, Shell, ShellElements, AzureImageDataRecord
+from lib.hcl.common import Variable, Variables, Locals, LocalVar, NodeMain, NullResource, NullResourceBlock, NullResourceBody, DependsOn, InLine, Connection, ConnectionElements, \
+    RemoteExec, ForEach, Provisioner, Triggers, Output, OutputValue, Build, Entry, ResourceBlock, NodeBuild, TimeSleep, DataResource
+from lib.hcl.azure_instance import NodeConfiguration, TerraformElement, RequiredProvider, AzureInstance, AzureTerraformProvider, AzureProviderBlock, NICConfiguration, \
+    NSGData, NICNSGConfiguration, AzureNetworkInterfaceNSG, AzureNetworkInterface, PublicIPConfiguration, DiskConfiguration, \
+    SubnetData, AzureManagedDisk, AzureDiskAttachment, AttachedDiskConfiguration
 
 
 class CloudDriver(object):
@@ -45,7 +28,9 @@ class CloudDriver(object):
     HOST_PREP_REPO = "couchbaselabs/couchbase-hostprep"
     DRIVER_CONFIG = "azure.json"
     NETWORK_CONFIG = "main.tf.json"
+    MAIN_CONFIG = "main.tf.json"
     IMAGE_CONFIG = "main.pkr.json"
+    CONFIG_FILE = "config.json"
 
     def __init__(self):
         self.logger = logging.getLogger(self.__class__.__name__)
@@ -56,6 +41,10 @@ class CloudDriver(object):
             raise AzureDriverError("no environment specified")
 
         self.path_map = PathMap(config.env_name, config.cloud)
+        self.path_map.map(PathType.CONFIG)
+        cfg_file: ConfigFile
+        cfg_file = self.path_map.use(CloudDriver.CONFIG_FILE, PathType.CONFIG)
+        self.env_cfg = ConfigMgr(cfg_file.file_name)
 
         self.driver_config = self.path_map.root + "/" + CloudDriver.DRIVER_CONFIG
         try:
@@ -95,7 +84,7 @@ class CloudDriver(object):
 
         distro_choice = self.ask.ask_list_dict("Select OS revision", distro_list.versions)
 
-        distro_table = Record.from_config(distro_choice)
+        distro_table = AzureImageDataRecord.from_config(distro_choice)
 
         release_list = cb_rel.get_cb_version(os_choice, distro_table.version)
 
@@ -123,7 +112,7 @@ class CloudDriver(object):
                 .as_dict)
             .as_dict)
 
-        locals_block = Locals.construct(LocalVar.construct("timestamp", "${formatdate(\"MMDDYY-hhmm\", timestamp())}").as_dict)
+        locals_block = Locals.construct(LocalVar.build().add("timestamp", "${formatdate(\"MMDDYY-hhmm\", timestamp())}").as_dict)
 
         source_block = Source.construct(
             SourceType.construct(
@@ -166,7 +155,7 @@ class CloudDriver(object):
 
         var_block = Variables.build()
         for item in var_list:
-            var_block.add(Variable.construct(item[0], item[1], item[2], item[3]).as_dict)
+            var_block.add(Variable.construct(item[0], item[1], item[2]).as_dict)
 
         packer_config = ImageMain.build() \
             .add(packer_block.as_dict) \
@@ -197,8 +186,133 @@ class CloudDriver(object):
         image_list = config.cloud_image().list(filter_keys_exist=["release_tag", "type_tag", "version_tag"])
         self.ask.list_dict(f"Images in cloud {config.cloud}", image_list, sort_key="name", hide_key=['id'])
 
-    def create_nodes(self):
-        self.path_map.map(PathType.CLUSTER)
+    def create_nodes(self, node_type: str):
+        cluster_build = False
+        sync_gateway_build = False
+        locals_block = None
+        null_resource_block = None
+        swap_disk_block = None
+
+        dc = DataCollect()
+        cluster = ClusterCollect()
+
+        dc.get_infrastructure()
+        # dc.get_keys()
+        # dc.get_image()
+        # dc.get_cluster_settings()
+        # dc.get_node_settings()
+        # cluster.create_cloud(node_type, dc)
+
+        var_list = [
+            ("cf_env_name", config.env_name, "Environment Name"),
+            ("region_name", dc.region, "Region name"),
+            ("image", dc.image, "Image name"),
+            ("ssh_user", dc.image_user, "Admin Username"),
+            ("ssh_public_key", dc.public_key, "SSH public key filename"),
+            ("ssh_private_key", dc.private_key, "SSH private key filename"),
+            ("network", dc.network, "Network name"),
+            ("gcp_project", dc.gcp_project, "Security group"),
+            ("instance_type", dc.instance_type, "Instance type"),
+            ("gcp_account_file", dc.gcp_account_file, "Account file"),
+            ("gcp_service_account_email", dc.gcp_account_email, "Account email"),
+            ("root_volume_size", str(dc.disk_size), "Volume size"),
+            ("root_volume_type", dc.disk_type, "Disk type"),
+            ("use_public_ip", dc.use_public_ip, "Use public or private IP for SSH"),
+            ("cluster_spec", cluster.cluster_map, "Node map"),
+        ]
+
+        if node_type == "app":
+            path_type = PathType.APP
+            path_file = CloudDriver.MAIN_CONFIG
+        elif node_type == "sgw":
+            path_type = PathType.SGW
+            path_file = CloudDriver.MAIN_CONFIG
+            sync_gateway_build = True
+            cluster_data = self.list_nodes('cluster')
+            cluster.create_sgw(cluster_data)
+            var_list.extend(
+                [
+                    ("cb_node_1", cluster.cluster_node_list[0], "CBS node IP address"),
+                    ("sgw_version", cluster.sgw_version, "SGW software version")
+                ]
+            )
+        elif node_type == "generic":
+            path_type = PathType.GENERIC
+            path_file = CloudDriver.MAIN_CONFIG
+        else:
+            var_list.extend(
+                [
+                    ("index_memory", dc.cb_index_mem_type, "Index memory setting"),
+                    ("cb_cluster_name", f"{config.env_name}-db", "Couchbase cluster name")
+                ]
+            )
+            path_type = PathType.CLUSTER
+            path_file = CloudDriver.MAIN_CONFIG
+            cluster_build = True
+
+        print(f"Configuring {self.path_map.last_mapped} nodes in region {dc.region}")
+
+    def show_nodes(self, node_type: str):
+        print(f"Cloud: {config.cloud} :: Environment {config.env_name}")
+        env_data = self.list_nodes(node_type)
+        for item in env_data:
+            print(f"  [{item}]")
+            if type(env_data[item]['value']) == list:
+                for n, host in enumerate(env_data[item]['value']):
+                    print(f"    {n + 1:d}) {host}")
+            else:
+                print(f"    {env_data[item]['value']}")
+
+    def list_nodes(self, node_type: str):
+        if node_type == "app":
+            path_type = PathType.APP
+            path_file = CloudDriver.MAIN_CONFIG
+        elif node_type == "sgw":
+            path_type = PathType.SGW
+            path_file = CloudDriver.MAIN_CONFIG
+        elif node_type == "generic":
+            path_type = PathType.GENERIC
+            path_file = CloudDriver.MAIN_CONFIG
+        else:
+            path_type = PathType.CLUSTER
+            path_file = CloudDriver.MAIN_CONFIG
+
+        self.path_map.map(path_type)
+        cfg_file: ConfigFile
+        cfg_file = self.path_map.use(path_file, path_type)
+        try:
+            tf = tf_run(working_dir=cfg_file.file_path)
+            node_data = tf.output(quiet=True)
+            return node_data
+        except Exception as err:
+            raise AzureDriverError(f"can not list nodes: {err}")
+
+    def destroy_nodes(self, node_type: str):
+        if node_type == "app":
+            path_type = PathType.APP
+            path_file = CloudDriver.MAIN_CONFIG
+        elif node_type == "sgw":
+            path_type = PathType.SGW
+            path_file = CloudDriver.MAIN_CONFIG
+        elif node_type == "generic":
+            path_type = PathType.GENERIC
+            path_file = CloudDriver.MAIN_CONFIG
+        else:
+            path_type = PathType.CLUSTER
+            path_file = CloudDriver.MAIN_CONFIG
+
+        self.path_map.map(path_type)
+        cfg_file: ConfigFile
+        cfg_file = self.path_map.use(path_file, path_type)
+
+        try:
+            if Inquire().ask_yn(f"Remove {self.path_map.last_mapped} nodes for {config.env_name}", default=False):
+                tf = tf_run(working_dir=cfg_file.file_path)
+                if not tf.validate():
+                    tf.init()
+                tf.destroy()
+        except Exception as err:
+            raise AzureDriverError(f"can not destroy nodes: {err}")
 
     def create_net(self):
         cidr_util = NetworkDriver()
