@@ -354,13 +354,26 @@ class CloudDriver(object):
         resource_block.add(vnet_block.as_dict)
         resource_block.add(nsg_block.as_dict)
 
+        output_block = Output.build()
+        output_block.add(
+            OutputValue.build()
+            .add("${azurerm_virtual_network.cf_vpc.name}")
+            .as_name("network_name")
+        )
+        output_block.add(
+            OutputValue.build()
+            .add("${azurerm_resource_group.cf_rg.name}")
+            .as_name("resource_group")
+        )
+
         var_block = Variables.build()
         for item in var_list:
-            var_block.add(Variable.construct(item[0], item[1], item[2], item[3]).as_dict)
+            var_block.add(Variable.construct(item[0], item[1], item[2]).as_dict)
 
         vpc_config = VPCConfig.build() \
             .add(provider_block.as_dict) \
             .add(resource_block.as_dict) \
+            .add(output_block.as_dict) \
             .add(var_block.as_dict).as_dict
 
         self.path_map.map(PathType.NETWORK)
@@ -382,6 +395,17 @@ class CloudDriver(object):
             tf.apply()
         except Exception as err:
             raise AzureDriverError(f"can not create VPC: {err}")
+
+    def list_net(self):
+        self.path_map.map(PathType.NETWORK)
+        cfg_file: ConfigFile
+        cfg_file = self.path_map.use(CloudDriver.NETWORK_CONFIG, PathType.NETWORK)
+        try:
+            tf = tf_run(working_dir=cfg_file.file_path)
+            vpc_data = tf.output(quiet=True)
+            return vpc_data
+        except Exception as err:
+            raise AzureDriverError(f"can not list VPC: {err}")
 
     def destroy_net(self):
         self.path_map.map(PathType.NETWORK)

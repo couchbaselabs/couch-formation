@@ -109,7 +109,7 @@ class RGElements(object):
     def construct(cls, region_var: str, name: str):
         return cls(
             f"${{var.{region_var}}}",
-            f"${{var.{name}}}-vpc"
+            f"${{var.{name}}}-rg"
         )
 
     @property

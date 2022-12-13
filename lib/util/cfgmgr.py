@@ -95,9 +95,8 @@ class AzureSettings(object):
     private_key = attr.ib(validator=attr.validators.optional(io(str)), default=None)
     network = attr.ib(validator=attr.validators.optional(io(str)), default=None)
     subnet_list = attr.ib(validator=attr.validators.optional(io(list[str])), default=None)
-    project = attr.ib(validator=attr.validators.optional(io(str)), default=None)
-    account_email = attr.ib(validator=attr.validators.optional(io(str)), default=None)
-    account_file = attr.ib(validator=attr.validators.optional(io(str)), default=None)
+    resource_group = attr.ib(validator=attr.validators.optional(io(str)), default=None)
+    security_group = attr.ib(validator=attr.validators.optional(io(str)), default=None)
     root_size = attr.ib(validator=attr.validators.optional(io(str)), default=None)
     root_type = attr.ib(validator=attr.validators.optional(io(str)), default=None)
     node_map_cluster = attr.ib(validator=attr.validators.optional(io(dict)), default=None)
@@ -183,6 +182,7 @@ class ConfigMgr(object):
                     data_read.get('ssh'),
                     data_read.get('aws'),
                     data_read.get('gcp'),
+                    data_read.get('azr'),
                     data_read.get('cbs'),
                     data_read.get('net'),
                     data_read.get('cfg')

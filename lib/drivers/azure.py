@@ -15,7 +15,7 @@ from azure.mgmt.resource.subscriptions import SubscriptionClient
 from azure.core.exceptions import ResourceNotFoundError
 from lib.util.filemgr import FileManager
 from itertools import cycle
-from lib.exceptions import AzureDriverError
+from lib.exceptions import AzureDriverError, EmptyResultSet
 import lib.config as config
 
 
@@ -193,6 +193,32 @@ class CloudBase(object):
 
         return None
 
+    def list_rg(self, location: Union[str, None] = None, filter_keys_exist: Union[list[str], None] = None) -> list[dict]:
+        rg_list = []
+
+        try:
+            resource_groups = self.resource_client.resource_groups.list()
+        except Exception as err:
+            raise AzureDriverError(f"error getting resource groups: {err}")
+
+        for group in list(resource_groups):
+            if location:
+                if group.location != location:
+                    continue
+            rg_block = {'location': group.location,
+                        'name': group.name,
+                        'id': group.id}
+            rg_block.update(self.process_tags(group.tags))
+            if filter_keys_exist:
+                if not all(key in rg_block for key in filter_keys_exist):
+                    continue
+            rg_list.append(rg_block)
+
+        if len(rg_list) == 0:
+            raise EmptyResultSet(f"no resource groups found")
+
+        return rg_list
+
     def delete_rg(self, name: str):
         try:
             if self.resource_client.resource_groups.check_existence(name):
@@ -253,7 +279,7 @@ class Network(CloudBase):
             vnet_list.append(network_block)
 
         if len(vnet_list) == 0:
-            raise AzureDriverError(f"no suitable virtual network in location {self.azure_location}")
+            raise EmptyResultSet(f"no suitable virtual network in location {self.azure_location}")
 
         return vnet_list
 
@@ -395,7 +421,7 @@ class Subnet(CloudBase):
         super().__init__()
         self.logger = logging.getLogger(self.__class__.__name__)
 
-    def list(self, vnet: str, resource_group: Union[str, None] = None, filter_keys_exist: Union[list[str], None] = None) -> list[dict]:
+    def list(self, vnet: str, resource_group: Union[str, None] = None) -> list[dict]:
         if not resource_group:
             resource_group = self.azure_resource_group
         subnet_list = []
@@ -408,17 +434,13 @@ class Subnet(CloudBase):
         for group in list(subnets):
             subnet_block = {'cidr': group.address_prefix,
                             'name': group.name,
-                            'routes': group.route_table.routes,
-                            'nsg': group.network_security_group,
+                            'routes': group.route_table.routes if group.route_table else None,
+                            'nsg': group.network_security_group.id.rsplit('/', 1)[-1] if group.network_security_group else None,
                             'id': group.id}
-            subnet_block.update(self.process_tags(group.tags))
-            if filter_keys_exist:
-                if not all(key in subnet_block for key in filter_keys_exist):
-                    continue
             subnet_list.append(subnet_block)
 
         if len(subnet_list) == 0:
-            raise AzureDriverError(f"no subnets in vnet {vnet}")
+            raise EmptyResultSet(f"no subnets in vnet {vnet}")
 
         return subnet_list
 
@@ -465,7 +487,7 @@ class Subnet(CloudBase):
         subnet_block = {'cidr': info.address_prefix,
                         'name': info.name,
                         'routes': info.route_table.routes if info.route_table else None,
-                        'nsg': info.network_security_group if info.network_security_group else None,
+                        'nsg': info.network_security_group.id.rsplit('/', 1)[-1] if info.network_security_group else None,
                         'id': info.id}
 
         return subnet_block
@@ -502,7 +524,7 @@ class SecurityGroup(CloudBase):
             nsg_list.append(nsg_block)
 
         if len(nsg_list) == 0:
-            raise AzureDriverError(f"no suitable network security group in group {resource_group}")
+            raise EmptyResultSet(f"no suitable network security group in group {resource_group}")
 
         return nsg_list
 
@@ -795,7 +817,7 @@ class Image(CloudBase):
             image_list.append(image_block)
 
         if len(image_list) == 0:
-            raise AzureDriverError(f"no images found")
+            raise EmptyResultSet(f"no images found")
 
         return image_list
 

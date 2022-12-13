@@ -15,6 +15,12 @@ from lib.drivers.azure import AzureDiskTypes
 class DataCollect(object):
 
     def __init__(self):
+        self.azure_nsg = None
+        self.subnet_list = []
+        self.network = None
+        self.use_public_ip = None
+        self.azure_resource_group = None
+        self.region = None
         self.logger = logging.getLogger(self.__class__.__name__)
 
         self.path_map = PathMap(config.env_name, config.cloud)
@@ -24,7 +30,7 @@ class DataCollect(object):
         self.env_cfg = ConfigMgr(cfg_file.file_name)
 
     def get_infrastructure(self):
-        network_list = []
+        rg_list = []
 
         print("")
         in_progress = self.env_cfg.get("azr_base_in_progress")
@@ -52,52 +58,60 @@ class DataCollect(object):
         self.env_cfg.update(azr_base_in_progress=True)
 
         self.region = config.cloud_base().region
-        self.azure_resource_group = config.cloud_base().azure_resource_group
-        self.use_public_ip = Inquire().ask_bool("Assign a public IP")
 
         try:
-            network_list = config.cloud_network().list()
+            rg_list = config.cloud_base().list_rg(self.region)
         except EmptyResultSet:
             pass
 
-        env_vpc = next((d for d in network_list if d.get('name') == f"{config.env_name}-vpc"), None)
-        if env_vpc:
-            self.network = env_vpc.get("name")
+        env_rg = next((d for d in rg_list if d.get('name') == f"{config.env_name}-rg"), None)
+        if env_rg:
+            self.azure_resource_group = env_rg.get("name")
+            network_list = config.cloud_network().list(self.azure_resource_group)
+            env_vpc = next((d for d in network_list if d.get('name') == f"{config.env_name}-vpc"), None)
+            if env_vpc:
+                self.network = env_vpc.get("name")
+            else:
+                raise AzureDataError(f"can not find {config.env_name} network in resource group {self.azure_resource_group}")
         else:
-            print(f"No network found for environment {config.env_name}")
+            print(f"No resource group found for environment {config.env_name}")
             if Inquire().ask_bool("Create cloud infrastructure for the environment"):
                 config.cloud_operator().create_net()
                 vpc_data = config.cloud_operator().list_net()
+                self.azure_resource_group = vpc_data.get("resource_group", {}).get("value", None)
                 self.network = vpc_data.get("network_name", {}).get("value", None)
                 if not self.network:
-                    raise GCPDataError("can not get ID of newly created network")
+                    raise AzureDataError("can not get names of newly created resources")
             else:
                 print(f"Environment {config.env_name} will be deployed on existing cloud infrastructure")
-                vpc_list = config.cloud_network().list()
-                selection = Inquire().ask_list_dict("Please select a network", vpc_list, hide_key=["subnets"])
+                selection = Inquire().ask_list_dict("Please select a resource group", rg_list, hide_key=["id"])
+                self.azure_resource_group = selection.get("name")
+                vpc_list = config.cloud_network().list(self.azure_resource_group)
+                selection = Inquire().ask_list_dict("Please select a network", vpc_list, hide_key=["id", "cidr", "subnets"])
                 self.network = selection.get("name")
 
-        subnets = config.cloud_subnet().list(self.network, self.region)
+        self.use_public_ip = Inquire().ask_bool("Assign a public IP")
+
+        subnets = config.cloud_subnet().list(self.network, self.azure_resource_group)
         subnets = sorted(subnets, key=lambda d: d['cidr'])
 
         if len(subnets) > 1:
-            subnet_data = Inquire().ask_list_dict("Please choose a subnet", subnets)
+            subnet_data = Inquire().ask_list_dict("Please choose a subnet", subnets, hide_key=["id", "routes"])
         else:
             subnet_data = subnets[0]
 
         self.subnet_list.clear()
-        for zone in config.cloud_base().gcp_zone_list:
+        for zone in config.cloud_base().azure_availability_zones:
             subnet_record = {}
             subnet_record.update(subnet_data)
             subnet_record.update({"zone": zone})
             self.subnet_list.append(subnet_record)
 
-        self.azure_nsg = config.cloud_base().gcp_account_file
+        self.azure_nsg = subnet_data['nsg']
 
         self.env_cfg.update(azr_region=self.region)
-        self.env_cfg.update(gcp_project=self.gcp_project)
-        self.env_cfg.update(gcp_account_email=self.gcp_account_email)
-        self.env_cfg.update(gcp_account_file=self.gcp_account_file)
+        self.env_cfg.update(azr_resource_group=self.azure_resource_group)
+        self.env_cfg.update(azr_security_group=self.azure_nsg)
         self.env_cfg.update(azr_network=self.network)
         self.env_cfg.update(azr_subnet_list=self.subnet_list)
         self.env_cfg.update(net_use_public_ip=self.use_public_ip)
