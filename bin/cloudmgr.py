@@ -145,10 +145,7 @@ def main():
         pass
 
     session = CloudManager(parameters)
-    if config.env_name or parameters.v3:
-        session.run_v3()
-    else:
-        session.run()
+    session.run_v3()
 
 
 if __name__ == '__main__':

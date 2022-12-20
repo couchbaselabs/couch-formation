@@ -8,8 +8,8 @@ import string
 import os
 import json
 from typing import Union
-from pyVim.connect import SmartConnectNoSSL
-from pyVmomi import vim, vmodl
+from pyVim.connect import SmartConnect
+from pyVmomi import vim
 from lib.varfile import varfile
 from lib.exceptions import VMwareDriverError
 from lib.ask import ask
@@ -143,10 +143,11 @@ class vmware(object):
 
         templates = []
         try:
-            si = SmartConnectNoSSL(host=self.vmware_hostname,
-                                   user=self.vmware_username,
-                                   pwd=self.vmware_password,
-                                   port=443)
+            si = SmartConnect(host=self.vmware_hostname,
+                              user=self.vmware_username,
+                              pwd=self.vmware_password,
+                              port=443,
+                              disableSslCertValidation=True)
             content = si.RetrieveContent()
             container = content.viewManager.CreateContainerView(content.rootFolder, [vim.VirtualMachine], True)
             for managed_object_ref in container.view:
@@ -178,10 +179,11 @@ class vmware(object):
 
         if inquire.ask_yn(f"Delete template {name}", default=True):
             try:
-                si = SmartConnectNoSSL(host=self.vmware_hostname,
-                                       user=self.vmware_username,
-                                       pwd=self.vmware_password,
-                                       port=443)
+                si = SmartConnect(host=self.vmware_hostname,
+                                  user=self.vmware_username,
+                                  pwd=self.vmware_password,
+                                  port=443,
+                                  disableSslCertValidation=True)
                 content = si.RetrieveContent()
                 container = content.viewManager.CreateContainerView(content.rootFolder, [vim.VirtualMachine], True)
                 for managed_object_ref in container.view:
@@ -227,10 +229,11 @@ class vmware(object):
             return self.vmware_network
 
         try:
-            si = SmartConnectNoSSL(host=self.vmware_hostname,
-                                   user=self.vmware_username,
-                                   pwd=self.vmware_password,
-                                   port=443)
+            si = SmartConnect(host=self.vmware_hostname,
+                              user=self.vmware_username,
+                              pwd=self.vmware_password,
+                              port=443,
+                              disableSslCertValidation=True)
             content = si.RetrieveContent()
             container = content.viewManager.CreateContainerView(self.vmware_network_folder, [vim.dvs.DistributedVirtualPortgroup], True)
             for managed_object_ref in container.view:
@@ -255,10 +258,11 @@ class vmware(object):
             return self.vmware_dvs
 
         try:
-            si = SmartConnectNoSSL(host=self.vmware_hostname,
-                                   user=self.vmware_username,
-                                   pwd=self.vmware_password,
-                                   port=443)
+            si = SmartConnect(host=self.vmware_hostname,
+                              user=self.vmware_username,
+                              pwd=self.vmware_password,
+                              port=443,
+                              disableSslCertValidation=True)
             content = si.RetrieveContent()
             container = content.viewManager.CreateContainerView(self.vmware_network_folder,
                                                                 [vim.dvs.VmwareDistributedVirtualSwitch],
@@ -364,10 +368,11 @@ class vmware(object):
             return self.vmware_datastore
 
         try:
-            si = SmartConnectNoSSL(host=self.vmware_hostname,
-                                   user=self.vmware_username,
-                                   pwd=self.vmware_password,
-                                   port=443)
+            si = SmartConnect(host=self.vmware_hostname,
+                              user=self.vmware_username,
+                              pwd=self.vmware_password,
+                              port=443,
+                              disableSslCertValidation=True)
             content = si.RetrieveContent()
             datastore_name = []
             datastore_type = []
@@ -417,10 +422,11 @@ class vmware(object):
             return self.vmware_datacenter
 
         try:
-            si = SmartConnectNoSSL(host=self.vmware_hostname,
-                                   user=self.vmware_username,
-                                   pwd=self.vmware_password,
-                                   port=443)
+            si = SmartConnect(host=self.vmware_hostname,
+                              user=self.vmware_username,
+                              pwd=self.vmware_password,
+                              port=443,
+                              disableSslCertValidation=True)
             content = si.RetrieveContent()
             datacenter = []
             container = content.viewManager.CreateContainerView(content.rootFolder, [vim.Datacenter], True)
