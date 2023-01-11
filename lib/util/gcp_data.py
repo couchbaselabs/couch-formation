@@ -2,6 +2,8 @@
 ##
 
 import logging
+import time
+
 from lib.util.filemgr import FileManager
 from lib.util.inquire import Inquire
 from lib.exceptions import GCPDataError, EmptyResultSet
@@ -92,6 +94,7 @@ class DataCollect(object):
             print(f"No network found for environment {config.env_name}")
             if Inquire().ask_bool("Create cloud infrastructure for the environment"):
                 config.cloud_operator().create_net()
+                time.sleep(3)
                 vpc_data = config.cloud_operator().list_net()
                 self.network = vpc_data.get("network_name", {}).get("value", None)
                 if not self.network:

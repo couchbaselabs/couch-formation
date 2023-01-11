@@ -17,7 +17,7 @@ from lib.util.namegen import get_random_name
 import lib.config as config
 from lib.config import OperatingMode
 
-VERSION = '3.0a2'
+VERSION = '3.0.0-a3'
 warnings.filterwarnings("ignore")
 logger = logging.getLogger()
 

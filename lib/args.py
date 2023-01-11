@@ -84,7 +84,8 @@ class Parameters(object):
 
         list_mode = subparsers.add_parser('list', help="List Information", parents=[parent_parser], add_help=False)
         list_action = list_mode.add_subparsers(dest='list_command')
-        list_action_image = list_action.add_parser('images', help="List images", parents=[parent_parser, log_parser], add_help=False)
+        list_action_image = list_action.add_parser('images', help="List images", parents=[parent_parser], add_help=False)
+        list_action_nodes = list_action.add_parser('nodes', help="List nodes", parents=[parent_parser], add_help=False)
 
         show_mode = subparsers.add_parser('show', help="Show Attributes", parents=[parent_parser], add_help=False)
         show_action = show_mode.add_subparsers(dest='show_command')

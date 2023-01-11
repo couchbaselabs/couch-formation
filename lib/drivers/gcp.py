@@ -75,14 +75,16 @@ class CloudBase(object):
 
         if 'GCP_PROJECT_ID' in os.environ:
             self.gcp_project = os.environ['GCP_PROJECT_ID']
-        if not self.gcp_project:
+        else:
             file_handle = open(self.gcp_account_file, 'r')
             auth_data = json.load(file_handle)
             file_handle.close()
             if 'project_id' in auth_data:
                 gcp_auth_json_project_id = auth_data['project_id']
+                # if self.gcp_project:
+                #     print(f"NOTE: Overriding configured project {self.gcp_project} with {gcp_auth_json_project_id}")
                 self.gcp_project = gcp_auth_json_project_id
-            else:
+            elif not self.gcp_project:
                 print("can not determine GCP project, please set GCP_PROJECT_ID")
                 raise GCPDriverError("can not determine project ID")
 
