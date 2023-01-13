@@ -11,7 +11,7 @@ from enum import Enum
 from typing import Union
 from lib.util.generator import Generator
 import lib.config as config
-from lib.exceptions import DirectoryStructureError, MissingParameterError
+from lib.exceptions import DirectoryStructureError, MissingParameterError, CatalogInvalid
 
 logger = logging.getLogger(__name__)
 
@@ -182,6 +182,10 @@ class PathMap(object):
     def as_dict(self):
         return self.__dict__['path']
 
+    @property
+    def get_root(self):
+        return self.root
+
 
 class CatalogManager(object):
 
@@ -189,13 +193,15 @@ class CatalogManager(object):
         self.logger = logging.getLogger(self.__class__.__name__)
         if not os.path.exists(location):
             raise DirectoryStructureError(f"can not find catalog location {location}")
+        self._location = location
         self._catalog = location + '/catalog.json'
         self._catalog_backup = location + '/catalog.backup'
+        self._leaf_list = []
         if not os.path.exists(self._catalog):
             logger.debug(f"initializing new catalog file at {self._catalog}")
             empty = {
                 "config": {
-                    "version": 1
+                    "version": config.config_version
                 }
             }
             try:
@@ -234,6 +240,83 @@ class CatalogManager(object):
                 json.dump(data, catalog_file)
         except Exception as err:
             raise DirectoryStructureError(f"can not read catalog file {self._catalog}: {err}")
+
+    def check(self, fix: bool = False) -> None:
+        contents = self.read_file()
+
+        config_vers = contents.get('config', {}).get('version')
+
+        if not config_vers:
+            raise CatalogInvalid("can not determine catalog version")
+
+        if config.config_version != config_vers:
+            print(f"[!] Warning: catalog version mismatch: catalog version {config_vers} expected {config.config_version}")
+
+        print("=== Phase 1 (checking leaf paths)")
+
+        if contents.get('images'):
+            contents['images'] = self.catalog_walk(contents.get('images'), fix)
+
+        if contents.get('inventory'):
+            for environment in contents.get('inventory'):
+                contents['inventory'][environment] = self.catalog_walk(contents['inventory'].get(environment), fix)
+
+        print("=== Phase 2 (check orphaned leafs)")
+
+        self.check_leafs(fix)
+
+        self.write_file(contents)
+
+    def catalog_walk(self, contents: dict, fix: bool) -> dict:
+        for item in contents:
+            for leaf in contents[item]:
+                leaf_path = contents[item][leaf]
+                contents[item][leaf] = self.check_path(f"{item}.{leaf}", leaf_path, fix)
+        return contents
+
+    def check_path(self, node: str, path: str, fix: bool) -> str:
+        basename = os.path.basename(path)
+        self._leaf_list.append(basename)
+        if not os.path.exists(path):
+            print(f"[!] Invalid leaf for node {node}")
+            if fix:
+                new_path = f"{self._location}/{basename}"
+                print(f"  => [i] repairing leaf {node} >> {basename}")
+                return new_path
+        return path
+
+    @staticmethod
+    def recursive_remove(path):
+        file_list = []
+        dir_list = []
+        for root, dirs, files in os.walk(path, topdown=False):
+            for name in files:
+                full_path = os.path.join(root, name)
+                if full_path not in file_list:
+                    file_list.append(full_path)
+            for name in dirs:
+                full_path = os.path.join(root, name)
+                if full_path not in dir_list:
+                    dir_list.append(full_path)
+            if root not in dir_list:
+                dir_list.append(root)
+        try:
+            for file in file_list:
+                os.remove(file)
+            for directory in dir_list:
+                os.rmdir(directory)
+        except Exception as err:
+            raise DirectoryStructureError(f"can not remove path {path}: {err}")
+
+    def check_leafs(self, fix: bool) -> None:
+        for name in os.listdir(self._location):
+            full_path = f"{self._location}/{name}"
+            if os.path.isdir(full_path):
+                if name not in self._leaf_list:
+                    print(f"[!] Orphaned leaf {name}")
+                    if fix:
+                        print(f"  => [i] removing orphaned leaf {name}")
+                        self.recursive_remove(full_path)
 
 
 class LogViewer(object):

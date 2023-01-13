@@ -131,3 +131,8 @@ class GCPDataError(fatalError):
 
 class AzureDataError(fatalError):
     pass
+
+
+class CatalogInvalid(fatalError):
+    pass
+

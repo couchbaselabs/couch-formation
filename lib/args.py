@@ -20,7 +20,6 @@ class Parameters(object):
     def __init__(self):
         parser = argparse.ArgumentParser(add_help=False)
         parent_parser = argparse.ArgumentParser(add_help=False)
-        parent_parser.add_argument('--debug', action='store_true', help="Debug output", default=False)
         parent_parser.add_argument('--dev', action='store', help="Development Environment", type=int)
         parent_parser.add_argument('--test', action='store', help="Test Environment", type=int)
         parent_parser.add_argument('--prod', action='store', help="Prod Environment", type=int)
@@ -35,6 +34,9 @@ class Parameters(object):
         parent_parser.add_argument('--min', action='store', help="Minimum node count", type=int, default=3)
         parent_parser.add_argument('--name', action='store', help="Environment name", type=name_arg)
         parent_parser.add_argument('--v3', action='store_true', help="Use new framework")
+        parent_parser.add_argument('-d', '--debug', action='store_true', help="Debug output")
+        parent_parser.add_argument('-v', '--verbose', action='store_true', help="Verbose output")
+        parent_parser.add_argument('-V', action='store_true', help="Show version")
         parent_parser.add_argument('--noop', action='store', help=argparse.SUPPRESS)
         image_parser = argparse.ArgumentParser(add_help=False)
         image_parser.add_argument('--list', action='store_true', help='List images')
@@ -61,6 +63,9 @@ class Parameters(object):
         # log_parser.add_argument('--sgwlog', action='store_true', help='Show image build logs')
         log_parser.add_argument('-c', '--count', action='store', help='Number of lines to show', type=int, default=25)
         log_parser.add_argument('-h', '--help', action='help', default=argparse.SUPPRESS, help='Show help message')
+        db_parser = argparse.ArgumentParser(add_help=False)
+        db_parser.add_argument('-f', '--fix', action='store_true', help='Fix issues')
+
         subparsers = parser.add_subparsers(dest='command')
         image_mode = subparsers.add_parser('image', help="Manage CB Images", parents=[parent_parser, image_parser], add_help=False)
 
@@ -107,6 +112,10 @@ class Parameters(object):
         log_action_cluster = log_action.add_parser('cluster', help="Get cluster build logs", parents=[parent_parser, log_parser], add_help=False)
         log_action_app = log_action.add_parser('app', help="Get app build logs", parents=[parent_parser, log_parser], add_help=False)
         log_action_sgw = log_action.add_parser('sgw', help="Get sgw build logs", parents=[parent_parser, log_parser], add_help=False)
+
+        db_mode = subparsers.add_parser('db', help="Catalog manager", parents=[parent_parser], add_help=False)
+        db_action = db_mode.add_subparsers(dest='db_command')
+        db_action_check = db_action.add_parser('check', help="Check the catalog", parents=[parent_parser, db_parser], add_help=False)
 
         self.parser = parser
         self.image_parser = image_mode

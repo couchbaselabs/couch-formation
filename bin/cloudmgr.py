@@ -16,6 +16,7 @@ from lib.util.envmgr import LogViewer
 from lib.util.namegen import get_random_name
 import lib.config as config
 from lib.config import OperatingMode
+from lib.util.envmgr import PathMap, CatalogManager
 
 VERSION = '3.0.0-a3'
 warnings.filterwarnings("ignore")
@@ -72,6 +73,11 @@ class CloudManager(object):
             print("Not implemented")
         elif self.verb == 'logs':
             LogViewer(self.args).print_log(lines=self.args.count)
+        elif self.verb == 'db':
+            if self.args.db_command == "check":
+                path_map = PathMap(config.env_name, config.cloud)
+                cm = CatalogManager(path_map.get_root)
+                cm.check(fix=self.args.fix)
 
     def run(self):
         if self.verb == 'image':

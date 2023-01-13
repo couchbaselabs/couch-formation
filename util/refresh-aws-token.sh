@@ -25,7 +25,7 @@ do
   esac
 done
 
-if [ -f $HOME/.aws/aws-session.sh ]; then
+if [ -z "$USER_ARN" ] && [ -f $HOME/.aws/aws-session.sh ]; then
   . $HOME/.aws/aws-session.sh
   jq --null-input \
   --arg key "$AWS_ACCESS_KEY_ID" \

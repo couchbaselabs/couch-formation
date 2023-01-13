@@ -19,6 +19,7 @@ class OperatingMode(Enum):
 
 
 warnings.filterwarnings("ignore")
+config_version = 1
 cloud = "aws"
 debug_level = 3
 enable_debug: False
@@ -49,6 +50,7 @@ cloud_instance = None
 ssh_key = None
 cloud_image = None
 cloud_operator = None
+default_debug_file = 'cf_debug.log'
 
 lib_dir = os.path.dirname(os.path.realpath(__file__))
 package_dir = os.path.dirname(lib_dir)
