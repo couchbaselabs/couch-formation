@@ -241,46 +241,6 @@ class Resources(object):
         return self.__dict__
 
 
-# @attr.s
-# class Variable(object):
-#     variable = attr.ib(validator=io(dict))
-#
-#     @classmethod
-#     def construct(cls, name: str, value: str, description: str, v_type: str):
-#         return cls(
-#             {name: [
-#                 {
-#                     "default": value,
-#                     "description": description,
-#                     "type": v_type
-#                 }
-#             ]}
-#         )
-#
-#     @property
-#     def as_dict(self):
-#         return self.__dict__['variable']
-#
-#
-# @attr.s
-# class Variables(object):
-#     variable = attr.ib(validator=io(dict))
-#
-#     @classmethod
-#     def build(cls):
-#         return cls(
-#             {}
-#         )
-#
-#     def add(self, variable: dict):
-#         self.variable.update(variable)
-#         return self
-#
-#     @property
-#     def as_dict(self):
-#         return self.__dict__
-
-
 @attr.s
 class SubnetEntry(object):
     subnet = attr.ib(validator=io(dict))
@@ -289,7 +249,7 @@ class SubnetEntry(object):
     def construct(cls, name: str, az_var: str, cidr_var: str, pub_ip: bool, name_var: str, vpc_name: str):
         return cls(
             {name: [
-               SubnetElements.construct(az_var, cidr_var, pub_ip, name_var, vpc_name).as_dict
+               SubnetElements.construct(name, az_var, cidr_var, pub_ip, name_var, vpc_name).as_dict
             ]}
         )
 
@@ -307,14 +267,14 @@ class SubnetElements(object):
     vpc_id = attr.ib(validator=io(str))
 
     @classmethod
-    def construct(cls, az_var: str, cidr_var: str, pub_ip: bool, name_var: str, vpc_name: str):
+    def construct(cls, name: str, az_var: str, cidr_var: str, pub_ip: bool, name_var: str, vpc_name: str):
         return cls(
             f"${{var.{az_var}}}",
             f"${{var.{cidr_var}}}",
             pub_ip,
             {
                 "Environment": f"${{var.{name_var}}}",
-                "Name": f"${{var.{name_var}}}-subnet-2"
+                "Name": f"${{var.{name_var}}}_{name}"
             },
             f"${{aws_vpc.{vpc_name}.id}}"
         )

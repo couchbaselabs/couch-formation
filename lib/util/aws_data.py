@@ -11,6 +11,7 @@ from lib.util.envmgr import PathMap, PathType, ConfigFile
 from lib.hcl.aws_image import AWSImageDataRecord
 from lib.util.cfgmgr import ConfigMgr
 from lib.drivers.aws import AWSEbsDiskTypes
+from lib.util.retry import retry
 
 
 class DataCollect(object):
@@ -83,11 +84,11 @@ class DataCollect(object):
             print(f"No network found for environment {config.env_name}")
             if Inquire().ask_bool("Create cloud infrastructure for the environment"):
                 config.cloud_operator().create_net()
-                time.sleep(3)
                 vpc_data = config.cloud_operator().list_net()
                 self.vpc_id = vpc_data.get("network_name", {}).get("value", None)
                 if not self.vpc_id:
                     raise AWSDriverError("can not get ID of newly created VPC")
+                print(f"Created {config.env_name} VPC {self.vpc_id}")
             else:
                 print(f"Environment {config.env_name} will be deployed on existing cloud infrastructure")
                 vpc_list = config.cloud_network().list()

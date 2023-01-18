@@ -567,14 +567,14 @@ class CloudDriver(object):
         output_block = Output.build()
         output_block.add(
             OutputValue.build()
-            .add("aws_vpc.cf_vpc.id")
+            .add("${aws_vpc.cf_vpc.id}")
             .as_name("network_name")
         )
         for i in range(subnet_count):
             subnet_name = f"cf_subnet_{i + 1}"
             output_block.add(
                 OutputValue.build()
-                .add(f"aws_subnet.{subnet_name}")
+                .add(f"${{aws_subnet.{subnet_name}}}")
                 .as_name(subnet_name)
             )
 

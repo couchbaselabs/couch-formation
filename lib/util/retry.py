@@ -8,11 +8,11 @@ from typing import Callable
 from functools import wraps
 
 
-def retry_s(retry_count=5,
-            factor=0.01,
-            allow_list=None,
-            always_raise_list=None
-            ) -> Callable:
+def retry(retry_count=10,
+          factor=0.1,
+          allow_list=None,
+          always_raise_list=None
+          ) -> Callable:
     def retry_handler(func):
         @wraps(func)
         def f_wrapper(*args, **kwargs):
