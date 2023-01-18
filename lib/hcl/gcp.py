@@ -544,12 +544,12 @@ class CloudDriver(object):
         output_block = Output.build()
         output_block.add(
             OutputValue.build()
-            .add("google_compute_network.cf_vpc.name")
+            .add("${google_compute_network.cf_vpc.name}")
             .as_name("network_name")
         )
         output_block.add(
             OutputValue.build()
-            .add(f"google_compute_subnetwork.cf_subnet_1")
+            .add("${google_compute_subnetwork.cf_subnet_1}")
             .as_name("cf_subnet_1")
         )
 

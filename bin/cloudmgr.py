@@ -17,8 +17,9 @@ from lib.util.namegen import get_random_name
 import lib.config as config
 from lib.config import OperatingMode
 from lib.util.envmgr import PathMap, CatalogManager
+from lib.util.logging import CustomFormatter
 
-VERSION = '3.0.0-a3'
+VERSION = '3.0.0-a4'
 warnings.filterwarnings("ignore")
 logger = logging.getLogger()
 
@@ -137,18 +138,28 @@ def main():
     signal.signal(signal.SIGINT, break_signal_handler)
 
     try:
-        debug_level = int(os.environ['CF_DEBUG_LEVEL'])
-        logging.basicConfig()
-        if debug_level == 0:
+        if parameters.debug:
             logger.setLevel(logging.DEBUG)
-        elif debug_level == 1:
+
+            try:
+                open(config.default_debug_file, 'w').close()
+            except Exception as err:
+                print(f"[!] Warning: can not clear log file {config.default_debug_file}: {err}")
+
+            file_handler = logging.FileHandler(config.default_debug_file)
+            file_formatter = logging.Formatter(logging.BASIC_FORMAT)
+            file_handler.setFormatter(file_formatter)
+            logger.addHandler(file_handler)
+        elif parameters.verbose:
             logger.setLevel(logging.INFO)
-        elif debug_level == 2:
-            logger.setLevel(logging.ERROR)
         else:
-            logger.setLevel(logging.CRITICAL)
+            logger.setLevel(logging.ERROR)
     except (ValueError, KeyError):
         pass
+
+    screen_handler = logging.StreamHandler()
+    screen_handler.setFormatter(CustomFormatter())
+    logger.addHandler(screen_handler)
 
     session = CloudManager(parameters)
     session.run_v3()

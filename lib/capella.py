@@ -6,12 +6,12 @@ import jinja2
 import os
 import ipaddress
 from lib.ask import ask
-from lib.exceptions import fatalError
+from lib.exceptions import FatalError
 from lib.capsessionmgr import capella_session
 from lib.capexceptions import CapellaNotImplemented
 
 
-class CapellaDriverError(fatalError):
+class CapellaDriverError(FatalError):
     pass
 
 

@@ -39,6 +39,7 @@ class CloudBase(object):
 
     def __init__(self):
         self.logger = logging.getLogger(self.__class__.__name__)
+        logging.getLogger("googleapiclient").setLevel(logging.ERROR)
         self.auth_directory = os.environ['HOME'] + '/.config/gcloud'
         self.config_default = self.auth_directory + '/configurations/config_default'
         self.gcp_account = None
@@ -81,8 +82,6 @@ class CloudBase(object):
             file_handle.close()
             if 'project_id' in auth_data:
                 gcp_auth_json_project_id = auth_data['project_id']
-                # if self.gcp_project:
-                #     print(f"NOTE: Overriding configured project {self.gcp_project} with {gcp_auth_json_project_id}")
                 self.gcp_project = gcp_auth_json_project_id
             elif not self.gcp_project:
                 print("can not determine GCP project, please set GCP_PROJECT_ID")
@@ -96,6 +95,12 @@ class CloudBase(object):
 
         self.zones()
         self.set_zone()
+
+    def get_info(self):
+        self.logger.info(f"Account File:    {self.gcp_account_file}")
+        self.logger.info(f"Region:          {self.gcp_region}")
+        self.logger.info(f"Project:         {self.gcp_project}")
+        self.logger.info(f"Available Zones: {','.join(self.gcp_zone_list)}")
 
     def read_config(self):
         if os.path.exists(self.config_default):
@@ -512,6 +517,8 @@ class Image(CloudBase):
                 response = request.execute()
             except Exception as err:
                 raise GCPDriverError(f"error getting images: {err}")
+            if response.get('items') is None:
+                break
             for image in response['items']:
                 image_block = {'name': image['name'],
                                'link': image['selfLink'],

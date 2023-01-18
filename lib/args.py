@@ -36,7 +36,7 @@ class Parameters(object):
         parent_parser.add_argument('--v3', action='store_true', help="Use new framework")
         parent_parser.add_argument('-d', '--debug', action='store_true', help="Debug output")
         parent_parser.add_argument('-v', '--verbose', action='store_true', help="Verbose output")
-        parent_parser.add_argument('-V', action='store_true', help="Show version")
+        parent_parser.add_argument('-V', '--version', action='store_true', help="Show version")
         parent_parser.add_argument('--noop', action='store', help=argparse.SUPPRESS)
         image_parser = argparse.ArgumentParser(add_help=False)
         image_parser.add_argument('--list', action='store_true', help='List images')

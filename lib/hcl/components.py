@@ -3,10 +3,10 @@
 
 import logging
 import jinja2
-from lib.exceptions import fatalError
+from lib.exceptions import FatalError
 
 
-class ComponentException(fatalError):
+class ComponentException(FatalError):
     pass
 
 
