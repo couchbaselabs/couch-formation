@@ -1,17 +1,13 @@
 #!/usr/bin/env python3
 
 #
-# Couchbase Cluster Manager
+# Couchbase Cluster Manager 3.0
 #
 
 import signal
 import warnings
-import logging
 from lib.exceptions import *
 from lib.args import Parameters
-from lib.imagemgr import image_manager
-from lib.runmgr import run_manager
-from lib.netmgr import network_manager
 from lib.util.envmgr import LogViewer
 from lib.util.namegen import get_random_name
 import lib.config as config
@@ -33,13 +29,20 @@ def break_signal_handler(signum, frame):
 class CloudManager(object):
 
     def __init__(self, parameters):
-        print(f"Couch Formation ({VERSION})")
         self.args = parameters
         self.verb = self.args.command
-        # config.process_params(parameters)
         config.enable_cloud(self.args.cloud)
 
-    def run_v3(self):
+    def run(self):
+        logger.info(f"Couch Formation ({VERSION})")
+        logger.info(f"Cloud Driver {config.cloud.upper()} version {config.cloud_driver_version}")
+        logger.info(f"Cloud Operator {config.cloud.upper()} version {config.cloud_operator_version}")
+
+        if self.verb == 'version':
+            sys.exit(0)
+
+        config.cloud_base().get_info()
+
         if self.verb == 'image':
             config.env_name = config.cloud
             if config.operating_mode == OperatingMode.BUILD.value:
@@ -54,8 +57,6 @@ class CloudManager(object):
             config.cloud_operator().destroy_nodes(self.args.destroy_command)
         elif self.verb == 'remove':
             print("Not implemented")
-        elif self.verb == 'remove':
-            print("Not implemented")
         elif self.verb == 'list':
             if self.args.list_command == "images":
                 config.env_name = config.cloud
@@ -66,10 +67,12 @@ class CloudManager(object):
         elif self.verb == 'net':
             print("Not implemented")
         elif self.verb == 'vpc':
-            if config.operating_mode == OperatingMode.CREATE.value:
+            if self.args.vpc_command == 'create':
                 config.cloud_operator().create_net()
-            elif config.operating_mode == OperatingMode.DESTROY.value:
+            elif self.args.vpc_command == 'destroy':
                 config.cloud_operator().destroy_net()
+            elif self.args.vpc_command == 'clean':
+                config.cloud_operator().clean_net()
         elif self.verb == 'ssh':
             print("Not implemented")
         elif self.verb == 'logs':
@@ -79,55 +82,6 @@ class CloudManager(object):
                 path_map = PathMap(config.env_name, config.cloud)
                 cm = CatalogManager(path_map.get_root)
                 cm.check(fix=self.args.fix)
-
-    def run(self):
-        if self.verb == 'image':
-            task = image_manager(self.args)
-            if self.args.list:
-                task.list_images()
-            elif self.args.delete:
-                task.delete_images()
-            elif self.args.build:
-                task.build_images()
-            sys.exit(0)
-        elif self.verb == 'create':
-            task = run_manager(self.args)
-            task.build_env()
-            sys.exit(0)
-        elif self.verb == 'deploy':
-            task = run_manager(self.args)
-            task.deploy_env()
-            sys.exit(0)
-        elif self.verb == 'destroy':
-            task = run_manager(self.args)
-            task.destroy_env()
-            sys.exit(0)
-        elif self.verb == 'remove':
-            task = run_manager(self.args)
-            task.remove_env()
-            sys.exit(0)
-        elif self.verb == 'list':
-            task = run_manager(self.args)
-            if self.args.all:
-                task.list_all()
-            else:
-                task.list_env()
-            sys.exit(0)
-        elif self.verb == 'net':
-            task = network_manager(self.args)
-            if self.args.list:
-                task.list_data()
-            elif self.args.domain:
-                task.add_domain()
-            elif self.args.cidr:
-                task.add_network()
-            sys.exit(0)
-        elif self.verb == 'vpc':
-            print("Not implemented")
-        elif self.verb == 'ssh':
-            print("Not implemented")
-        elif self.verb == 'logs':
-            LogViewer(self.args).print_log(lines=self.args.count)
 
 
 def main():
@@ -150,7 +104,7 @@ def main():
             file_formatter = logging.Formatter(logging.BASIC_FORMAT)
             file_handler.setFormatter(file_formatter)
             logger.addHandler(file_handler)
-        elif parameters.verbose:
+        elif parameters.verbose or parameters.command == 'version':
             logger.setLevel(logging.INFO)
         else:
             logger.setLevel(logging.ERROR)
@@ -162,7 +116,7 @@ def main():
     logger.addHandler(screen_handler)
 
     session = CloudManager(parameters)
-    session.run_v3()
+    session.run()
 
 
 if __name__ == '__main__':

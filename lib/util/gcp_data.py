@@ -45,8 +45,6 @@ class DataCollect(object):
         cfg_file = self.path_map.use(config.cloud_operator.CONFIG_FILE, PathType.CONFIG)
         self.env_cfg = ConfigMgr(cfg_file.file_name)
 
-        config.cloud_base().get_info()
-
     def get_infrastructure(self):
         network_list = []
 

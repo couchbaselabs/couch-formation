@@ -59,3 +59,4 @@ deploy.log
 build.log
 catalog.backup
 catalog.json
+cf_debug.log

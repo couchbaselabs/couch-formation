@@ -20,6 +20,8 @@ class OperatingMode(Enum):
 
 warnings.filterwarnings("ignore")
 config_version = 1
+cloud_driver_version = None
+cloud_operator_version = None
 cloud = "aws"
 debug_level = 3
 enable_debug: False
@@ -104,7 +106,9 @@ def enable_cloud(name: str) -> None:
         cloud_instance, \
         ssh_key, \
         cloud_image, \
-        cloud_operator
+        cloud_operator, \
+        cloud_driver_version, \
+        cloud_operator_version
 
     if name == 'aws':
         module = __import__('lib.drivers.aws')
@@ -140,6 +144,5 @@ def enable_cloud(name: str) -> None:
     ssh_key = getattr(driver, 'SSHKey')
     cloud_image = getattr(driver, 'Image')
     cloud_operator = getattr(operator, 'CloudDriver')
-
-    print(f"Loaded Cloud Driver {name.upper()} version {cloud_base.VERSION}")
-    print(f"Loaded Cloud Operator {name.upper()} version {cloud_operator.VERSION}")
+    cloud_driver_version = cloud_base.VERSION
+    cloud_operator_version = cloud_operator.VERSION

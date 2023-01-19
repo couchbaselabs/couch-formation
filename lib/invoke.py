@@ -146,13 +146,6 @@ class packer_run(object):
 class tf_run(object):
 
     def __init__(self, working_dir=None):
-        # self.log_file = working_dir + '/deploy.log' if working_dir else 'deploy.log'
-        # logging.setLoggerClass(LocalLogger)
-        # self.logger = logging.getLogger(self.__class__.__name__)
-        # self.logger.setLevel(logging.INFO)
-        # handler = RotatingFileHandler(self.log_file, maxBytes=1048576, backupCount=5)
-        # self.logger.addHandler(handler)
-        # logging.setLoggerClass(logging_class)
         self.logger = LogFile(self.__class__.__name__, working_dir)
         self.working_dir = working_dir
         self.deployment_data = None
@@ -180,7 +173,7 @@ class tf_run(object):
 
         return message
 
-    def _terraform(self, *args: str, json_output=False, ignore_error=False):
+    def _terraform(self, *args: str, output=False, ignore_error=False):
         command_output = ''
         tf_cmd = [
             'terraform',
@@ -199,7 +192,7 @@ class tf_run(object):
             line_string = line.decode("utf-8")
             escape_char = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
             line_string = escape_char.sub('', line_string)
-            if json_output:
+            if output:
                 command_output += line_string
             else:
                 self.logger.write(line_string.strip())
@@ -216,19 +209,19 @@ class tf_run(object):
         if len(command_output) > 0:
             try:
                 self.deployment_data = json.loads(command_output)
-            except json.decoder.JSONDecodeError as err:
-                raise TerraformRunError(f"can not capture deployment output: {err}")
+            except json.decoder.JSONDecodeError:
+                self.deployment_data = command_output
 
         self.logger.write(">>> Call Completed <<<")
         return True
 
-    def _command(self, cmd: list, json_output=False, quiet=False, ignore_error=False):
+    def _command(self, cmd: list, output=False, quiet=False, ignore_error=False):
         now = datetime.now()
         time_string = now.strftime("%D %I:%M:%S %p")
         self.logger.write(f" --- start {cmd[0]} at {time_string}")
 
         start_time = time.perf_counter()
-        result = self._terraform(*cmd, json_output=json_output, ignore_error=ignore_error)
+        result = self._terraform(*cmd, output=output, ignore_error=ignore_error)
         end_time = time.perf_counter()
         run_time = time.strftime("%H hours %M minutes %S seconds.", time.gmtime(end_time - start_time))
 
@@ -276,13 +269,25 @@ class tf_run(object):
 
         if not quiet:
             print("Getting environment information")
-        self._command(cmd, json_output=True, quiet=quiet)
+        self._command(cmd, output=True, quiet=quiet)
 
         return self.deployment_data
 
     def version(self):
         cmd = ['version', '-json']
 
-        self._command(cmd, json_output=True, quiet=True)
+        self._command(cmd, output=True, quiet=True)
 
         return self.deployment_data
+
+    def list(self):
+        cmd = ['state', 'list']
+
+        self._command(cmd, output=True, quiet=True)
+
+        return self.deployment_data
+
+    def remove(self, resource):
+        cmd = ['state', 'rm', resource]
+
+        self._command(cmd, quiet=True)

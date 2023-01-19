@@ -36,7 +36,6 @@ class Parameters(object):
         parent_parser.add_argument('--v3', action='store_true', help="Use new framework")
         parent_parser.add_argument('-d', '--debug', action='store_true', help="Debug output")
         parent_parser.add_argument('-v', '--verbose', action='store_true', help="Verbose output")
-        parent_parser.add_argument('-V', '--version', action='store_true', help="Show version")
         parent_parser.add_argument('--noop', action='store', help=argparse.SUPPRESS)
         image_parser = argparse.ArgumentParser(add_help=False)
         image_parser.add_argument('--list', action='store_true', help='List images')
@@ -50,23 +49,21 @@ class Parameters(object):
         net_parser.add_argument('--domain', action='store_true', help='Add domain')
         net_parser.add_argument('--cidr', action='store_true', help='Add network')
         net_parser.add_argument('-h', '--help', action='help', default=argparse.SUPPRESS, help='Show help message')
+
         vpc_parser = argparse.ArgumentParser(add_help=False)
-        vpc_parser.add_argument('--create', action='store_true', help='Create a VPC')
-        vpc_parser.add_argument('--destroy', action='store_true', help='Destroy a VPC')
-        vpc_parser.add_argument('--show', action='store_true', help='Show VPC')
         vpc_parser.add_argument('-h', '--help', action='help', default=argparse.SUPPRESS, help='Show help message')
+
         log_parser = argparse.ArgumentParser(add_help=False)
-        # log_parser.add_argument('--image', action='store_true', help='Show image build logs')
-        # log_parser.add_argument('--vpc', action='store_true', help='Show image build logs')
-        # log_parser.add_argument('--cluster', action='store_true', help='Show image build logs')
-        # log_parser.add_argument('--applog', action='store_true', help='Show image build logs')
-        # log_parser.add_argument('--sgwlog', action='store_true', help='Show image build logs')
         log_parser.add_argument('-c', '--count', action='store', help='Number of lines to show', type=int, default=25)
         log_parser.add_argument('-h', '--help', action='help', default=argparse.SUPPRESS, help='Show help message')
+
         db_parser = argparse.ArgumentParser(add_help=False)
         db_parser.add_argument('-f', '--fix', action='store_true', help='Fix issues')
 
         subparsers = parser.add_subparsers(dest='command')
+
+        version_mode = subparsers.add_parser('version', help="Show versions", parents=[parent_parser], add_help=False)
+
         image_mode = subparsers.add_parser('image', help="Manage CB Images", parents=[parent_parser, image_parser], add_help=False)
 
         create_mode = subparsers.add_parser('create', help="Create Nodes", parents=[parent_parser], add_help=False)
@@ -102,7 +99,14 @@ class Parameters(object):
         show_action_cluster = show_action_node_opt.add_parser('generic', help="Show Nodes", parents=[parent_parser], add_help=False)
 
         net_mode = subparsers.add_parser('net', help="Static Network Configuration", parents=[parent_parser, net_parser], add_help=False)
+
         vpc_mode = subparsers.add_parser('vpc', help="Create VPC", parents=[parent_parser, vpc_parser], add_help=False)
+        vpc_action = vpc_mode.add_subparsers(dest='vpc_command')
+        vpc_action_create = vpc_action.add_parser('create', help="Create VPC", parents=[parent_parser], add_help=False)
+        vpc_action_destroy = vpc_action.add_parser('destroy', help="Destroy VPC", parents=[parent_parser], add_help=False)
+        vpc_action_clean = vpc_action.add_parser('clean', help="Clean VPC", parents=[parent_parser], add_help=False)
+        vpc_action_show = vpc_action.add_parser('show', help="Show VPC", parents=[parent_parser], add_help=False)
+
         ssh_mode = subparsers.add_parser('ssh', help="Create SSH Keys", parents=[parent_parser], add_help=False)
 
         log_mode = subparsers.add_parser('logs', help="View logs", parents=[parent_parser, log_parser], add_help=False)
