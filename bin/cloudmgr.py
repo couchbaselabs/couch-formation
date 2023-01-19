@@ -45,7 +45,7 @@ class CloudManager(object):
 
         if self.verb == 'image':
             config.env_name = config.cloud
-            if config.operating_mode == OperatingMode.BUILD.value:
+            if self.args.image_command == "build":
                 config.cloud_operator().create_image()
         elif self.verb == 'create':
             if not config.env_name:

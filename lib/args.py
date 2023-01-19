@@ -38,9 +38,6 @@ class Parameters(object):
         parent_parser.add_argument('-v', '--verbose', action='store_true', help="Verbose output")
         parent_parser.add_argument('--noop', action='store', help=argparse.SUPPRESS)
         image_parser = argparse.ArgumentParser(add_help=False)
-        image_parser.add_argument('--list', action='store_true', help='List images')
-        image_parser.add_argument('--build', action='store_true', help='Build image')
-        image_parser.add_argument('--delete', action='store_true', help='Delete image')
         image_parser.add_argument('--image', action='store', help='Image name')
         image_parser.add_argument('--json', action='store_true', help='Output in JSON format', default=False)
         image_parser.add_argument('-h', '--help', action='help', default=argparse.SUPPRESS, help='Show help message')
@@ -65,6 +62,10 @@ class Parameters(object):
         version_mode = subparsers.add_parser('version', help="Show versions", parents=[parent_parser], add_help=False)
 
         image_mode = subparsers.add_parser('image', help="Manage CB Images", parents=[parent_parser, image_parser], add_help=False)
+        image_action = image_mode.add_subparsers(dest='image_command')
+        image_action_list = image_action.add_parser('list', help="List images", parents=[parent_parser, image_parser], add_help=False)
+        image_action_build = image_action.add_parser('build', help="Build images", parents=[parent_parser, image_parser], add_help=False)
+        image_action_delete = image_action.add_parser('delete', help="Delete images", parents=[parent_parser, image_parser], add_help=False)
 
         create_mode = subparsers.add_parser('create', help="Create Nodes", parents=[parent_parser], add_help=False)
         create_action = create_mode.add_subparsers(dest='create_command')

@@ -49,8 +49,10 @@ class CloudBase(object):
     SAAS_CLOUD = False
     NETWORK_SUPER_NET = True
 
-    def __init__(self):
+    def __init__(self, null_init: bool = True):
         self.logger = logging.getLogger(self.__class__.__name__)
+        logging.getLogger("azure").setLevel(logging.ERROR)
+        logging.getLogger("urllib3").setLevel(logging.ERROR)
         self.auth_directory = os.environ['HOME'] + '/.azure'
         self.config_default = self.auth_directory + '/clouds.config'
         self.config_main = self.auth_directory + '/config'
@@ -65,12 +67,14 @@ class CloudBase(object):
 
         self.read_config()
 
+        if not self.credential:
+            self.credential = AzureCliCredential()
+        self.subscription_client = SubscriptionClient(self.credential)
+
         if 'AZURE_SUBSCRIPTION_ID' in os.environ:
             self.azure_subscription_id = os.environ['AZURE_SUBSCRIPTION_ID']
         elif not self.azure_subscription_id:
             try:
-                self.credential = AzureCliCredential()
-                self.subscription_client = SubscriptionClient(self.credential)
                 subscriptions = self.subscription_client.subscriptions.list()
             except Exception as err:
                 raise AzureDriverError(f"Azure: unauthorized (use az login): {err}")
@@ -78,8 +82,6 @@ class CloudBase(object):
         elif not self.azure_subscription_id:
             raise AzureDriverError("can not determine subscription ID, please authenticate with az login")
 
-        if not self.credential:
-            self.credential = AzureCliCredential()
         self.resource_client = ResourceManagementClient(self.credential, self.azure_subscription_id)
         self.compute_client = ComputeManagementClient(self.credential, self.azure_subscription_id)
         self.network_client = NetworkManagementClient(self.credential, self.azure_subscription_id)
@@ -107,12 +109,19 @@ class CloudBase(object):
                     self.azure_location = group.location
                     break
 
-        if not self.azure_resource_group:
+        if not self.azure_resource_group and not null_init:
             raise AzureDriverError("can not determine resource group, set AZURE_RESOURCE_GROUP or enable persisted parameters")
-        if not self.azure_location:
+        if not self.azure_location and not null_init:
             raise AzureDriverError("can not determine location, set AZURE_LOCATION")
 
-        self.set_zone()
+        if self.azure_location:
+            self.set_zone()
+
+    def get_info(self):
+        self.logger.info(f"Subscription ID: {self.azure_subscription_id}")
+        self.logger.info(f"Region:          {self.region}")
+        self.logger.info(f"Resource Group:  {self.azure_resource_group}")
+        self.logger.info(f"Available Zones: {','.join(self.azure_availability_zones)}")
 
     def read_config(self):
         if os.path.exists(self.config_main):
@@ -227,6 +236,17 @@ class CloudBase(object):
         except Exception as err:
             raise AzureDriverError(f"error deleting resource group: {err}")
 
+    def list_locations(self) -> list[dict]:
+        location_list = []
+        locations = self.subscription_client.subscriptions.list_locations(self.azure_subscription_id)
+        for group in list(locations):
+            location_block = {
+                'name': group.name,
+                'display_name': group.display_name
+            }
+            location_list.append(location_block)
+        return location_list
+
     @staticmethod
     def process_tags(struct: dict) -> dict:
         block = {}
@@ -257,6 +277,8 @@ class Network(CloudBase):
 
     def list(self, resource_group: Union[str, None] = None, filter_keys_exist: Union[list[str], None] = None) -> list[dict]:
         if not resource_group:
+            if not self.azure_resource_group:
+                return []
             resource_group = self.azure_resource_group
         vnet_list = []
 
@@ -616,15 +638,30 @@ class MachineType(CloudBase):
         machine_type_list = []
 
         try:
-            sizes = self.compute_client.virtual_machine_sizes.list(self.azure_location)
+            resource_list = self.compute_client.resource_skus.list()
         except Exception as err:
             raise AzureDriverError(f"error listing machine types: {err}")
 
-        for group in list(sizes):
+        for group in list(resource_list):
+            vm_cpu = 0
+            vm_mem = 0
+            if self.azure_location not in group.locations:
+                continue
+            if group.restrictions:
+                if len(list(group.restrictions)) != 0:
+                    continue
+            if not group.capabilities:
+                continue
+            for capability in group.capabilities:
+                if capability.name == 'vCPUs':
+                    vm_cpu = int(capability.value)
+                if capability.name == 'MemoryGB':
+                    vm_mem = int(capability.value) * 1024
+            if vm_cpu == 0 or vm_mem == 0:
+                continue
             config_block = {'name': group.name,
-                            'cpu': int(group.number_of_cores),
-                            'memory': int(group.memory_in_mb),
-                            'disk': int(group.resource_disk_size_in_mb)}
+                            'cpu': vm_cpu,
+                            'memory': vm_mem}
             machine_type_list.append(config_block)
 
         if len(machine_type_list) == 0:

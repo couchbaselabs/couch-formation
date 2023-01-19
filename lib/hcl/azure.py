@@ -3,6 +3,7 @@
 
 import logging
 import json
+import os
 from lib.util.envmgr import PathMap, PathType, ConfigFile
 from lib.exceptions import AzureDriverError
 from lib.drivers.cbrelease import CBRelease
@@ -64,8 +65,17 @@ class CloudDriver(object):
         cb_rel = CBRelease()
 
         azure_location = config.cloud_base().region
+
+        if not azure_location:
+            location_list = config.cloud_base().list_locations()
+            result = Inquire().ask_list_dict('Azure Location', location_list)
+            azure_location = result['name']
+
+        os.environ['AZURE_LOCATION'] = azure_location
+
+        azure_image_rg_name = f"cf-image-{azure_location}-rg"
         azure_rg = config.cloud_base().create_rg(
-            f"cf-image-{azure_location}-rg",
+            azure_image_rg_name,
             azure_location,
             {
                 "type": "couch-formation-image"
@@ -74,6 +84,8 @@ class CloudDriver(object):
         if not azure_rg.get('name'):
             raise AzureDriverError(f"resource group creation failed: {azure_rg}")
         azure_resource_group = azure_rg['name']
+
+        os.environ['AZURE_RESOURCE_GROUP'] = azure_resource_group
 
         print(f"Configuring image in location {azure_location}")
 
@@ -567,6 +579,35 @@ class CloudDriver(object):
         except Exception as err:
             raise AzureDriverError(f"can not destroy nodes: {err}")
 
+    def clean_nodes(self, node_type: str):
+        if node_type == "app":
+            path_type = PathType.APP
+            path_file = CloudDriver.MAIN_CONFIG
+        elif node_type == "sgw":
+            path_type = PathType.SGW
+            path_file = CloudDriver.MAIN_CONFIG
+        elif node_type == "generic":
+            path_type = PathType.GENERIC
+            path_file = CloudDriver.MAIN_CONFIG
+        else:
+            path_type = PathType.CLUSTER
+            path_file = CloudDriver.MAIN_CONFIG
+
+        self.path_map.map(path_type)
+        cfg_file: ConfigFile
+        cfg_file = self.path_map.use(path_file, path_type)
+
+        try:
+            tf = tf_run(working_dir=cfg_file.file_path)
+            if not tf.validate():
+                tf.init()
+            resources = tf.list()
+            for resource in resources.splitlines():
+                self.logger.info(f"Removing resource {resource}")
+                tf.remove(resource)
+        except Exception as err:
+            raise AzureDriverError(f"can not clean nodes: {err}")
+
     def create_net(self):
         cidr_util = NetworkDriver()
 
@@ -576,6 +617,12 @@ class CloudDriver(object):
         vpc_cidr = cidr_util.get_next_network()
         subnet_list = list(cidr_util.get_next_subnet())
         region = config.cloud_base().region
+
+        if not region:
+            location_list = config.cloud_base().list_locations()
+            result = Inquire().ask_list_dict('Azure Location', location_list)
+            region = result['name']
+            os.environ['AZURE_LOCATION'] = region
 
         print(f"Configuring VPC in region {region}")
 
@@ -670,3 +717,18 @@ class CloudDriver(object):
                 tf.destroy()
         except Exception as err:
             raise AzureDriverError(f"can not destroy VPC: {err}")
+
+    def clean_net(self):
+        self.path_map.map(PathType.NETWORK)
+        cfg_file: ConfigFile
+        cfg_file = self.path_map.use(CloudDriver.NETWORK_CONFIG, PathType.NETWORK)
+        try:
+            tf = tf_run(working_dir=cfg_file.file_path)
+            if not tf.validate():
+                tf.init()
+            resources = tf.list()
+            for resource in resources.splitlines():
+                self.logger.info(f"Removing resource {resource}")
+                tf.remove(resource)
+        except Exception as err:
+            raise AzureDriverError(f"can not clean VPC: {err}")

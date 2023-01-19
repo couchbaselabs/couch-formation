@@ -483,6 +483,35 @@ class CloudDriver(object):
         except Exception as err:
             raise AWSDriverError(f"can not destroy nodes: {err}")
 
+    def clean_nodes(self, node_type: str):
+        if node_type == "app":
+            path_type = PathType.APP
+            path_file = CloudDriver.MAIN_CONFIG
+        elif node_type == "sgw":
+            path_type = PathType.SGW
+            path_file = CloudDriver.MAIN_CONFIG
+        elif node_type == "generic":
+            path_type = PathType.GENERIC
+            path_file = CloudDriver.MAIN_CONFIG
+        else:
+            path_type = PathType.CLUSTER
+            path_file = CloudDriver.MAIN_CONFIG
+
+        self.path_map.map(path_type)
+        cfg_file: ConfigFile
+        cfg_file = self.path_map.use(path_file, path_type)
+
+        try:
+            tf = tf_run(working_dir=cfg_file.file_path)
+            if not tf.validate():
+                tf.init()
+            resources = tf.list()
+            for resource in resources.splitlines():
+                self.logger.info(f"Removing resource {resource}")
+                tf.remove(resource)
+        except Exception as err:
+            raise AWSDriverError(f"can not clean nodes: {err}")
+
     def create_net(self):
         cidr_util = NetworkDriver()
         subnet_count = 0
@@ -631,6 +660,21 @@ class CloudDriver(object):
                 tf.destroy()
         except Exception as err:
             raise AWSDriverError(f"can not destroy VPC: {err}")
+
+    def clean_net(self):
+        self.path_map.map(PathType.NETWORK)
+        cfg_file: ConfigFile
+        cfg_file = self.path_map.use(CloudDriver.NETWORK_CONFIG, PathType.NETWORK)
+        try:
+            tf = tf_run(working_dir=cfg_file.file_path)
+            if not tf.validate():
+                tf.init()
+            resources = tf.list()
+            for resource in resources.splitlines():
+                self.logger.info(f"Removing resource {resource}")
+                tf.remove(resource)
+        except Exception as err:
+            raise AWSDriverError(f"can not clean VPC: {err}")
 
     def create_key(self):
         try:

@@ -128,7 +128,10 @@ class CloudBase(object):
 
     def __init__(self):
         self.logger = logging.getLogger(self.__class__.__name__)
+        logging.getLogger("botocore").setLevel(logging.ERROR)
+        logging.getLogger("urllib3").setLevel(logging.ERROR)
         self.aws_region = None
+        self.zone_list = []
 
         if 'AWS_REGION' in os.environ:
             self.aws_region = os.environ['AWS_REGION']
@@ -147,6 +150,10 @@ class CloudBase(object):
             raise AWSDriverError(f"can not initialize AWS driver: {err}")
 
         self.set_zone()
+
+    def get_info(self):
+        self.logger.info(f"Region:          {self.aws_region}")
+        self.logger.info(f"Available Zones: {','.join(self.zone_list)}")
 
     @property
     def client(self):
@@ -180,17 +187,15 @@ class CloudBase(object):
         return None
 
     def zones(self) -> list:
-        aws_availability_zones = []
-
         try:
             zone_list = self.ec2_client.describe_availability_zones()
         except Exception as err:
             raise AWSDriverError(f"error getting availability zones: {err}")
 
         for availability_zone in zone_list['AvailabilityZones']:
-            self.logger.info("Found availability zone %s" % availability_zone['ZoneName'])
-            aws_availability_zones.append(availability_zone['ZoneName'])
-        return aws_availability_zones
+            self.zone_list.append(availability_zone['ZoneName'])
+
+        return self.zone_list
 
     def set_zone(self) -> None:
         zone_list = self.zones()

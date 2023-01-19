@@ -2,6 +2,7 @@
 ##
 
 import logging
+import os
 from lib.util.filemgr import FileManager
 from lib.util.inquire import Inquire
 from lib.exceptions import AzureDataError, EmptyResultSet
@@ -67,11 +68,20 @@ class DataCollect(object):
             print(f"Assign Public IP = {self.use_public_ip}")
 
             if not Inquire().ask_bool("Update settings", recommendation='false'):
+                os.environ['AZURE_LOCATION'] = self.region
+                os.environ['AZURE_RESOURCE_GROUP'] = self.azure_resource_group
                 return
 
         self.env_cfg.update(azure_base_in_progress=True)
 
         self.region = config.cloud_base().region
+
+        if not self.region:
+            location_list = config.cloud_base().list_locations()
+            result = Inquire().ask_list_dict('Azure Location', location_list)
+            self.region = result['name']
+
+        os.environ['AZURE_LOCATION'] = self.region
 
         try:
             rg_list = config.cloud_base().list_rg(self.region)
@@ -96,6 +106,7 @@ class DataCollect(object):
                 self.network = vpc_data.get("network_name", {}).get("value", None)
                 if not self.network:
                     raise AzureDataError("can not get names of newly created resources")
+                print(f"Created {config.env_name} network {self.network} in resource group {self.azure_resource_group}")
             else:
                 print(f"Environment {config.env_name} will be deployed on existing cloud infrastructure")
                 selection = Inquire().ask_list_dict("Please select a resource group", rg_list, hide_key=["id"])
@@ -103,6 +114,8 @@ class DataCollect(object):
                 vpc_list = config.cloud_network().list(self.azure_resource_group)
                 selection = Inquire().ask_list_dict("Please select a network", vpc_list, hide_key=["id", "cidr", "subnets"])
                 self.network = selection.get("name")
+
+        os.environ['AZURE_RESOURCE_GROUP'] = self.azure_resource_group
 
         self.use_public_ip = Inquire().ask_bool("Assign a public IP")
 
@@ -263,7 +276,7 @@ class DataCollect(object):
 
         self.instance_type = selection['name']
 
-        selection = Inquire().ask_list_dict("Select disk type", AzureDiskTypes.disk_type_list, default_value=("type", "pd-ssd"))
+        selection = Inquire().ask_list_dict("Select disk type", AzureDiskTypes.disk_type_list, default_value=("type", "StandardSSD_LRS"))
         self.disk_type = selection['type']
         self.disk_size = Inquire().ask_int("Volume size", 250, 100)
 
