@@ -41,7 +41,8 @@ class CloudManager(object):
         if self.verb == 'version':
             sys.exit(0)
 
-        config.cloud_base().get_info()
+        if self.args.verbose:
+            config.cloud_base().get_info()
 
         if self.verb == 'image':
             config.env_name = config.cloud
@@ -61,6 +62,10 @@ class CloudManager(object):
             if self.args.list_command == "images":
                 config.env_name = config.cloud
                 config.cloud_operator().list_images()
+            elif self.args.list_command == "nodes":
+                path_map = PathMap(config.env_name, config.cloud)
+                cm = CatalogManager(path_map.get_root)
+                cm.catalog_list()
         elif self.verb == 'show':
             if self.args.show_command == "nodes":
                 config.cloud_operator().show_nodes(self.args.show_node_command)

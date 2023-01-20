@@ -195,6 +195,12 @@ class CloudDriver(object):
             AzureDriverError(f"can not build image: {err}")
 
     def list_images(self):
+        azure_location = config.cloud_base().region
+        if not azure_location:
+            location_list = config.cloud_base().list_locations()
+            result = Inquire().ask_list_dict('Azure Location', location_list)
+            azure_location = result['name']
+            os.environ['AZURE_LOCATION'] = azure_location
         image_list = config.cloud_image().list(filter_keys_exist=["release_tag", "type_tag", "version_tag"])
         self.ask.list_dict(f"Images in cloud {config.cloud}", image_list, sort_key="name", hide_key=['id'])
 

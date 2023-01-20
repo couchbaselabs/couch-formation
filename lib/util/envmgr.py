@@ -12,6 +12,7 @@ from typing import Union
 from lib.util.generator import Generator
 import lib.config as config
 from lib.exceptions import DirectoryStructureError, MissingParameterError, CatalogInvalid
+from lib.util.cfgmgr import ConfigMgr
 
 logger = logging.getLogger(__name__)
 
@@ -317,6 +318,34 @@ class CatalogManager(object):
                     if fix:
                         print(f"  => [i] removing orphaned leaf {name}")
                         self.recursive_remove(full_path)
+
+    def catalog_list(self) -> None:
+        contents = self.read_file()
+        if contents.get('inventory'):
+            for environment in contents.get('inventory'):
+                print(f"{environment}")
+                for cloud in contents.get('inventory').get(environment):
+                    print(f"  - {cloud}")
+                    path_map = PathMap(environment, cloud)
+                    path_map.map(PathType.CONFIG)
+                    cfg_file: ConfigFile
+                    cfg_file = path_map.use(config.cloud_operator.CONFIG_FILE, PathType.CONFIG)
+                    env_cfg = ConfigMgr(cfg_file.file_name)
+                    region = env_cfg.get(f"{cloud}_region")
+                    ssh_key = env_cfg.get("ssh_private_key")
+                    if cloud == "aws":
+                        network = env_cfg.get("aws_vpc_id")
+                    else:
+                        network = env_cfg.get(f"{cloud}_network")
+                    print(f"    Region: {region}")
+                    print(f"    SSK Key: {ssh_key}")
+                    print(f"    Network: {network}")
+                    for node_type in contents.get('inventory').get(environment).get(cloud):
+                        cluster_map = env_cfg.get(f"{cloud}_node_map_{node_type}")
+                        if cluster_map:
+                            print(f"    - {node_type}")
+                            for node in cluster_map:
+                                print(f"      {node}")
 
 
 class LogViewer(object):
