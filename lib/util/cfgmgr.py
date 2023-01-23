@@ -132,6 +132,28 @@ class CBSettings(object):
 
 
 @attr.s
+class CapellaSettings(object):
+    base_in_progress = attr.ib(validator=attr.validators.optional(io(bool)), default=None)
+    region = attr.ib(validator=attr.validators.optional(io(str)), default=None)
+    project = attr.ib(validator=attr.validators.optional(io(str)), default=None)
+    machine_type = attr.ib(validator=attr.validators.optional(io(str)), default=None)
+    root_iops = attr.ib(validator=attr.validators.optional(io(str)), default=None)
+    root_size = attr.ib(validator=attr.validators.optional(io(str)), default=None)
+    root_type = attr.ib(validator=attr.validators.optional(io(str)), default=None)
+    network = attr.ib(validator=attr.validators.optional(io(str)), default=None)
+    single_az = attr.ib(validator=attr.validators.optional(io(bool)), default=None)
+    cluster_name = attr.ib(validator=attr.validators.optional(io(str)), default=None)
+    provider = attr.ib(validator=attr.validators.optional(io(str)), default=None)
+    support_package = attr.ib(validator=attr.validators.optional(io(str)), default=None)
+    node_map_cluster = attr.ib(validator=attr.validators.optional(io(dict)), default=None)
+    node_map_sgw = attr.ib(validator=attr.validators.optional(io(dict)), default=None)
+
+    @property
+    def as_dict(self):
+        return self.__dict__
+
+
+@attr.s
 class NetSettings(object):
     use_public_ip = attr.ib(validator=attr.validators.optional(io(bool)), default=None)
 
@@ -155,6 +177,7 @@ class Config(object):
     aws = attr.ib(validator=attr.validators.optional(io(dict)), default=None, metadata={"_class_name": "AWSSettings"})
     gcp = attr.ib(validator=attr.validators.optional(io(dict)), default=None, metadata={"_class_name": "GCPSettings"})
     azure = attr.ib(validator=attr.validators.optional(io(dict)), default=None, metadata={"_class_name": "AzureSettings"})
+    capella = attr.ib(validator=attr.validators.optional(io(dict)), default=None, metadata={"_class_name": "CapellaSettings"})
     cbs = attr.ib(validator=attr.validators.optional(io(dict)), default=None, metadata={"_class_name": "CBSettings"})
     net = attr.ib(validator=attr.validators.optional(io(dict)), default=None, metadata={"_class_name": "NetSettings"})
     cfg = attr.ib(validator=attr.validators.optional(io(dict)), default=None, metadata={"_class_name": "GeneralConfig"})
@@ -184,6 +207,7 @@ class ConfigMgr(object):
                     data_read.get('aws'),
                     data_read.get('gcp'),
                     data_read.get('azure'),
+                    data_read.get('capella'),
                     data_read.get('cbs'),
                     data_read.get('net'),
                     data_read.get('cfg')

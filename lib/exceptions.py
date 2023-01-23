@@ -135,6 +135,37 @@ class AzureDataError(FatalError):
     pass
 
 
+class CapellaDriverError(FatalError):
+    pass
+
+
 class CatalogInvalid(FatalError):
     pass
 
+
+class CapellaMissingSecretKey(FatalError):
+    pass
+
+
+class CapellaMissingAuthKey(FatalError):
+    pass
+
+
+class CapellaNotAuthorized(FatalError):
+    pass
+
+
+class CapellaForbidden(FatalError):
+    pass
+
+
+class CapellaNotImplemented(FatalError):
+    pass
+
+
+class CapellaRequestValidationError(FatalError):
+    pass
+
+
+class CapellaInternalServerError(FatalError):
+    pass
