@@ -61,9 +61,13 @@ class DataCollect(object):
         self.env_cfg.update(capella_base_in_progress=True)
 
         self.cluster_name = config.env_name
-        self.project = f"{self.cluster_name}_project"
 
         self.provider = Inquire().ask_list_basic("Cloud provider", config.cloud_base().CLOUD_PROVIDER)
+
+        projects = config.cloud_base(cloud=self.provider).capella_get_projects()
+        selection = Inquire().ask_search_dict("Capella project", projects)
+
+        self.project = selection['id']
 
         self.single_az = Inquire().ask_bool("Single AZ", recommendation="false")
 
@@ -72,7 +76,9 @@ class DataCollect(object):
         for net in config.cloud_network().cidr_list:
             cidr_util.add_network(net)
 
-        self.network = cidr_util.get_next_network()
+        cidr_util.get_next_network()
+        subnet_list = list(cidr_util.get_next_subnet())
+        self.network = subnet_list[1]
 
         self.support_package = Inquire().ask_list_basic("Support package", config.cloud_base().SUPPORT_PACKAGE)
 

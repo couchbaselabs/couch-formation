@@ -123,7 +123,7 @@ class CloudDriver(object):
                     NodeConfiguration.construct(
                         dc.cluster_name,
                         place_block.as_dict,
-                        "${couchbasecapella_project.capella_project.id}",
+                        dc.project,
                         server_block.as_dict,
                         CapellaSupportPackage.build().add(dc.support_package).as_dict
                     ).as_dict
@@ -132,7 +132,7 @@ class CloudDriver(object):
 
             resource_block = ResourceBlock.build()
             resource_block.add(instance_block.as_dict)
-            resource_block.add(project_block.as_dict)
+            # resource_block.add(project_block.as_dict)
 
             output_block = Output.build().add(
                 OutputValue.build()
@@ -172,6 +172,37 @@ class CloudDriver(object):
                 raise CapellaDriverError(f"can not deploy nodes: {err}")
 
             self.show_nodes(node_type)
+
+    def deploy_nodes(self, node_type: str):
+        if node_type == "app":
+            path_type = PathType.APP
+            path_file = CloudDriver.MAIN_CONFIG
+        elif node_type == "sgw":
+            path_type = PathType.SGW
+            path_file = CloudDriver.MAIN_CONFIG
+        elif node_type == "generic":
+            path_type = PathType.GENERIC
+            path_file = CloudDriver.MAIN_CONFIG
+        else:
+            path_type = PathType.CLUSTER
+            path_file = CloudDriver.MAIN_CONFIG
+
+        self.path_map.map(path_type)
+        cfg_file: ConfigFile
+        cfg_file = self.path_map.use(path_file, path_type)
+
+        try:
+            print("")
+            print(f"Deploying nodes ...")
+            tf = tf_run(working_dir=cfg_file.file_path)
+            tf.init()
+            if not tf.validate():
+                raise CapellaDriverError("Environment is not configured properly, please check the log and try again.")
+            tf.apply()
+        except Exception as err:
+            raise CapellaDriverError(f"can not deploy nodes: {err}")
+
+        self.show_nodes(node_type)
 
     def show_nodes(self, node_type: str):
         print(f"Cloud: {config.cloud} :: Environment {config.env_name}")

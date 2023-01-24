@@ -181,6 +181,10 @@ class tf_run(object):
         ]
         self.logger.write(f">>> Call: {' '.join(tf_cmd)}")
 
+        if logging.DEBUG >= logging.root.level:
+            os.environ["TF_LOG"] = "DEBUG"
+            os.environ["TF_LOG_PATH"] = self.logger.log_file
+
         p = subprocess.Popen(tf_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, cwd=self.working_dir, bufsize=1)
 
         sp = spinner()

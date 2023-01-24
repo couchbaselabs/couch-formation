@@ -75,6 +75,11 @@ class Parameters(object):
         create_action_generic = create_action.add_parser('generic', help="Generic Nodes", parents=[parent_parser], add_help=False)
 
         deploy_mode = subparsers.add_parser('deploy', help="Deploy Nodes", parents=[parent_parser], add_help=False)
+        deploy_action = deploy_mode.add_subparsers(dest='deploy_command')
+        deploy_action_cluster = deploy_action.add_parser('cluster', help="Deploy a Couchbase Cluster", parents=[parent_parser], add_help=False)
+        deploy_action_app = deploy_action.add_parser('app', help="Deploy App Nodes", parents=[parent_parser], add_help=False)
+        deploy_action_sgw = deploy_action.add_parser('sgw', help="Deploy Sync Gateway Nodes", parents=[parent_parser], add_help=False)
+        deploy_action_generic = deploy_action.add_parser('generic', help="Deploy Generic Nodes", parents=[parent_parser], add_help=False)
 
         destroy_mode = subparsers.add_parser('destroy', help="Destroy Nodes", parents=[parent_parser], add_help=False)
         destroy_action = destroy_mode.add_subparsers(dest='destroy_command')

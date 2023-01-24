@@ -665,3 +665,46 @@ class Inquire(object):
                 except Exception:
                     print("Please select the number corresponding to your selection.")
                     continue
+
+    def ask_search_dict(self,
+                        question: str,
+                        options: list[dict],
+                        key: str = "name",
+                        hide_key: Union[list[str], None] = None):
+        table_header = self.create_header_vector(options, hide_key=hide_key)
+        field_length = self.field_lengths(options, hide_key=hide_key)
+
+        print("%s:" % question)
+
+        while True:
+            sub_options = []
+            answer = input("Search term [q=quit]: ")
+            answer = answer.rstrip("\n")
+            if answer == "q":
+                sys.exit(0)
+            for option in options:
+                p = re.compile(answer)
+                if p.match(option[key]):
+                    sub_options.append(option)
+            if len(sub_options) == 0:
+                print("Search term not found.")
+                continue
+            self.print_header(field_length, table_header)
+            while True:
+                for count, item in enumerate(sub_options):
+                    self.print_line(field_length, item, count + 1, hide_key=hide_key)
+                answer = input("Selection [r=retry, q=quit]: ")
+                answer = answer.rstrip("\n")
+                if answer == "q":
+                    sys.exit(0)
+                if answer == "r":
+                    break
+                try:
+                    value = int(answer)
+                    if 0 < value <= len(options):
+                        return sub_options[value - 1]
+                    else:
+                        raise ValueError
+                except ValueError:
+                    print("Please select the number corresponding to your selection.")
+                    continue

@@ -53,7 +53,7 @@ class CloudManager(object):
                 config.env_name = get_random_name()
             config.cloud_operator().create_nodes(self.args.create_command)
         elif self.verb == 'deploy':
-            print("Not implemented")
+            config.cloud_operator().deploy_nodes(self.args.deploy_command)
         elif self.verb == 'destroy':
             config.cloud_operator().destroy_nodes(self.args.destroy_command)
         elif self.verb == 'remove':
