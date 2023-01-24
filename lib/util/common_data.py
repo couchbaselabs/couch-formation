@@ -196,7 +196,7 @@ class ClusterCollect(object):
 
             self.cluster_map = self.env_cfg.get("capella_node_map_cluster")
             for n, item in enumerate(self.cluster_map.get('server_groups')):
-                print(f"  {n})")
+                print(f"  Group {n+1}:")
                 for element in item:
                     print(f"    {element.ljust(16)} = {item[element]}")
 
@@ -236,10 +236,10 @@ class ClusterCollect(object):
                    dc.machine_type,
                    selected_services,
                    node_count,
-                   dc.disk_size,
+                   str(dc.disk_size),
                    dc.disk_type,
-                   dc.disk_iops
-                )
+                   str(dc.disk_iops) if dc.disk_iops else None
+                ).as_dict
             )
 
             print("")

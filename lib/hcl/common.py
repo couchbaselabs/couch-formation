@@ -607,7 +607,7 @@ class CapellaServerGroup(object):
         return cls(
             compute,
             services,
-            int(size),
+            str(size),
             root_volume_size,
             root_volume_type,
             root_volume_iops

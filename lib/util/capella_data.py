@@ -2,16 +2,10 @@
 ##
 
 import logging
-import time
-
-from lib.util.filemgr import FileManager
 from lib.util.inquire import Inquire
-from lib.exceptions import GCPDataError, EmptyResultSet
 import lib.config as config
 from lib.util.envmgr import PathMap, PathType, ConfigFile
-from lib.hcl.gcp_image import GCPImageDataRecord
 from lib.util.cfgmgr import ConfigMgr
-from lib.drivers.gcp import GCPDiskTypes
 from lib.drivers.network import NetworkDriver
 
 
@@ -26,9 +20,7 @@ class DataCollect(object):
         self.project = None
         self.network = None
         self.support_package = None
-        # self.cluster_size = 3
         self.machine_type = None
-        # self.services = []
         self.disk_iops = None
         self.disk_size = None
         self.disk_type = None
@@ -100,11 +92,11 @@ class DataCollect(object):
         if in_progress is not None and (in_progress is False or default is False):
             print("Node settings")
 
-            self.instance_type = self.env_cfg.get("capella_machine_type")
+            self.machine_type = self.env_cfg.get("capella_machine_type")
             self.disk_type = self.env_cfg.get("capella_root_type")
             self.disk_size = self.env_cfg.get("capella_root_size")
             self.disk_iops = self.env_cfg.get("capella_root_iops")
-            print(f"Machine Type = {self.instance_type}")
+            print(f"Machine Type = {self.machine_type}")
             print(f"Disk Type    = {self.disk_type}")
             print(f"Disk Size    = {self.disk_size}")
             print(f"Disk IOPS    = {self.disk_iops}")
@@ -129,7 +121,7 @@ class DataCollect(object):
         if selection['iops']:
             self.disk_iops = Inquire().ask_int("Volume IOPS", selection['iops'], selection['iops'], selection['max'])
 
-        self.env_cfg.update(capella_machine_type=self.instance_type)
+        self.env_cfg.update(capella_machine_type=self.machine_type)
         self.env_cfg.update(capella_root_type=self.disk_type)
         self.env_cfg.update(capella_root_size=self.disk_size)
         self.env_cfg.update(capella_root_iops=self.disk_iops)
