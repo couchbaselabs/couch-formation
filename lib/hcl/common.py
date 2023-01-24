@@ -566,3 +566,53 @@ class DataResource(object):
     @property
     def as_dict(self):
         return self.__dict__
+
+
+@attr.s
+class CapellaServerGroupList(object):
+    server_groups = attr.ib(validator=io(list))
+
+    @classmethod
+    def build(cls):
+        return cls(
+            []
+        )
+
+    def add(self, element: dict):
+        self.server_groups.append(element)
+        return self
+
+    @property
+    def as_dict(self):
+        return self.__dict__
+
+
+@attr.s
+class CapellaServerGroup(object):
+    compute = attr.ib(validator=io(str))
+    services = attr.ib(validator=io(list))
+    size = attr.ib(validator=io(str))
+    root_volume_size = attr.ib(validator=io(str))
+    root_volume_type = attr.ib(validator=io(str))
+    root_volume_iops = attr.ib(validator=attr.validators.optional(io(str)), default=None)
+
+    @classmethod
+    def construct(cls,
+                  compute: str,
+                  services: list,
+                  size: int,
+                  root_volume_size: str,
+                  root_volume_type: str,
+                  root_volume_iops: Union[str, None] = None):
+        return cls(
+            compute,
+            services,
+            int(size),
+            root_volume_size,
+            root_volume_type,
+            root_volume_iops
+        )
+
+    @property
+    def as_dict(self):
+        return self.__dict__

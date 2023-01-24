@@ -264,6 +264,25 @@ class CloudBase(object):
         "southamerica-east1",
         "southamerica-west1"
     ]
+    AWS_DISK_TYPES = [
+        {
+            "type": "GP3",
+            "iops": 3000,
+            "max": 16000
+        },
+        {
+            "type": "IO2",
+            "iops": 3000,
+            "max": 64000
+        }
+    ]
+    GCP_DISK_TYPES = [
+        {
+            "type": "PD-SSD",
+            "iops": None,
+            "max": None
+        }
+    ]
     SERVICES = ["data", "index", "query", "fts", "analytics", "eventing"]
 
     def __init__(self, cloud: str = "aws"):
@@ -356,6 +375,11 @@ class Network(CloudBase):
         except KeyError:
             raise CapellaDriverError("Can not get CIDR from cluster record.")
 
+    @property
+    def cidr_list(self):
+        for item in self.list():
+            yield item['cidr']
+
 
 class Subnet(CloudBase):
 
@@ -383,6 +407,12 @@ class MachineType(CloudBase):
             return CloudBase.AWS_MACHINE_TYPES
         elif self.cloud == "gcp":
             return CloudBase.GCP_MACHINE_TYPES
+
+    def disk_types(self):
+        if self.cloud == "aws":
+            return CloudBase.AWS_DISK_TYPES
+        elif self.cloud == "gcp":
+            return CloudBase.GCP_DISK_TYPES
 
 
 class Instance(CloudBase):

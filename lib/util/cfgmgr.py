@@ -134,6 +134,8 @@ class CBSettings(object):
 @attr.s
 class CapellaSettings(object):
     base_in_progress = attr.ib(validator=attr.validators.optional(io(bool)), default=None)
+    node_in_progress = attr.ib(validator=attr.validators.optional(io(bool)), default=None)
+    map_in_progress_cluster = attr.ib(validator=attr.validators.optional(io(bool)), default=None)
     region = attr.ib(validator=attr.validators.optional(io(str)), default=None)
     project = attr.ib(validator=attr.validators.optional(io(str)), default=None)
     machine_type = attr.ib(validator=attr.validators.optional(io(str)), default=None)

@@ -4,13 +4,13 @@
 import logging
 from itertools import cycle
 from typing import Union
-
 import lib.util.aws_data
+import lib.util.capella_data
 from lib.util.inquire import Inquire
 from lib.util.cfgmgr import ConfigMgr
 import lib.config as config
 from lib.util.envmgr import PathMap, PathType, ConfigFile
-from lib.hcl.common import ClusterMapElement, VariableMap
+from lib.hcl.common import ClusterMapElement, VariableMap, CapellaServerGroup, CapellaServerGroupList
 from lib.drivers.cbrelease import CBRelease
 
 
@@ -183,3 +183,71 @@ class ClusterCollect(object):
         self.env_cfg.update(**{f"cbs_sgw_version": self.sgw_version})
         self.env_cfg.update(**{f"{config.cloud}_sgw_node_list": self.cluster_node_list})
         self.env_cfg.update(**{f"{config.cloud}_sgw_in_progress": False})
+
+    def create_capella(self, dc: Union[lib.util.capella_data.DataCollect]):
+        group = 1
+        services = config.cloud_base().SERVICES
+
+        print("")
+        in_progress = self.env_cfg.get("capella_map_in_progress_cluster")
+        if in_progress is not None and in_progress is False:
+            print("Node configuration is complete")
+            print("")
+
+            self.cluster_map = self.env_cfg.get("capella_node_map_cluster")
+            for n, item in enumerate(self.cluster_map.get('server_groups')):
+                print(f"  {n})")
+                for element in item:
+                    print(f"    {element.ljust(16)} = {item[element]}")
+
+            print("")
+            if not Inquire().ask_bool("Create new node configuration", recommendation='false'):
+                return
+
+        self.env_cfg.update(**{"capella_map_in_progress_cluster": True})
+
+        print(f" ==> Creating Capella server group configuration <==")
+        print("")
+
+        server_groups = CapellaServerGroupList.build()
+
+        while True:
+            selected_services = []
+            dc.get_node_settings()
+
+            print("Configuring group %d" % group)
+
+            node_count = Inquire().ask_int("Node count", 3, 1)
+
+            for node_svc in services:
+                if node_svc == 'data' or node_svc == 'index' or node_svc == 'query':
+                    default_answer = 'y'
+                else:
+                    default_answer = 'n'
+                answer = input(" -> %s (y/n) [%s]: " % (node_svc, default_answer))
+                answer = answer.rstrip("\n")
+                if len(answer) == 0:
+                    answer = default_answer
+                if answer == 'y' or answer == 'yes':
+                    selected_services.append(node_svc)
+
+            server_groups.add(
+                CapellaServerGroup.construct(
+                   dc.machine_type,
+                   selected_services,
+                   node_count,
+                   dc.disk_size,
+                   dc.disk_type,
+                   dc.disk_iops
+                )
+            )
+
+            print("")
+            if not Inquire().ask_yn('  ==> Add another server group'):
+                break
+            print("")
+            group += 1
+
+        self.cluster_map = server_groups.as_dict
+        self.env_cfg.update(**{"capella_node_map_cluster": self.cluster_map})
+        self.env_cfg.update(**{"capella_map_in_progress_cluster": False})
