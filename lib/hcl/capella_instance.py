@@ -269,6 +269,7 @@ class NodeConfiguration(object):
     project_id = attr.ib(validator=io(str))
     servers = attr.ib(validator=io(list))
     support_package = attr.ib(validator=io(list))
+    timeouts = attr.ib(validator=io(list))
 
     @classmethod
     def construct(cls,
@@ -282,7 +283,8 @@ class NodeConfiguration(object):
             place,
             project_id,
             servers,
-            support_package
+            support_package,
+            CapellaResourceTimeout.build().add().as_dict
         )
 
     @property
@@ -309,3 +311,28 @@ class CapellaProject(object):
     @property
     def as_dict(self):
         return self.__dict__
+
+
+@attr.s
+class CapellaResourceTimeout(object):
+    timeouts = attr.ib(validator=io(list))
+
+    @classmethod
+    def build(cls):
+        return cls(
+            []
+        )
+
+    def add(self):
+        self.timeouts.append(
+            {
+                "create": "15m",
+                "delete": "15m",
+                "update": "15m"
+            }
+        )
+        return self
+
+    @property
+    def as_dict(self):
+        return self.__dict__['timeouts']

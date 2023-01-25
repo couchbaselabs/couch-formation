@@ -77,7 +77,7 @@ class DataCollect(object):
             cidr_util.add_network(net)
 
         cidr_util.get_next_network()
-        subnet_list = list(cidr_util.get_next_subnet())
+        subnet_list = list(cidr_util.get_next_subnet(prefix=23))
         self.network = subnet_list[1]
 
         self.support_package = Inquire().ask_list_basic("Support package", config.cloud_base().SUPPORT_PACKAGE)

@@ -14,6 +14,11 @@ resource "couchbasecapella_project" "project" {
 }
 
 resource "couchbasecapella_hosted_cluster" "cluster" {
+  timeouts {
+    create = "1h30m"
+    update = "2h"
+    delete = "20m"
+  }
   name        = var.cluster_name
   project_id  = couchbasecapella_project.project.id
   place {
