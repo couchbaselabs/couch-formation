@@ -344,8 +344,16 @@ class CatalogManager(object):
                         cluster_map = env_cfg.get(f"{cloud}_node_map_{node_type}")
                         if cluster_map:
                             print(f"    - {node_type}")
-                            for node in cluster_map:
-                                print(f"      {node}")
+                            if cloud == "capella":
+                                for group in cluster_map['server_groups']:
+                                    print(f"      Nodes:    {group['size']}")
+                                    print(f"      Compute:  {group['compute']}")
+                                    print(f"      Services: {','.join(group['services'])}")
+                            else:
+                                for node in cluster_map:
+                                    print(f"      Name:     {node} ({cluster_map[node]['instance_type']})")
+                                    if cluster_map[node]['node_services']:
+                                        print(f"      Services: {cluster_map[node]['node_services']}")
 
 
 class LogViewer(object):
