@@ -1,4 +1,4 @@
-# couch-formation
+# Couch Formation 3.0
 Toolset for running and managing Couchbase clusters. Supports AWS, GCP, Azure, and Couchbase Capella.
 
 Runs on any POSIX style client such as macOS and Linux.
@@ -35,7 +35,7 @@ List node information:
 ````
 $ bin/cloudmgr list nodes
 ````
-Remove an environment:
+Uninstall the nodes:
 ````
 $ bin/cloudmgr destroy cluster --name dev03 --cloud capella
 ````

@@ -11,11 +11,10 @@ from lib.args import Parameters
 from lib.util.envmgr import LogViewer
 from lib.util.namegen import get_random_name
 import lib.config as config
-from lib.config import OperatingMode
-from lib.util.envmgr import PathMap, CatalogManager
+from lib.util.envmgr import PathMap, CatalogManager, EnvUtil
 from lib.util.logging import CustomFormatter
 
-VERSION = '3.0.0-a4'
+VERSION = '3.0.0-a5'
 warnings.filterwarnings("ignore")
 logger = logging.getLogger()
 
@@ -57,7 +56,7 @@ class CloudManager(object):
         elif self.verb == 'destroy':
             config.cloud_operator().destroy_nodes(self.args.destroy_command)
         elif self.verb == 'remove':
-            print("Not implemented")
+            EnvUtil().env_remove()
         elif self.verb == 'list':
             if self.args.list_command == "images":
                 config.env_name = config.cloud

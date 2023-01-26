@@ -9,12 +9,23 @@ from shutil import copyfile
 from attr.validators import instance_of as io
 from enum import Enum
 from typing import Union
+import functools
 from lib.util.generator import Generator
 import lib.config as config
 from lib.exceptions import DirectoryStructureError, MissingParameterError, CatalogInvalid
 from lib.util.cfgmgr import ConfigMgr
+from lib.invoke import tf_run, packer_run
+from lib.util.inquire import Inquire
 
 logger = logging.getLogger(__name__)
+
+
+@functools.total_ordering
+class ValueOrderedEnum(Enum):
+    def __lt__(self, other):
+        if self.__class__ is other.__class__:
+            return self.value < other.value
+        return NotImplemented
 
 
 class PathType(Enum):
@@ -26,6 +37,45 @@ class PathType(Enum):
     CONFIG = 5
     GENERIC = 6
     OTHER = 7
+
+
+class PathFile(Enum):
+    IMAGE = "main.pkr.json"
+    NETWORK = "main.tf.json"
+    CLUSTER = "main.tf.json"
+    APP = "main.tf.json"
+    SGW = "main.tf.json"
+    CONFIG = "config.json"
+    GENERIC = "main.tf.json"
+    OTHER = None
+
+
+class PathExec(Enum):
+    IMAGE = 1
+    NETWORK = 0
+    CLUSTER = 0
+    APP = 0
+    SGW = 0
+    CONFIG = 3
+    GENERIC = 0
+    OTHER = 3
+
+
+class ExecType(Enum):
+    TF_EXEC = 0
+    PK_EXEC = 1
+    OTHER = 3
+
+
+class PathOrder(ValueOrderedEnum):
+    IMAGE = 0
+    NETWORK = 5
+    CLUSTER = 4
+    APP = 2
+    SGW = 3
+    CONFIG = 7
+    GENERIC = 1
+    OTHER = 6
 
 
 @attr.s
@@ -88,6 +138,53 @@ class NodeCatalogEntry(object):
     def as_key(self, key):
         response = {key: self.__dict__['entry']}
         return response
+
+
+@attr.s
+class DatastoreTuple(object):
+    cloud = attr.ib(validator=io(str))
+    mode = attr.ib(validator=io(Enum))
+    path = attr.ib(validator=io(str))
+    file = attr.ib(validator=io(str))
+    switch = attr.ib(validator=io(Enum))
+    exec = attr.ib(validator=attr.validators.instance_of((tf_run, packer_run, type(None))))
+
+    @classmethod
+    def build(cls, cloud: str, mode: Enum, path: str, file: str):
+        switch = ExecType(PathExec[mode.name].value)
+        if switch.value == ExecType.TF_EXEC.value:
+            run_exec = tf_run(working_dir=path)
+        elif switch.value == ExecType.PK_EXEC.value:
+            run_exec = packer_run(working_dir=path)
+        else:
+            run_exec = None
+        return cls(
+            cloud,
+            mode,
+            path,
+            file,
+            switch,
+            run_exec
+            )
+
+    @property
+    def as_dict(self):
+        return self.__dict__
+
+    @property
+    def as_tuple(self):
+        return self.mode, self.path, self.file, self.switch, self.exec
+
+    def validate(self):
+        if self.switch.value == ExecType.TF_EXEC.value:
+            if not self.exec.validate():
+                self.exec.init()
+        elif self.switch.value == ExecType.PK_EXEC.value:
+            self.exec.init(self.file)
+
+    def remove(self):
+        if self.switch.value == ExecType.TF_EXEC.value:
+            self.exec.destroy(quiet=True)
 
 
 class PathMap(object):
@@ -319,6 +416,21 @@ class CatalogManager(object):
                         print(f"  => [i] removing orphaned leaf {name}")
                         self.recursive_remove(full_path)
 
+    def get_environment(self, env_name: str):
+        contents = self.read_file()
+        if contents.get('inventory'):
+            for environment in contents.get('inventory'):
+                if env_name == environment:
+                    for cloud in contents.get('inventory').get(environment):
+                        yield cloud, contents['inventory'][environment][cloud]
+
+    def remove_environment(self, env_name: str):
+        contents = self.read_file()
+        if contents.get('inventory'):
+            if contents.get('inventory').get(env_name):
+                del contents['inventory'][env_name]
+        self.write_file(contents)
+
     def catalog_list(self) -> None:
         contents = self.read_file()
         if contents.get('inventory'):
@@ -362,7 +474,6 @@ class LogViewer(object):
 
     def __init__(self, parameters):
         self.logger = logging.getLogger(self.__class__.__name__)
-        print(parameters)
 
         if not config.env_name and not parameters.log_command == "image":
             raise MissingParameterError("environment name not specified, please use the --name parameter to select an environment")
@@ -405,3 +516,38 @@ class LogViewer(object):
         with open(read_file, 'r') as log_file_h:
             for line in (log_file_h.readlines()[-lines:]):
                 print(line, end='')
+
+
+class DBPathMux(object):
+
+    def __init__(self):
+        self.logger = logging.getLogger(self.__class__.__name__)
+
+    def __call__(self, cloud: str, key: str, value: str):
+        for e in PathType:
+            if e.name.lower() == key:
+                return DatastoreTuple.build(cloud, e, value, PathFile[e.name].value)
+
+
+class EnvUtil(object):
+
+    def __init__(self):
+        self.logger = logging.getLogger(self.__class__.__name__)
+        self.cm = CatalogManager(config.catalog_root)
+        self.mux = DBPathMux()
+
+    def env_elements(self):
+        for cloud, contents in self.cm.get_environment(config.env_name):
+            elements = [PathOrder[k.upper()] for k in contents.keys()]
+            elements = sorted(elements, key=lambda x: x.value)
+            for element in elements:
+                key = element.name.lower()
+                yield self.mux(cloud, key, contents[key])
+
+    def env_remove(self):
+        if Inquire().ask_yn(f"Remove entire environment {config.env_name}", default=False):
+            for element in self.env_elements():
+                print(f"Removing {element.cloud} components for {element.mode.name.lower()}")
+                element.validate()
+                element.remove()
+            self.cm.remove_environment(config.env_name)

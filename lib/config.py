@@ -57,6 +57,11 @@ default_debug_file = 'cf_debug.log'
 lib_dir = os.path.dirname(os.path.realpath(__file__))
 package_dir = os.path.dirname(lib_dir)
 
+if 'CLOUD_MANAGER_DATABASE_LOCATION' in os.environ:
+    catalog_root = os.environ['CLOUD_MANAGER_DATABASE_LOCATION']
+else:
+    catalog_root = f"{package_dir}/db"
+
 
 def process_params(parameters: argparse.Namespace) -> None:
     global enable_debug, \

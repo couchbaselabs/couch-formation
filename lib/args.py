@@ -8,7 +8,7 @@ from lib.config import OperatingMode
 
 
 def name_arg(value):
-    p = re.compile(r"^[a-z]([-a-z0-9]*[a-z0-9])?$")
+    p = re.compile(r"^[a-z]([-a-z0-9_]*[a-z0-9])?$")
     if p.match(value):
         return value
     else:

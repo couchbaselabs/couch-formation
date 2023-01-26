@@ -250,7 +250,7 @@ class tf_run(object):
         print("Deploying environment")
         self._command(cmd)
 
-    def destroy(self, refresh=True, ignore_error=False):
+    def destroy(self, refresh=True, ignore_error=False, quiet=False):
         cmd = ['destroy', '-input=false', '-auto-approve']
 
         if not refresh:
@@ -258,7 +258,9 @@ class tf_run(object):
         else:
             ignore_error = True
 
-        print("Removing environment")
+        if not quiet:
+            print("Removing resources")
+
         if not self._command(cmd, ignore_error=ignore_error):
             print("First destroy attempt failed, retrying without refresh ...")
             self.destroy(refresh=False, ignore_error=False)
