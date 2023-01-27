@@ -550,4 +550,5 @@ class EnvUtil(object):
                 print(f"Removing {element.cloud} components for {element.mode.name.lower()}")
                 element.validate()
                 element.remove()
+                self.cm.recursive_remove(element.path)
             self.cm.remove_environment(config.env_name)
