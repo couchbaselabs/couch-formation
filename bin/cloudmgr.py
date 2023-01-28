@@ -14,7 +14,7 @@ import lib.config as config
 from lib.util.envmgr import PathMap, CatalogManager, EnvUtil
 from lib.util.logging import CustomFormatter
 
-VERSION = '3.0.0-a5'
+VERSION = '3.0.0-b1'
 warnings.filterwarnings("ignore")
 logger = logging.getLogger()
 

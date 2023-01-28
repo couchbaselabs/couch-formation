@@ -102,7 +102,7 @@ class DataCollect(object):
             self.subnet_list.append(s)
 
         sec_groups = config.cloud_security_group().list(self.vpc_id)
-        security_group = next((i for i in sec_groups if i['environment_tag'] == config.env_name), None)
+        security_group = next((i for i in sec_groups if i.get('environment_tag') == config.env_name), None)
         if security_group:
             self.security_group_id = security_group['id']
         else:

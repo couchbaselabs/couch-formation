@@ -1,4 +1,7 @@
 # Couch Formation 3.0
+
+![Logo](doc/couch-formation-1.png)
+
 Toolset for running and managing Couchbase clusters. Supports AWS, GCP, Azure, and Couchbase Capella.
 
 Runs on any POSIX style client such as macOS and Linux.
@@ -35,7 +38,7 @@ List node information:
 ````
 $ bin/cloudmgr list nodes
 ````
-Uninstall the nodes:
+Uninstall nodes:
 ````
 $ bin/cloudmgr destroy cluster --name dev03 --cloud capella
 ````
@@ -43,29 +46,51 @@ $ bin/cloudmgr destroy cluster --name dev03 --cloud capella
 ## Cloudmgr Utility
 The cloudmgr utility orchestrates environment builds. It accelerates environment build time by attempting to autoconfigure as much as possible, and using multiple choice prompts when possible for any answers it requires.
 
-| Create/Destroy/List Options | Description                                               |
-|-----------------------------|-----------------------------------------------------------|
-| -h, --help                  | Show help message and exit                                |
-| --debug DEBUG               | Debug level                                               |
-| --dev DEV                   | Development environment number                            |
-| --test TEST                 | Test environment number                                   |
-| --prod PROD                 | Prod environment number                                   |
-| --app APP                   | App environment number                                    |
-| --sgw SGW                   | Sync Gateway environment number                           |
-| --cloud CLOUD               | Cloud type (aws,gcp,azure,vmware)                         |
-| --zone                      | Use One Availability Zone                                 |
-| --static                    | Assign Static IPs (where supported)                       |
-| --dns                       | Update DNS with static IPs (required dynamic DNS service) |
-| --all                       | List all environments                                     |
+General syntax:
+````
+bin/cloudmgr command sub_command [ parameters ]
+````
 
-| Image Options | Description                                               |
+| Parameters | Description                                                                       |
+|------------|-----------------------------------------------------------------------------------|
+| -h, --help | Show help message and exit                                                        |
+| --name     | Environment name (if not provided one will be generated, must conform to RFC1035) |
+| --cloud    | Cloud type (aws,gcp,azure,vmware)                                                 |
+| --zone     | Use One Availability Zone                                                         |                                                     |
+
+| Version Command | Description           |
+|-----------------|-----------------------|
+| version         | Show version and exit |
+
+| Image Command | Description                                               |
 |---------------|-----------------------------------------------------------|
-| --list        | List images                                               |
-| --build       | Build an image                                            |
-| --delete      | Delete an image                                           |
+| image list    | List images                                               |
+| image build   | Build an image                                            |
+| image delete  | Delete an image                                           |
 
-| Net Options | Description                     |
-|-------------|---------------------------------|
-| --list      | List stored network information |
-| --domain    | Add domain                      |
-| --cidr      | Add Subnet                      |
+| Create Command | Description               |
+|----------------|---------------------------|
+| create cluster | Create cluster            |
+| create app     | Create app nodes          |
+| create sgw     | Create Sync Gateway nodes |
+
+| Create Command | Description                         |
+|----------------|-------------------------------------|
+| deploy cluster | Deploy a previously created cluster |
+| deploy app     | Deploy previously created app nodes |
+| deploy sgw     | Deploy previously created sgw nodes |
+
+| Create Command  | Description      |
+|-----------------|------------------|
+| destroy cluster | Remove a cluster |
+| destroy app     | Remove app nodes |
+| destroy sgw     | Remove sgw nodes |
+
+| Version Command | Description                   |
+|-----------------|-------------------------------|
+| remove          | Remove an entire environment  |
+
+| Version Command | Description |
+|-----------------|-------------|
+| list images     | List images |
+| list nodes      | List nodes  |

@@ -523,6 +523,37 @@ class CloudDriver(object):
 
         self.show_nodes(node_type)
 
+    def deploy_nodes(self, node_type: str):
+        if node_type == "app":
+            path_type = PathType.APP
+            path_file = CloudDriver.MAIN_CONFIG
+        elif node_type == "sgw":
+            path_type = PathType.SGW
+            path_file = CloudDriver.MAIN_CONFIG
+        elif node_type == "generic":
+            path_type = PathType.GENERIC
+            path_file = CloudDriver.MAIN_CONFIG
+        else:
+            path_type = PathType.CLUSTER
+            path_file = CloudDriver.MAIN_CONFIG
+
+        self.path_map.map(path_type)
+        cfg_file: ConfigFile
+        cfg_file = self.path_map.use(path_file, path_type)
+
+        try:
+            print("")
+            print(f"Deploying nodes ...")
+            tf = tf_run(working_dir=cfg_file.file_path)
+            tf.init()
+            if not tf.validate():
+                raise AzureDriverError("Environment is not configured properly, please check the log and try again.")
+            tf.apply()
+        except Exception as err:
+            raise AzureDriverError(f"can not deploy nodes: {err}")
+
+        self.show_nodes(node_type)
+
     def show_nodes(self, node_type: str):
         print(f"Cloud: {config.cloud} :: Environment {config.env_name}")
         env_data = self.list_nodes(node_type)
