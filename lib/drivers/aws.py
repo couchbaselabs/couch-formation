@@ -195,6 +195,11 @@ class CloudBase(object):
         for availability_zone in zone_list['AvailabilityZones']:
             self.zone_list.append(availability_zone['ZoneName'])
 
+        self.zone_list = sorted(set(self.zone_list))
+
+        if len(self.zone_list) == 0:
+            raise AWSDriverError("can not get AWS availability zones")
+
         return self.zone_list
 
     def set_zone(self) -> None:

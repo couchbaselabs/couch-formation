@@ -413,7 +413,7 @@ class SecurityGroupEntry(object):
                 f"${{var.{name_var}}}-sg",
                 {
                     "Environment": f"${{var.{name_var}}}",
-                    "Name": f"${{var.{name_var}}}-rt"
+                    "Name": f"${{var.{name_var}}}-sg"
                 },
                 f"${{aws_vpc.{vpc_name}.id}}"
         )

@@ -21,7 +21,7 @@ class Parameters(object):
         parser = argparse.ArgumentParser(add_help=False)
         parent_parser = argparse.ArgumentParser(add_help=False)
         parent_parser.add_argument('--cloud', action='store', help="Cloud type", default='aws')
-        parent_parser.add_argument('--zone', action='store_true', help="Use One Availability Zone", default=False)
+        parent_parser.add_argument('--zone', action='store', help="Use One Availability Zone")
         parent_parser.add_argument('--static', action='store_true', help="Assign Static IPs", default=False)
         parent_parser.add_argument('--dns', action='store_true', help="Update DNS", default=True)
         parent_parser.add_argument('--all', action='store_true', help="All qualifier", default=False)
