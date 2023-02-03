@@ -1,8 +1,9 @@
 # couch-formation
-Toolset for running and managing Couchbase clusters. Supports AWS, GCP, Azure, and VMware vSphere.
+Toolset for running and managing Couchbase clusters. Supports AWS, GCP, Azure, and VMware vSphere. Runs on any POSIX style client such as macOS and Linux.
 
-Runs on any POSIX style client such as macOS and Linux.
-
+## Version 3.0
+> Version 3.0 Beta 1 will be released soon. Feel free to [try it out](https://github.com/couchbaselabs/couch-formation/tree/Version_3.0).<br>
+> ```git clone -b Version_3.0 https://github.com/couchbaselabs/couch-formation```
 ## Disclaimer
 
 > This package is **NOT SUPPORTED BY COUCHBASE**. The toolset is under active development, therefore features and functionality can change.

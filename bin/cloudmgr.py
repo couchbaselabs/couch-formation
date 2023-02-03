@@ -19,7 +19,7 @@ from lib.imagemgr import image_manager
 from lib.runmgr import run_manager
 from lib.netmgr import network_manager
 
-VERSION = '2.0-beta-1'
+VERSION = '2.0'
 logger = logging.getLogger()
 
 
