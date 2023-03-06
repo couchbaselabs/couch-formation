@@ -178,3 +178,13 @@ class FileManager(object):
         FileManager.write_file(pub_file_name, gen_public_key)
 
         return pub_file_name
+
+    def create_dir(self, name) -> None:
+        if not os.path.exists(name):
+            path_dir = os.path.dirname(name)
+            if not os.path.exists(path_dir):
+                self.create_dir(path_dir)
+            try:
+                os.mkdir(name)
+            except OSError as err:
+                raise FileManagerError(f"Could not create directory {name}: {err}")
