@@ -156,6 +156,41 @@ class CapellaSettings(object):
 
 
 @attr.s
+class VMWareSettings(object):
+    hostname = attr.ib(validator=attr.validators.optional(io(str)), default=None)
+    username = attr.ib(validator=attr.validators.optional(io(str)), default=None)
+    password = attr.ib(validator=attr.validators.optional(io(str)), default=None)
+    datacenter = attr.ib(validator=attr.validators.optional(io(str)), default=None)
+    dc_folder = attr.ib(validator=attr.validators.optional(io(str)), default=None)
+    network_folder = attr.ib(validator=attr.validators.optional(io(str)), default=None)
+    cluster = attr.ib(validator=attr.validators.optional(io(str)), default=None)
+    datastore = attr.ib(validator=attr.validators.optional(io(str)), default=None)
+    dvs = attr.ib(validator=attr.validators.optional(io(str)), default=None)
+    template = attr.ib(validator=attr.validators.optional(io(str)), default=None)
+    private_key = attr.ib(validator=attr.validators.optional(io(str)), default=None)
+    network = attr.ib(validator=attr.validators.optional(io(str)), default=None)
+    resource_group = attr.ib(validator=attr.validators.optional(io(str)), default=None)
+    root_size = attr.ib(validator=attr.validators.optional(io(str)), default=None)
+    node_map_cluster = attr.ib(validator=attr.validators.optional(io(dict)), default=None)
+    node_map_app = attr.ib(validator=attr.validators.optional(io(dict)), default=None)
+    node_map_sgw = attr.ib(validator=attr.validators.optional(io(dict)), default=None)
+    node_map_generic = attr.ib(validator=attr.validators.optional(io(dict)), default=None)
+    sgw_node_list = attr.ib(validator=attr.validators.optional(io(list)), default=None)
+    base_in_progress = attr.ib(validator=attr.validators.optional(io(bool)), default=None)
+    image_in_progress = attr.ib(validator=attr.validators.optional(io(bool)), default=None)
+    node_in_progress = attr.ib(validator=attr.validators.optional(io(bool)), default=None)
+    map_in_progress_cluster = attr.ib(validator=attr.validators.optional(io(bool)), default=None)
+    map_in_progress_app = attr.ib(validator=attr.validators.optional(io(bool)), default=None)
+    map_in_progress_sgw = attr.ib(validator=attr.validators.optional(io(bool)), default=None)
+    map_in_progress_generic = attr.ib(validator=attr.validators.optional(io(bool)), default=None)
+    sgw_in_progress = attr.ib(validator=attr.validators.optional(io(bool)), default=None)
+
+    @property
+    def as_dict(self):
+        return self.__dict__
+
+
+@attr.s
 class NetSettings(object):
     use_public_ip = attr.ib(validator=attr.validators.optional(io(bool)), default=None)
 
@@ -180,6 +215,7 @@ class Config(object):
     gcp = attr.ib(validator=attr.validators.optional(io(dict)), default=None, metadata={"_class_name": "GCPSettings"})
     azure = attr.ib(validator=attr.validators.optional(io(dict)), default=None, metadata={"_class_name": "AzureSettings"})
     capella = attr.ib(validator=attr.validators.optional(io(dict)), default=None, metadata={"_class_name": "CapellaSettings"})
+    vmware = attr.ib(validator=attr.validators.optional(io(dict)), default=None, metadata={"_class_name": "VMWareSettings"})
     cbs = attr.ib(validator=attr.validators.optional(io(dict)), default=None, metadata={"_class_name": "CBSettings"})
     net = attr.ib(validator=attr.validators.optional(io(dict)), default=None, metadata={"_class_name": "NetSettings"})
     cfg = attr.ib(validator=attr.validators.optional(io(dict)), default=None, metadata={"_class_name": "GeneralConfig"})
@@ -210,6 +246,7 @@ class ConfigMgr(object):
                     data_read.get('gcp'),
                     data_read.get('azure'),
                     data_read.get('capella'),
+                    data_read.get('vmware'),
                     data_read.get('cbs'),
                     data_read.get('net'),
                     data_read.get('cfg')

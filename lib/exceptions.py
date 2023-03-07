@@ -135,6 +135,10 @@ class AzureDataError(FatalError):
     pass
 
 
+class VMWareDataError(FatalError):
+    pass
+
+
 class CapellaDriverError(FatalError):
     pass
 
