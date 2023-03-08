@@ -455,9 +455,13 @@ class Inquire(object):
         return self.ask_list_dict(question, select_list)
 
     @staticmethod
-    def ask_text(question: str) -> str:
+    def ask_text(question: str, default: str = None) -> str:
+        if default:
+            default_string = f"enter=\"{default}\", "
+        else:
+            default_string = ""
         while True:
-            prompt = f"{question} [q=quit]: "
+            prompt = f"{question} [{default_string}q=quit]: "
             answer = input(prompt)
             answer = answer.rstrip("\n")
             if answer == 'q':
@@ -465,8 +469,11 @@ class Inquire(object):
             if len(answer) > 0:
                 return answer
             else:
-                print("Response can not be empty.")
-                continue
+                if default:
+                    return default
+                else:
+                    print("Response can not be empty.")
+                    continue
 
     @staticmethod
     def ask_int(question: str,

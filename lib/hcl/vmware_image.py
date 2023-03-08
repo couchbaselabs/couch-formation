@@ -321,7 +321,7 @@ class NodeElements(object):
     cdrom_type = attr.ib(validator=io(str))
     cluster = attr.ib(validator=io(str))
     communicator = attr.ib(validator=io(str))
-    convert_to_template = attr.ib(validator=io(str))
+    convert_to_template = attr.ib(validator=io(bool))
     cpu_cores = attr.ib(validator=io(str))
     datacenter = attr.ib(validator=io(str))
     datastore = attr.ib(validator=io(str))

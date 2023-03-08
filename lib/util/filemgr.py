@@ -3,6 +3,7 @@
 
 import logging
 import os
+from shutil import copyfile
 from enum import Enum
 from typing import Union
 from Crypto.PublicKey import RSA
@@ -11,6 +12,7 @@ from cryptography.hazmat.primitives import serialization
 import hashlib
 from cryptography.exceptions import UnsupportedAlgorithm
 from lib.exceptions import EmptyResultSet, FileManagerError
+import lib.config as config
 
 HOME_DIRECTORY = os.path.expanduser('~')
 
@@ -188,3 +190,12 @@ class FileManager(object):
                 os.mkdir(name)
             except OSError as err:
                 raise FileManagerError(f"Could not create directory {name}: {err}")
+
+    def copy_config_file(self, file_name: str, dest_dir: str) -> None:
+        source = config.package_dir + '/config/' + file_name
+        destination = dest_dir + '/' + file_name
+        try:
+            self.logger.debug(f"Copying {source} to {destination}")
+            copyfile(source, destination)
+        except Exception as err:
+            raise FileManagerError(f"can not copy {source} to {destination}: {err}")

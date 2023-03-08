@@ -11,7 +11,7 @@ from lib.args import Parameters
 from lib.util.envmgr import LogViewer
 from lib.util.namegen import get_random_name
 import lib.config as config
-from lib.util.envmgr import PathMap, CatalogManager, EnvUtil
+from lib.util.envmgr import PathMap, CatalogManager, EnvUtil, PathType
 from lib.util.logging import CustomFormatter
 
 VERSION = '3.0.0-b1'
@@ -46,6 +46,7 @@ class CloudManager(object):
         if self.verb == 'image':
             config.env_name = config.cloud
             if self.args.image_command == "build":
+                config.catalog_target = PathType.IMAGE
                 config.cloud_operator().create_image()
         elif self.verb == 'create':
             if not config.env_name:
