@@ -371,7 +371,8 @@ class NodeElements(object):
                   os_iso_checksum: str,
                   build_password: str,
                   vm_disk_size: str,
-                  vm_guest_os_type: str):
+                  vm_guest_os_type: str,
+                  cb_rel_string: str):
         return cls(
             False,
             1,
@@ -424,7 +425,7 @@ class NodeElements(object):
             True,
             f"${{var.{vsphere_username}}}",
             f"${{var.{vsphere_hostname}}}",
-            f"${{var.{os_linux_type}}}-${{var.{os_linux_release}}}-couchbase-${{local.timestamp}}",
+            f"${{var.{os_linux_type}}}-${{var.{os_linux_release}}}-couchbase{cb_rel_string}-${{local.timestamp}}",
             14
         )
 

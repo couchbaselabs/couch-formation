@@ -28,6 +28,11 @@ class ValueOrderedEnum(Enum):
         return NotImplemented
 
 
+class CatalogRoot(Enum):
+    IMAGE = 0
+    INVENTORY = 1
+
+
 class PathType(Enum):
     IMAGE = 0
     NETWORK = 1
@@ -202,7 +207,7 @@ class PathMap(object):
         self._last_mapped = None
 
     def map(self, mode: Enum) -> None:
-        if mode.value == PathType.IMAGE.value:
+        if config.catalog_target == CatalogRoot.IMAGE:
             path_name = Generator.get_host_id()
         else:
             path_name = self.name
@@ -213,7 +218,7 @@ class PathMap(object):
             'path': path_dir,
             'file': None
         }
-        if mode.value == PathType.IMAGE.value:
+        if config.catalog_target == CatalogRoot.IMAGE:
             self.cm.update('images', BaseCatalogEntry.create(mode.name.lower(), path_dir).as_key(self.cloud))
         else:
             self.cm.update('inventory', NodeCatalogEntry.create(self.cloud, mode.name.lower(), path_dir).as_key(self.name))

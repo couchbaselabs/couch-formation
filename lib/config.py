@@ -6,7 +6,7 @@ import warnings
 import argparse
 from enum import Enum
 from lib.drivers.network import NetworkDriver
-from lib.util.envmgr import PathType
+from lib.util.envmgr import CatalogRoot
 
 
 class OperatingMode(Enum):
@@ -43,7 +43,7 @@ cloud_zone = None
 cloud_zone_cycle = None
 test_mode = False
 operating_mode = OperatingMode.CREATE.value
-catalog_target = PathType.CONFIG
+catalog_target = CatalogRoot.INVENTORY
 cidr_util = NetworkDriver()
 cloud_base = None
 cloud_network = None

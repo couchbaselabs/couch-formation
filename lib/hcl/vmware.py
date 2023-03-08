@@ -32,6 +32,7 @@ class CloudDriver(object):
     CONFIG_FILE = "config.json"
     UBUNTU_BOOT_FILE = "user-data-ubuntu.pkrtpl.hcl"
     REDHAT_BOOT_FILE = "ks-cfg.pkrtpl.hcl"
+    METADATA_BOOT_FILE = "meta-data"
 
     def __init__(self):
         self.logger = logging.getLogger(self.__class__.__name__)
@@ -83,6 +84,7 @@ class CloudDriver(object):
         release_list = cb_rel.get_cb_version(os_choice, distro_table.version)
 
         cb_release_choice = self.ask.ask_list_basic("Select CBS release", release_list)
+        cb_rel_string = ''.join(cb_release_choice.replace('-', '.').split('.')[:-2])
 
         var_list = [
             ("os_linux_type", os_choice, "OS Name", "string"),
@@ -121,7 +123,7 @@ class CloudDriver(object):
                 "/meta-data": "${file(\"meta-data\")}",
                 "/user-data": "${templatefile(\"user-data-ubuntu.pkrtpl.hcl\", { build_username = var.os_image_user, build_password_encrypted = var.build_password_encrypted, vm_guest_os_language = var.vm_guest_os_language, vm_guest_os_keyboard = var.vm_guest_os_keyboard, vm_guest_os_timezone = var.os_timezone, build_key = var.ssh_public_key, sw_url = var.os_sw_url })}"
             }
-            boot_file = CloudDriver.UBUNTU_BOOT_FILE
+            boot_files = [CloudDriver.UBUNTU_BOOT_FILE, CloudDriver.METADATA_BOOT_FILE]
         else:
             boot_command = [
                 "\u003cup\u003e\u003cwait\u003e\u003ctab\u003e\u003cwait\u003e ",
@@ -132,7 +134,7 @@ class CloudDriver(object):
             http_content = {
                 "/ks.cfg": "${templatefile(\"ks-cfg.pkrtpl.hcl\", { build_username = var.os_image_user, build_password_encrypted = var.build_password_encrypted, vm_guest_os_language = var.vm_guest_os_language, vm_guest_os_keyboard = var.vm_guest_os_keyboard, vm_guest_os_timezone = var.os_timezone, build_key = var.ssh_public_key, sw_url = var.os_sw_url })}"
             }
-            boot_file = CloudDriver.REDHAT_BOOT_FILE
+            boot_files = [CloudDriver.REDHAT_BOOT_FILE]
 
         packer_block = Packer.construct(
             PackerElement.construct(
@@ -166,7 +168,8 @@ class CloudDriver(object):
                                            "os_iso_checksum",
                                            "build_password",
                                            "vm_disk_size",
-                                           "vm_guest_os_type")
+                                           "vm_guest_os_type",
+                                           cb_rel_string)
                     .as_dict)
                 .as_key("cb-node"))
             .as_key("vsphere-iso"))
@@ -210,18 +213,19 @@ class CloudDriver(object):
         try:
             with open(cfg_file.file_name, 'w') as cfg_file_h:
                 json.dump(packer_config, cfg_file_h, indent=2)
-            FileManager().copy_config_file(boot_file, cfg_file.file_path)
+            for boot_file in boot_files:
+                FileManager().copy_config_file(boot_file, cfg_file.file_path)
         except Exception as err:
             raise VMwareDriverError(f"can not write image configuration: {err}")
 
-        # try:
-        #     print("")
-        #     print(f"Building {os_choice} {distro_table.version} {cb_release_choice} image in {config.cloud}")
-        #     pr = packer_run(working_dir=cfg_file.file_path)
-        #     pr.init(cfg_file.file_name)
-        #     pr.build_gen(cfg_file.file_name)
-        # except Exception as err:
-        #     VMwareDriverError(f"can not build image: {err}")
+        try:
+            print("")
+            print(f"Building {os_choice} {distro_table.version} {cb_release_choice} image in {config.cloud}")
+            pr = packer_run(working_dir=cfg_file.file_path)
+            pr.init(cfg_file.file_name)
+            pr.build_gen(cfg_file.file_name)
+        except Exception as err:
+            VMwareDriverError(f"can not build image: {err}")
 
     def create_nodes(self):
         pass
