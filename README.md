@@ -2,7 +2,7 @@
 
 ![Logo](doc/couch-formation-1.png)
 
-Toolset for running and managing Couchbase clusters. Supports AWS, GCP, Azure, and Couchbase Capella.
+Toolset for running and managing Couchbase clusters. Supports AWS, GCP, Azure, VMware, and Couchbase Capella.
 
 Runs on any POSIX style client such as macOS and Linux.
 
