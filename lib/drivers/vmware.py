@@ -8,13 +8,13 @@ import base64
 import random
 import string
 import secrets
+from typing import Union
 from pyVim.connect import SmartConnect
 from pyVmomi import vim
 from passlib.hash import sha512_crypt
 from lib.exceptions import VMwareDriverError
 from lib.util.filemgr import FileManager
 from lib.util.inquire import Inquire
-import lib.config as config
 
 
 class CloudBase(object):
@@ -22,6 +22,130 @@ class CloudBase(object):
     PUBLIC_CLOUD = False
     SAAS_CLOUD = False
     NETWORK_SUPER_NET = False
+    VMWARE_DISK_SIZE = 100000
+    VMWARE_DISK_TYPE = "pvscsi"
+    VMWARE_MACHINE_TYPES = [
+        {
+            "name": "standard-2-8",
+            "cpu": 2,
+            "memory": 8192
+        },
+        {
+            "name": "standard-4-16",
+            "cpu": 4,
+            "memory": 16384
+        },
+        {
+            "name": "standard-8-32",
+            "cpu": 8,
+            "memory": 32768
+        },
+        {
+            "name": "standard-16-64",
+            "cpu": 16,
+            "memory": 65536
+        },
+        {
+            "name": "standard-32-128",
+            "cpu": 32,
+            "memory": 131072
+        },
+        {
+            "name": "standard-48-192",
+            "cpu": 48,
+            "memory": 196608
+        },
+        {
+            "name": "standard-64-256",
+            "cpu": 64,
+            "memory": 262144
+        },
+        {
+            "name": "standard-80-320",
+            "cpu": 80,
+            "memory": 327680
+        },
+        {
+            "name": "high-mem-2-16",
+            "cpu": 2,
+            "memory": 16384
+        },
+        {
+            "name": "high-mem-4-32",
+            "cpu": 4,
+            "memory": 32768
+        },
+        {
+            "name": "high-mem-8-64",
+            "cpu": 8,
+            "memory": 65536
+        },
+        {
+            "name": "high-mem-16-128",
+            "cpu": 16,
+            "memory": 131072
+        },
+        {
+            "name": "high-mem-32-256",
+            "cpu": 32,
+            "memory": 262144
+        },
+        {
+            "name": "high-mem-48-384",
+            "cpu": 48,
+            "memory": 393216
+        },
+        {
+            "name": "high-mem-64-512",
+            "cpu": 64,
+            "memory": 524288
+        },
+        {
+            "name": "high-mem-80-640",
+            "cpu": 80,
+            "memory": 655360
+        },
+        {
+            "name": "high-cpu-2-2",
+            "cpu": 2,
+            "memory": 2048
+        },
+        {
+            "name": "high-cpu-4-4",
+            "cpu": 4,
+            "memory": 4096
+        },
+        {
+            "name": "high-cpu-8-8",
+            "cpu": 8,
+            "memory": 8192
+        },
+        {
+            "name": "high-cpu-16-16",
+            "cpu": 16,
+            "memory": 16384
+        },
+        {
+            "name": "high-cpu-32-32",
+            "cpu": 32,
+            "memory": 32768
+        },
+        {
+            "name": "high-cpu-48-48",
+            "cpu": 48,
+            "memory": 49152
+        },
+        {
+            "name": "high-cpu-64-64",
+            "cpu": 64,
+            "memory": 65536
+        },
+        {
+            "name": "high-cpu-80-80",
+            "cpu": 80,
+            "memory": 81920
+        }
+    ]
 
     def __init__(self):
         self.logger = logging.getLogger(self.__class__.__name__)
@@ -42,6 +166,8 @@ class CloudBase(object):
         self.vmware_datastore = None
         self.vmware_build_password = None
         self.vmware_build_pwd_encrypted = None
+        self.vmware_templates = []
+        self.vmware_hosts = []
 
         self.read_config()
 
@@ -196,6 +322,27 @@ class CloudBase(object):
         except Exception as err:
             raise VMwareDriverError(f"can not get cluster: {err}")
 
+    def vmware_get_hosts(self, cluster: str) -> list[dict]:
+        try:
+            hosts = []
+            si = SmartConnect(host=self.vmware_hostname,
+                              user=self.vmware_username,
+                              pwd=self.vmware_password,
+                              port=443,
+                              disableSslCertValidation=True)
+            content = si.RetrieveContent()
+            container = content.viewManager.CreateContainerView(content.rootFolder, [vim.ComputeResource], True)
+            for managed_object_ref in container.view:
+                if managed_object_ref.name == cluster:
+                    for host in managed_object_ref.host:
+                        host_struct = {'name': host.name, 'hostname': host.config.network.dnsConfig.hostName}
+                        hosts.append(host_struct)
+            container.Destroy()
+            self.vmware_hosts = hosts
+            return self.vmware_hosts
+        except Exception as err:
+            raise VMwareDriverError(f"can not get hosts: {err}")
+
     def _create_folder(self, folder_name: str):
         for folder in self.vmware_dc_folder.vmFolder.childEntity:
             if folder.name == folder_name:
@@ -264,6 +411,40 @@ class CloudBase(object):
             .hash(build_password)
         return self.vmware_build_pwd_encrypted
 
+    @staticmethod
+    def check_image_name_format(name):
+        try:
+            name_fields = name.split('-')
+            if name_fields[2].startswith("couchbase"):
+                return True
+        except IndexError:
+            pass
+        return False
+
+    def vmware_get_templates(self) -> Union[dict, list[dict]]:
+        templates = []
+        try:
+            si = SmartConnect(host=self.vmware_hostname,
+                              user=self.vmware_username,
+                              pwd=self.vmware_password,
+                              port=443,
+                              disableSslCertValidation=True)
+            content = si.RetrieveContent()
+            container = content.viewManager.CreateContainerView(content.rootFolder, [vim.VirtualMachine], True)
+            for managed_object_ref in container.view:
+                if managed_object_ref.config.template:
+                    image_block = {'name': managed_object_ref.name, 'datetime': managed_object_ref.config.createDate}
+                    if self.check_image_name_format(image_block['name']):
+                        image_block['type'] = image_block.get('name').split('-')[0]
+                        image_block['release'] = image_block.get('name').split('-')[1]
+                        templates.append(image_block)
+            container.Destroy()
+
+            self.vmware_templates = templates
+            return self.vmware_templates
+        except Exception as err:
+            raise VMwareDriverError(f"can not get template: {err}")
+
 
 class Network(CloudBase):
 
@@ -291,6 +472,15 @@ class MachineType(CloudBase):
     def __init__(self):
         super().__init__()
         self.logger = logging.getLogger(self.__class__.__name__)
+
+    @staticmethod
+    def details(machine_type: str) -> Union[dict, None]:
+        for machine in CloudBase.VMWARE_MACHINE_TYPES:
+            if machine['name'] == machine_type:
+                return {'name': machine['name'],
+                        'cpu': machine['cpu'],
+                        'memory': machine['memory'],
+                        'disk': CloudBase.VMWARE_DISK_SIZE}
 
 
 class Instance(CloudBase):

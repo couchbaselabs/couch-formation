@@ -227,8 +227,306 @@ class CloudDriver(object):
         except Exception as err:
             VMwareDriverError(f"can not build image: {err}")
 
-    def create_nodes(self):
-        pass
+    def create_nodes(self, node_type: str):
+        cluster_build = False
+        sync_gateway_build = False
+        locals_block = None
+        null_resource_block = None
+        swap_disk_block = None
+        swap_disk_block_attach = None
+
+        dc = DataCollect()
+        cluster = ClusterCollect()
+
+        dc.get_infrastructure()
+        dc.get_keys()
+        dc.get_domain()
+        dc.get_image()
+        dc.get_cluster_settings()
+        dc.get_node_settings()
+        print(dc.subnet_list)
+        cluster.create_cloud(node_type, dc)
+
+        var_list = [
+            ("vsphere_cluster", dc.vmware_cluster, "Zone name", "string"),
+            ("vsphere_datacenter", dc.vmware_datacenter, "Zone name", "string"),
+            ("vsphere_datastore", dc.vmware_datastore, "Zone name", "string"),
+            ("host_prep_repo", CloudDriver.HOST_PREP_REPO, "Host Prep Utility", "string"),
+            ("vsphere_folder", config.env_name, "Host Prep Utility", "string"),
+            ("vm_cpu_cores", dc.vm_cpu_cores, "Host Prep Utility", "string"),
+            ("vm_mem_size", dc.vm_mem_size, "Image", "string"),
+            ("vsphere_template", dc.vmware_template, "Image Owner", "string"),
+            ("vsphere_network", dc.vmware_network, "Image User", "string"),
+            ("vsphere_password", dc.vmware_password, "OS Revision", "string"),
+            ("domain_name", dc.domain_name, "OS Revision", "string"),
+            ("dns_domain_list", [dc.domain_name], "OS Revision", "list"),
+            ("dns_server_list", dc.dns_server_list, "OS Revision", "list"),
+            ("os_image_user", dc.image_user, "OS Revision", "string"),
+            ("ssh_private_key", dc.private_key, "OS Revision", "string"),
+            ("vsphere_username", dc.vmware_username, "OS Revision", "string"),
+            ("vsphere_hostname", dc.vmware_hostname, "OS Revision", "string"),
+            ("cb_cluster_name", config.env_name, "OS Revision", "string"),
+        ]
+
+        if node_type == "app":
+            path_type = PathType.APP
+            path_file = CloudDriver.MAIN_CONFIG
+        elif node_type == "sgw":
+            path_type = PathType.SGW
+            path_file = CloudDriver.MAIN_CONFIG
+            sync_gateway_build = True
+            cluster_data = self.list_nodes('cluster')
+            cluster.create_sgw(cluster_data)
+            var_list.extend(
+                [
+                    ("cb_node_1", cluster.cluster_node_list[0], "CBS node IP address"),
+                    ("sgw_version", cluster.sgw_version, "SGW software version")
+                ]
+            )
+        elif node_type == "generic":
+            path_type = PathType.GENERIC
+            path_file = CloudDriver.MAIN_CONFIG
+        else:
+            var_list.extend(
+                [
+                    ("index_memory", dc.cb_index_mem_type, "Index memory setting"),
+                    ("cb_cluster_name", f"{config.env_name}-db", "Couchbase cluster name")
+                ]
+            )
+            path_type = PathType.CLUSTER
+            path_file = CloudDriver.MAIN_CONFIG
+            cluster_build = True
+
+        print(f"Configuring {self.path_map.last_mapped} nodes in cluster {dc.vmware_cluster}")
+
+        if cluster_build:
+            locals_block = Locals.construct(LocalVar.build()
+                                            .add("cluster_init_name", "${var.cb_cluster_name}")
+                                            .add("rally_node", "${element([for node in azurerm_linux_virtual_machine.couchbase_nodes: node.private_ip_address], 0)}")
+                                            .add("rally_node_public",
+                                                 "${element([for node in azurerm_linux_virtual_machine.couchbase_nodes: node.public_ip_address], 0)}")
+                                            .as_dict)
+
+            null_resource_block = NullResource.build().add(
+                NullResourceBlock.construct(
+                    NullResourceBody
+                    .build()
+                    .add(Connection.build()
+                         .add(
+                        ConnectionElements.construct(
+                            "var.use_public_ip ? each.value.public_ip_address : each.value.private_ip_address",
+                            "ssh_private_key",
+                            "ssh_user").as_dict)
+                         .as_dict)
+                    .add(DependsOn.build()
+                         .add("azurerm_linux_virtual_machine.couchbase_nodes")
+                         .add("time_sleep.pause").as_dict)
+                    .add(ForEach.construct("${azurerm_linux_virtual_machine.couchbase_nodes}").as_dict)
+                    .add(Provisioner.build()
+                         .add(RemoteExec.build()
+                              .add(InLine.build()
+                                   .add("sudo /usr/local/hostprep/bin/clusterinit.sh -m config -r ${local.rally_node} -n ${local.cluster_init_name}")
+                                   .as_dict)
+                              .as_dict)
+                         .as_dict)
+                    .add(Triggers.build()
+                         .add("cb_nodes", "${join(\",\", keys(azurerm_linux_virtual_machine.couchbase_nodes))}")
+                         .as_dict)
+                    .as_dict
+                )
+                .as_name("couchbase-init")
+            ).add(
+                NullResourceBlock.construct(
+                    NullResourceBody
+                    .build()
+                    .add(Connection.build()
+                         .add(
+                        ConnectionElements.construct(
+                            "var.use_public_ip ? local.rally_node_public : local.rally_node",
+                            "ssh_private_key",
+                            "ssh_user").as_dict)
+                         .as_dict)
+                    .add(DependsOn.build()
+                         .add("null_resource.couchbase-init").as_dict)
+                    .add(Provisioner.build()
+                         .add(RemoteExec.build()
+                              .add(InLine.build()
+                                   .add("sudo /usr/local/hostprep/bin/clusterinit.sh -m rebalance -r ${local.rally_node}")
+                                   .as_dict)
+                              .as_dict)
+                         .as_dict)
+                    .add(Triggers.build()
+                         .add("cb_nodes", "${join(\",\", keys(azurerm_linux_virtual_machine.couchbase_nodes))}")
+                         .as_dict)
+                    .as_dict
+                )
+                .as_name("couchbase-rebalance")
+            )
+
+            inline_build = InLine.build() \
+                .add("sudo /usr/local/hostprep/bin/refresh.sh") \
+                .add("sudo /usr/local/hostprep/bin/configure-swap.sh -o ${each.value.node_swap} -d /dev/xvdb") \
+                .add("sudo /usr/local/hostprep/bin/clusterinit.sh "
+                     "-m write "
+                     "-i ${self.private_ip_address} "
+                     "-e %{if var.use_public_ip}${self.public_ip_address}%{else}none%{endif} "
+                     "-s ${each.value.node_services} "
+                     "-o ${var.index_memory} "
+                     "-g ${each.value.node_zone}") \
+                .as_dict
+        elif sync_gateway_build:
+            inline_build = InLine.build() \
+                .add("sudo /usr/local/hostprep/bin/refresh.sh") \
+                .add("sudo /usr/local/hostprep/bin/hostprep.sh -t sgw -g ${var.sgw_version}") \
+                .add("sudo /usr/local/hostprep/bin/clusterinit.sh -m sgw -r ${var.cb_node_1}") \
+                .as_dict
+        else:
+            inline_build = InLine.build() \
+                .add("sudo /usr/local/hostprep/bin/refresh.sh") \
+                .add("sudo /usr/local/hostprep/bin/hostprep.sh -t sdk") \
+                .as_dict
+
+        output_block = Output.build().add(
+            OutputValue.build()
+            .add("${[for instance in azurerm_linux_virtual_machine.couchbase_nodes: instance.private_ip_address]}")
+            .as_name("node-private")
+        ).add(
+            OutputValue.build()
+            .add("${var.use_public_ip ? [for instance in azurerm_linux_virtual_machine.couchbase_nodes: instance.public_ip_address] : null}")
+            .as_name("node-public")
+        )
+
+        time_sleep_block = TimeSleep.construct("azurerm_linux_virtual_machine", "couchbase_nodes")
+
+        # data_block = DataResource.build().add(
+        #     ImageData.construct("cb_image", "image", "image_resource_group").as_dict
+        # ).add(
+        #     NSGData.construct("cluster_nsg", "azure_nsg", "azure_resource_group").as_dict
+        # ).add(
+        #     SubnetData.construct("cb_subnet", "cluster_spec", "node_subnet", "azure_resource_group", "network").as_dict
+        # )
+
+    def deploy_nodes(self, node_type: str):
+        if node_type == "app":
+            path_type = PathType.APP
+            path_file = CloudDriver.MAIN_CONFIG
+        elif node_type == "sgw":
+            path_type = PathType.SGW
+            path_file = CloudDriver.MAIN_CONFIG
+        elif node_type == "generic":
+            path_type = PathType.GENERIC
+            path_file = CloudDriver.MAIN_CONFIG
+        else:
+            path_type = PathType.CLUSTER
+            path_file = CloudDriver.MAIN_CONFIG
+
+        self.path_map.map(path_type)
+        cfg_file: ConfigFile
+        cfg_file = self.path_map.use(path_file, path_type)
+
+        try:
+            print("")
+            print(f"Deploying nodes ...")
+            tf = tf_run(working_dir=cfg_file.file_path)
+            tf.init()
+            if not tf.validate():
+                raise VMwareDriverError("Environment is not configured properly, please check the log and try again.")
+            tf.apply()
+        except Exception as err:
+            raise VMwareDriverError(f"can not deploy nodes: {err}")
+
+        self.show_nodes(node_type)
+
+    def show_nodes(self, node_type: str):
+        print(f"Cloud: {config.cloud} :: Environment {config.env_name}")
+        env_data = self.list_nodes(node_type)
+        for item in env_data:
+            print(f"  [{item}]")
+            if type(env_data[item]['value']) == list:
+                for n, host in enumerate(env_data[item]['value']):
+                    print(f"    {n + 1:d}) {host}")
+            else:
+                print(f"    {env_data[item]['value']}")
+
+    def list_nodes(self, node_type: str):
+        if node_type == "app":
+            path_type = PathType.APP
+            path_file = CloudDriver.MAIN_CONFIG
+        elif node_type == "sgw":
+            path_type = PathType.SGW
+            path_file = CloudDriver.MAIN_CONFIG
+        elif node_type == "generic":
+            path_type = PathType.GENERIC
+            path_file = CloudDriver.MAIN_CONFIG
+        else:
+            path_type = PathType.CLUSTER
+            path_file = CloudDriver.MAIN_CONFIG
+
+        self.path_map.map(path_type)
+        cfg_file: ConfigFile
+        cfg_file = self.path_map.use(path_file, path_type)
+        try:
+            tf = tf_run(working_dir=cfg_file.file_path)
+            node_data = tf.output(quiet=True)
+            return node_data
+        except Exception as err:
+            raise VMwareDriverError(f"can not list nodes: {err}")
+
+    def destroy_nodes(self, node_type: str):
+        if node_type == "app":
+            path_type = PathType.APP
+            path_file = CloudDriver.MAIN_CONFIG
+        elif node_type == "sgw":
+            path_type = PathType.SGW
+            path_file = CloudDriver.MAIN_CONFIG
+        elif node_type == "generic":
+            path_type = PathType.GENERIC
+            path_file = CloudDriver.MAIN_CONFIG
+        else:
+            path_type = PathType.CLUSTER
+            path_file = CloudDriver.MAIN_CONFIG
+
+        self.path_map.map(path_type)
+        cfg_file: ConfigFile
+        cfg_file = self.path_map.use(path_file, path_type)
+
+        try:
+            if Inquire().ask_yn(f"Remove {self.path_map.last_mapped} nodes for {config.env_name}", default=False):
+                tf = tf_run(working_dir=cfg_file.file_path)
+                if not tf.validate():
+                    tf.init()
+                tf.destroy()
+        except Exception as err:
+            raise VMwareDriverError(f"can not destroy nodes: {err}")
+
+    def clean_nodes(self, node_type: str):
+        if node_type == "app":
+            path_type = PathType.APP
+            path_file = CloudDriver.MAIN_CONFIG
+        elif node_type == "sgw":
+            path_type = PathType.SGW
+            path_file = CloudDriver.MAIN_CONFIG
+        elif node_type == "generic":
+            path_type = PathType.GENERIC
+            path_file = CloudDriver.MAIN_CONFIG
+        else:
+            path_type = PathType.CLUSTER
+            path_file = CloudDriver.MAIN_CONFIG
+
+        self.path_map.map(path_type)
+        cfg_file: ConfigFile
+        cfg_file = self.path_map.use(path_file, path_type)
+
+        try:
+            tf = tf_run(working_dir=cfg_file.file_path)
+            if not tf.validate():
+                tf.init()
+            resources = tf.list()
+            for resource in resources.splitlines():
+                self.logger.info(f"Removing resource {resource}")
+                tf.remove(resource)
+        except Exception as err:
+            raise VMwareDriverError(f"can not clean nodes: {err}")
 
     def create_net(self):
         pass
