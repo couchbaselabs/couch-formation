@@ -60,6 +60,7 @@ class DataCollect(object):
         self.env_cfg = ConfigMgr(cfg_file.file_name)
 
     def get_infrastructure(self):
+        config.static_ip = True
         print("")
         in_progress = self.env_cfg.get("vmware_base_in_progress")
 
@@ -202,12 +203,17 @@ class DataCollect(object):
         self.env_cfg.update(vmware_network_in_progress=True)
 
         self.domain_name = NetworkUtil().get_domain_name()
-        if not self.domain_name:
-            self.domain_name = Inquire().ask_text('DNS Domain')
-            server = Inquire().ask_text('DNS Server')
-            self.dns_server_list = NetworkUtil().get_dns_servers(self.domain_name, server=server)
-        else:
-            self.dns_server_list = NetworkUtil().get_dns_servers(self.domain_name)
+
+        self.domain_name = Inquire().ask_text('DNS Domain', default=self.domain_name)
+
+        self.dns_server_list = NetworkUtil().get_dns_servers(self.domain_name)
+        try:
+            server = self.dns_server_list[0]
+        except (IndexError, TypeError):
+            server = None
+
+        server = Inquire().ask_text('DNS Server', default=server)
+        self.dns_server_list = NetworkUtil().get_dns_servers(self.domain_name, server=server)
 
         self.env_cfg.update(vmware_domain_name=self.domain_name)
         self.env_cfg.update(vmware_dns_server_list=self.dns_server_list)

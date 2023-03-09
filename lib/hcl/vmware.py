@@ -20,6 +20,8 @@ from lib.hcl.common import Variable, Variables, Locals, LocalVar, NodeMain, Null
     RemoteExec, ForEach, Provisioner, Triggers, Output, OutputValue, Build, Entry, ResourceBlock, NodeBuild, TimeSleep, DataResource, ResourceBuild
 from lib.hcl.vmware_image import VMWareImageDataRecord, VMWarePlugin, VMWarePluginSettings, ImageMain, ImageBuild, Packer, PackerElement, RequiredPlugins, NodeElements, NodeType, \
     SourceType, BuildConfig, BuildElements, Shell, ShellElements, Source
+from lib.hcl.vmware_instance import ProviderResource, VSphereProvider, VSphereSettings, VMwareInstance, DatacenterData, DatastoreData, DVSData, NetworkData, ResourcePoolData, \
+    VMData, HostData, VSphereFolder, CloneConfiguration, DiskConfiguration, NetworkConfiguration, NodeConfiguration
 
 
 class CloudDriver(object):
@@ -244,7 +246,6 @@ class CloudDriver(object):
         dc.get_image()
         dc.get_cluster_settings()
         dc.get_node_settings()
-        print(dc.subnet_list)
         cluster.create_cloud(node_type, dc)
 
         var_list = [
@@ -298,6 +299,16 @@ class CloudDriver(object):
             cluster_build = True
 
         print(f"Configuring {self.path_map.last_mapped} nodes in cluster {dc.vmware_cluster}")
+
+        var_block = Variables.build()
+        for item in var_list:
+            var_block.add(Variable.construct(item[0], item[1], item[2]).as_dict)
+
+        provider_block = ProviderResource.construct(
+            VSphereProvider.construct(
+                VSphereSettings.construct("vsphere_hostname", "vsphere_username", "vsphere_password").as_dict).as_dict)
+
+        folder_block = VSphereFolder.construct("folder", "vsphere_folder", "dc")
 
         if cluster_build:
             locals_block = Locals.construct(LocalVar.build()
@@ -398,13 +409,74 @@ class CloudDriver(object):
 
         time_sleep_block = TimeSleep.construct("azurerm_linux_virtual_machine", "couchbase_nodes")
 
-        # data_block = DataResource.build().add(
-        #     ImageData.construct("cb_image", "image", "image_resource_group").as_dict
-        # ).add(
-        #     NSGData.construct("cluster_nsg", "azure_nsg", "azure_resource_group").as_dict
-        # ).add(
-        #     SubnetData.construct("cb_subnet", "cluster_spec", "node_subnet", "azure_resource_group", "network").as_dict
-        # )
+        data_block = DataResource.build().add(
+            DatacenterData.construct("dc", "vsphere_datacenter").as_dict
+        ).add(
+            DatastoreData.construct("datastore", "vsphere_datastore", "dc").as_dict
+        ).add(
+            DVSData.construct("dvs", "vsphere_dvs_switch", "dc").as_dict
+        ).add(
+            NetworkData.construct("network", "vsphere_network", "dc", "dvs").as_dict
+        ).add(
+            ResourcePoolData.construct("pool", "vsphere_cluster", "dc").as_dict
+        ).add(
+            VMData.construct("template", "vsphere_template", "dc").as_dict
+        ).add(
+            HostData.construct("host", "cluster_spec", "node_zone", "dc").as_dict
+        )
+
+        instance_block = VMwareInstance.build().add(
+            NodeBuild.construct(
+                NodeConfiguration.construct(
+                    "dns_server_list",
+                    "dns_domain_list",
+                    "node_gateway",
+                    "domain_name",
+                    "node_ip_address",
+                    "node_netmask",
+                    "vsphere_template",
+                    "vsphere_datastore",
+                    "vsphere_folder",
+                    "cluster_spec",
+                    "vm_mem_size",
+                    "vsphere_network",
+                    "vm_cpu_cores",
+                    Provisioner.build()
+                    .add(RemoteExec.build().add(Connection.build().add(
+                        ConnectionElements.construct(
+                            "each.value.node_ip_address",
+                            "ssh_private_key",
+                            "os_image_user")
+                        .as_dict)
+                        .as_dict)
+                        .add(inline_build)
+                        .as_dict)
+                    .as_contents,
+                    "pool",
+                    "host"
+                ).as_dict
+            ).as_name("couchbase_nodes")
+        )
+
+        resource_block = ResourceBlock.build()
+        resource_block.add(instance_block.as_dict)
+        resource_block.add(folder_block.as_dict)
+        resource_block.add(time_sleep_block.as_dict)
+
+        if cluster_build:
+            resource_block.add(null_resource_block.as_dict)
+
+        main_config = NodeMain.build() \
+            .add(provider_block.as_dict) \
+            .add(data_block.as_dict) \
+            .add(resource_block.as_dict) \
+            .add(output_block.as_dict) \
+            .add(var_block.as_dict)
+
+        if cluster_build:
+            main_config.add(locals_block.as_dict)
+
+        print(json.dumps(main_config.as_dict, indent=2))
 
     def deploy_nodes(self, node_type: str):
         if node_type == "app":

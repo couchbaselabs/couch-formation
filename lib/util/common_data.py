@@ -5,6 +5,9 @@ import logging
 from itertools import cycle
 from typing import Union
 import lib.util.aws_data
+import lib.util.gcp_data
+import lib.util.azure_data
+import lib.util.vmware_data
 import lib.util.capella_data
 from lib.util.inquire import Inquire
 from lib.util.cfgmgr import ConfigMgr
@@ -12,6 +15,7 @@ import lib.config as config
 from lib.util.envmgr import PathMap, PathType, ConfigFile
 from lib.hcl.common import ClusterMapElement, VariableMap, CapellaServerGroup, CapellaServerGroupList
 from lib.drivers.cbrelease import CBRelease
+from lib.util.network import NetworkUtil
 
 
 class ClusterCollect(object):
@@ -30,9 +34,14 @@ class ClusterCollect(object):
         cfg_file = self.path_map.use(config.cloud_operator.CONFIG_FILE, PathType.CONFIG)
         self.env_cfg = ConfigMgr(cfg_file.file_name)
 
-    def create_cloud(self, node_type: str, dc: Union[lib.util.aws_data.DataCollect]):
+    def create_cloud(self, node_type: str,
+                     dc: Union[lib.util.aws_data.DataCollect,
+                               lib.util.gcp_data.DataCollect,
+                               lib.util.azure_data.DataCollect,
+                               lib.util.vmware_data.DataCollect]):
         node_env = config.env_name
         node = 1
+        group = 1
         services = []
 
         if node_type == "app":
@@ -79,29 +88,27 @@ class ClusterCollect(object):
         self.node_swap = Inquire.ask_bool('Configure swap', recommendation='false')
 
         var_map = VariableMap.build()
+        net = NetworkUtil()
 
         while True:
             dc.get_node_settings()
 
             machine_data = config.cloud_machine_type().details(dc.instance_type)
 
-            print(f"Machine CPU    = {machine_data['cpu']}")
-            print(f"Machine Memory = {machine_data['memory']}")
-
             selected_services = []
             node_ram = int(machine_data['memory'] / 1024)
-            node_name = f"{prefix_text}-{node_env}-n{node:02d}"
 
             zone_data = next(self.availability_zone_cycle)
             availability_zone = zone_data['zone']
             node_subnet = zone_data['name']
 
-            if node == 1:
-                install_mode = 'init'
-            else:
-                install_mode = 'add'
+            print("")
+            print(f"Configuring group {group}")
 
-            print("Configuring node %d" % node)
+            node_count = Inquire().ask_int("Node count", min_nodes, min_nodes)
+
+            print("")
+            print("Select services")
 
             for node_svc in services:
                 if node_svc == 'data' or node_svc == 'index' or node_svc == 'query':
@@ -115,32 +122,48 @@ class ClusterCollect(object):
                 if answer == 'y' or answer == 'yes':
                     selected_services.append(node_svc)
 
-            var_map.add(node_name,
-                        ClusterMapElement.construct(
-                            install_mode,
-                            node_env,
-                            node,
-                            ','.join(selected_services),
-                            node_subnet,
-                            availability_zone,
-                            str(node_ram),
-                            self.node_swap,
-                            dc.instance_type,
-                            str(dc.disk_iops),
-                            str(dc.disk_size),
-                            dc.disk_type,
-                            None,
-                            None,
-                            None
-                        ).as_dict
-                        )
+            for n in range(node_count):
+                node_name = f"{prefix_text}-{node_env}-n{node:02d}"
+                node_ip_address = None
+                node_netmask = None
+                node_gateway = None
 
-            if node >= min_nodes:
-                print("")
-                if not Inquire().ask_yn('  ==> Add another node'):
-                    break
-                print("")
-            node += 1
+                if node == 1:
+                    install_mode = 'init'
+                else:
+                    install_mode = 'add'
+
+                if config.static_ip:
+                    print("")
+                    node_ip_address = net.get_static_ip(node_name, dc.domain_name, dc.dns_server_list)
+                    node_netmask = str(net.netmask)
+                    node_gateway = net.gateway
+
+                var_map.add(node_name,
+                            ClusterMapElement.construct(
+                                install_mode,
+                                node_env,
+                                node,
+                                ','.join(selected_services),
+                                node_subnet,
+                                availability_zone,
+                                str(node_ram),
+                                self.node_swap,
+                                dc.instance_type,
+                                str(dc.disk_iops),
+                                str(dc.disk_size),
+                                dc.disk_type,
+                                node_gateway,
+                                node_ip_address,
+                                node_netmask
+                            ).as_dict
+                            )
+                node += 1
+
+            print("")
+            if not Inquire().ask_yn('  ==> Add another server group'):
+                break
+            print("")
 
         self.cluster_map = var_map.as_dict
         self.env_cfg.update(**{f"{config.cloud}_node_map_{node_type}": self.cluster_map})

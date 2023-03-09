@@ -42,12 +42,12 @@ class VSphereSettings(object):
     vsphere = attr.ib(validator=io(dict))
 
     @classmethod
-    def construct(cls, server: str, password: str):
+    def construct(cls, server: str, username: str, password: str):
         return cls(
             {
                 "allow_unverified_ssl": True,
                 "password": f"${{var.{password}}}",
-                "user": "${var.vsphere_user}",
+                "user": f"${{var.{username}}}",
                 "vsphere_server": f"${{var.{server}}}"
             }
         )
@@ -201,9 +201,9 @@ class HostData(object):
     vsphere_host = attr.ib(validator=io(dict))
 
     @classmethod
-    def construct(cls, for_each: str, zone: str, dc_data: str):
+    def construct(cls, name: str, for_each: str, zone: str, dc_data: str):
         return cls(
-            {f"host": [
+            {f"{name}": [
                 {
                     "for_each": f"${{var.{for_each}}}",
                     "name": f"${{each.value.{zone}}}",
@@ -349,7 +349,8 @@ class NodeConfiguration(object):
                   network: str,
                   vm_cpu_cores: str,
                   provisioner: dict,
-                  pool: str):
+                  pool: str,
+                  host: str):
         return cls(
             CloneConfiguration.construct(dns_server_list, dns_domain_list, node_gateway, domain_name, node_ip_address, node_netmask, template).as_dict,
             f"${{data.vsphere_datastore.{datastore}.id}}",
@@ -363,7 +364,7 @@ class NodeConfiguration(object):
             f"${{var.{vm_cpu_cores}}}",
             provisioner,
             f"${{data.vsphere_resource_pool.{pool}.id}}",
-            f"${{data.vsphere_host.host[each.key].id}}",
+            f"${{data.vsphere_host.{host}[each.key].id}}",
             f"${{data.vsphere_virtual_machine.{template}.scsi_type}}",
         )
 

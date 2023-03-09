@@ -540,13 +540,19 @@ class Inquire(object):
                 print(" [!] Unrecognized answer, please try again...")
 
     @staticmethod
-    def ask_ip(question: str) -> str:
+    def ask_ip(question: str, default: str = None) -> str:
+        if default:
+            default_string = f"enter=\"{default}\", "
+        else:
+            default_string = ""
         while True:
-            prompt = f"{question} [q=quit]: "
+            prompt = f"{question} [{default_string}q=quit]: "
             answer = input(prompt)
             answer = answer.rstrip("\n")
             if answer == 'q':
                 sys.exit(0)
+            if len(answer) == 0:
+                answer = default
             try:
                 ip = ipaddress.ip_address(answer)
                 return answer
@@ -554,7 +560,8 @@ class Inquire(object):
                 print(f"{answer} does not appear to be a valid IP address")
                 continue
 
-    def ask_net(self, question):
+    @staticmethod
+    def ask_net(question):
         while True:
             prompt = question + ': '
             answer = input(prompt)
