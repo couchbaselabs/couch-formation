@@ -17,7 +17,7 @@ class params(object):
         parent_parser.add_argument('--cloud', action='store', help="Cloud type", default='aws')
         parent_parser.add_argument('--zone', action='store_true', help="Use One Availability Zone", default=False)
         parent_parser.add_argument('--static', action='store_true', help="Assign Static IPs", default=False)
-        parent_parser.add_argument('--dns', action='store_true', help="Update DNS", default=True)
+        parent_parser.add_argument('--dns', action='store_true', help="Update DNS", default=False)
         parent_parser.add_argument('--all', action='store_true', help="List all environments", default=False)
         parent_parser.add_argument('--standalone', action='store_true', help="Build standalone machine", default=False)
         parent_parser.add_argument('--min', action='store', help="Minimum node count", type=int, default=3)
