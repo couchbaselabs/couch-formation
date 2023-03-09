@@ -509,3 +509,7 @@ class Image(CloudBase):
     def __init__(self):
         super().__init__()
         self.logger = logging.getLogger(self.__class__.__name__)
+
+    @staticmethod
+    def list() -> list[dict]:
+        return CloudBase().vmware_get_templates()

@@ -229,6 +229,10 @@ class CloudDriver(object):
         except Exception as err:
             VMwareDriverError(f"can not build image: {err}")
 
+    def list_images(self):
+        image_list = config.cloud_image().list()
+        self.ask.list_dict(f"Images in cloud {config.cloud}", image_list)
+
     def create_nodes(self, node_type: str):
         cluster_build = False
         sync_gateway_build = False
