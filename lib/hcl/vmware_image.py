@@ -425,7 +425,7 @@ class NodeElements(object):
             True,
             f"${{var.{vsphere_username}}}",
             f"${{var.{vsphere_hostname}}}",
-            f"${{var.{os_linux_type}}}-${{var.{os_linux_release}}}-couchbase{cb_rel_string}-${{local.timestamp}}",
+            f"${{var.{os_linux_type}}}-${{var.{os_linux_release}}}-couchbase-{cb_rel_string}-${{local.timestamp}}",
             14
         )
 

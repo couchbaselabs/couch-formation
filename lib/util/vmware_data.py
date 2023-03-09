@@ -76,6 +76,7 @@ class DataCollect(object):
             self.vmware_cluster_folder = self.env_cfg.get("vmware_cluster_folder")
             self.vmware_datastore = self.env_cfg.get("vmware_datastore")
             self.vmware_network = self.env_cfg.get("vmware_network")
+            self.vmware_dvs = self.env_cfg.get("vmware_dvs")
             self.subnet_list = self.env_cfg.get("vmware_subnet_list")
             print(f"Hostname        = {self.vmware_hostname}")
             print(f"Username        = {self.vmware_username}")
@@ -86,6 +87,7 @@ class DataCollect(object):
             print(f"Cluster Folder  = {self.vmware_cluster_folder}")
             print(f"Datastore       = {self.vmware_datastore}")
             print(f"Network         = {self.vmware_network}")
+            print(f"Switch          = {self.vmware_dvs}")
             subnet_display = ','.join(list(f"{i['zone']}" for i in self.subnet_list))
             print(f"Zones           = {subnet_display}")
 
@@ -103,7 +105,8 @@ class DataCollect(object):
         self.vmware_template_folder = config.cloud_base().vmware_get_template_folder()
         self.vmware_cluster_folder = config.cloud_base().vmware_get_cluster_folder()
         self.vmware_datastore = config.cloud_base().vmware_get_datastore()
-        self.vmware_network = config.cloud_base().vmware_get_dvs_network()
+        self.vmware_dvs = config.cloud_base().vmware_get_dvs_switch()
+        self.vmware_network = config.cloud_base().vmware_get_dvs_network(self.vmware_dvs)
         self.vmware_hosts = config.cloud_base().vmware_get_hosts(self.vmware_cluster)
         self.subnet_list.clear()
         for host in self.vmware_hosts:
@@ -119,6 +122,7 @@ class DataCollect(object):
         self.env_cfg.update(vmware_template_folder=self.vmware_template_folder)
         self.env_cfg.update(vmware_cluster_folder=self.vmware_cluster_folder)
         self.env_cfg.update(vmware_datastore=self.vmware_datastore)
+        self.env_cfg.update(vmware_dvs=self.vmware_dvs)
         self.env_cfg.update(vmware_network=self.vmware_network)
         self.env_cfg.update(vmware_subnet_list=self.subnet_list)
         self.env_cfg.update(vmware_base_in_progress=False)

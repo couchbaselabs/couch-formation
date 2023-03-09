@@ -258,6 +258,7 @@ class CloudDriver(object):
             ("vm_mem_size", dc.vm_mem_size, "Image", "string"),
             ("vsphere_template", dc.vmware_template, "Image Owner", "string"),
             ("vsphere_network", dc.vmware_network, "Image User", "string"),
+            ("vsphere_dvs_switch", dc.vmware_dvs, "Image User", "string"),
             ("vsphere_password", dc.vmware_password, "OS Revision", "string"),
             ("domain_name", dc.domain_name, "OS Revision", "string"),
             ("dns_domain_list", [dc.domain_name], "OS Revision", "list"),
@@ -266,7 +267,7 @@ class CloudDriver(object):
             ("ssh_private_key", dc.private_key, "OS Revision", "string"),
             ("vsphere_username", dc.vmware_username, "OS Revision", "string"),
             ("vsphere_hostname", dc.vmware_hostname, "OS Revision", "string"),
-            ("cb_cluster_name", config.env_name, "OS Revision", "string"),
+            ("cluster_spec", cluster.cluster_map, "Node map"),
         ]
 
         if node_type == "app":
@@ -312,10 +313,8 @@ class CloudDriver(object):
 
         if cluster_build:
             locals_block = Locals.construct(LocalVar.build()
-                                            .add("cluster_init_name", "${var.cb_cluster_name}")
-                                            .add("rally_node", "${element([for node in azurerm_linux_virtual_machine.couchbase_nodes: node.private_ip_address], 0)}")
-                                            .add("rally_node_public",
-                                                 "${element([for node in azurerm_linux_virtual_machine.couchbase_nodes: node.public_ip_address], 0)}")
+                                            .add("cluster_init_name", "${var.cb_cluster_name != null ? var.cb_cluster_name : \"cbdb\"}")
+                                            .add("rally_node", "${element([for node in vsphere_virtual_machine.couchbase_nodes: node.default_ip_address], 0)}")
                                             .as_dict)
 
             null_resource_block = NullResource.build().add(
@@ -325,14 +324,14 @@ class CloudDriver(object):
                     .add(Connection.build()
                          .add(
                         ConnectionElements.construct(
-                            "var.use_public_ip ? each.value.public_ip_address : each.value.private_ip_address",
+                            "each.value.default_ip_address",
                             "ssh_private_key",
-                            "ssh_user").as_dict)
+                            "os_image_user").as_dict)
                          .as_dict)
                     .add(DependsOn.build()
-                         .add("azurerm_linux_virtual_machine.couchbase_nodes")
+                         .add("vsphere_virtual_machine.couchbase_nodes")
                          .add("time_sleep.pause").as_dict)
-                    .add(ForEach.construct("${azurerm_linux_virtual_machine.couchbase_nodes}").as_dict)
+                    .add(ForEach.construct("${vsphere_virtual_machine.couchbase_nodes}").as_dict)
                     .add(Provisioner.build()
                          .add(RemoteExec.build()
                               .add(InLine.build()
@@ -341,7 +340,7 @@ class CloudDriver(object):
                               .as_dict)
                          .as_dict)
                     .add(Triggers.build()
-                         .add("cb_nodes", "${join(\",\", keys(azurerm_linux_virtual_machine.couchbase_nodes))}")
+                         .add("cb_nodes", "${join(\",\", keys(vsphere_virtual_machine.couchbase_nodes))}")
                          .as_dict)
                     .as_dict
                 )
@@ -353,9 +352,9 @@ class CloudDriver(object):
                     .add(Connection.build()
                          .add(
                         ConnectionElements.construct(
-                            "var.use_public_ip ? local.rally_node_public : local.rally_node",
+                            "local.rally_node",
                             "ssh_private_key",
-                            "ssh_user").as_dict)
+                            "os_image_user").as_dict)
                          .as_dict)
                     .add(DependsOn.build()
                          .add("null_resource.couchbase-init").as_dict)
@@ -367,7 +366,7 @@ class CloudDriver(object):
                               .as_dict)
                          .as_dict)
                     .add(Triggers.build()
-                         .add("cb_nodes", "${join(\",\", keys(azurerm_linux_virtual_machine.couchbase_nodes))}")
+                         .add("cb_nodes", "${join(\",\", keys(vsphere_virtual_machine.couchbase_nodes))}")
                          .as_dict)
                     .as_dict
                 )
@@ -379,8 +378,7 @@ class CloudDriver(object):
                 .add("sudo /usr/local/hostprep/bin/configure-swap.sh -o ${each.value.node_swap} -d /dev/xvdb") \
                 .add("sudo /usr/local/hostprep/bin/clusterinit.sh "
                      "-m write "
-                     "-i ${self.private_ip_address} "
-                     "-e %{if var.use_public_ip}${self.public_ip_address}%{else}none%{endif} "
+                     "-i ${each.value.node_ip_address} "
                      "-s ${each.value.node_services} "
                      "-o ${var.index_memory} "
                      "-g ${each.value.node_zone}") \
@@ -399,15 +397,15 @@ class CloudDriver(object):
 
         output_block = Output.build().add(
             OutputValue.build()
-            .add("${[for instance in azurerm_linux_virtual_machine.couchbase_nodes: instance.private_ip_address]}")
-            .as_name("node-private")
+            .add("${[for instance in vsphere_virtual_machine.couchbase_nodes: instance.name]}")
+            .as_name("node-hostname")
         ).add(
             OutputValue.build()
-            .add("${var.use_public_ip ? [for instance in azurerm_linux_virtual_machine.couchbase_nodes: instance.public_ip_address] : null}")
-            .as_name("node-public")
+            .add("${[for instance in vsphere_virtual_machine.couchbase_nodes: instance.default_ip_address]}")
+            .as_name("node-private")
         )
 
-        time_sleep_block = TimeSleep.construct("azurerm_linux_virtual_machine", "couchbase_nodes")
+        time_sleep_block = TimeSleep.construct("vsphere_virtual_machine", "couchbase_nodes")
 
         data_block = DataResource.build().add(
             DatacenterData.construct("dc", "vsphere_datacenter").as_dict
@@ -434,12 +432,12 @@ class CloudDriver(object):
                     "domain_name",
                     "node_ip_address",
                     "node_netmask",
-                    "vsphere_template",
-                    "vsphere_datastore",
-                    "vsphere_folder",
+                    "template",
+                    "datastore",
+                    "folder",
                     "cluster_spec",
                     "vm_mem_size",
-                    "vsphere_network",
+                    "network",
                     "vm_cpu_cores",
                     Provisioner.build()
                     .add(RemoteExec.build().add(Connection.build().add(
@@ -476,7 +474,32 @@ class CloudDriver(object):
         if cluster_build:
             main_config.add(locals_block.as_dict)
 
-        print(json.dumps(main_config.as_dict, indent=2))
+        self.path_map.map(path_type)
+        cfg_file: ConfigFile
+        cfg_file = self.path_map.use(path_file, path_type)
+        try:
+            with open(cfg_file.file_name, 'w') as cfg_file_h:
+                json.dump(main_config.as_dict, cfg_file_h, indent=2)
+        except Exception as err:
+            raise VMwareDriverError(f"can not write to main config file {cfg_file.file_name}: {err}")
+
+        print("")
+        if not Inquire().ask_yn(f"Proceed with deployment for {self.path_map.last_mapped} nodes for {config.env_name}", default=True):
+            return
+        print("")
+
+        try:
+            print("")
+            print(f"Deploying nodes ...")
+            tf = tf_run(working_dir=cfg_file.file_path)
+            tf.init()
+            if not tf.validate():
+                raise VMwareDriverError("Environment is not configured properly, please check the log and try again.")
+            tf.apply()
+        except Exception as err:
+            raise VMwareDriverError(f"can not deploy nodes: {err}")
+
+        self.show_nodes(node_type)
 
     def deploy_nodes(self, node_type: str):
         if node_type == "app":

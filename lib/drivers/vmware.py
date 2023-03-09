@@ -15,6 +15,8 @@ from passlib.hash import sha512_crypt
 from lib.exceptions import VMwareDriverError
 from lib.util.filemgr import FileManager
 from lib.util.inquire import Inquire
+import lib.config as config
+from lib.util.envmgr import CatalogRoot
 
 
 class CloudBase(object):
@@ -267,7 +269,7 @@ class CloudBase(object):
         except Exception as err:
             raise VMwareDriverError(f"can not access vSphere: {err}")
 
-    def vmware_get_dvs_network(self) -> str:
+    def vmware_get_dvs_network(self, dvs_name: str) -> str:
         pg_list = []
 
         try:
@@ -279,7 +281,8 @@ class CloudBase(object):
             content = si.RetrieveContent()
             container = content.viewManager.CreateContainerView(self.vmware_network_folder, [vim.dvs.DistributedVirtualPortgroup], True)
             for managed_object_ref in container.view:
-                pg_list.append(managed_object_ref.name)
+                if managed_object_ref.config.distributedVirtualSwitch.config.name == dvs_name:
+                    pg_list.append(managed_object_ref.name)
             container.Destroy()
             pg_list = sorted(set(pg_list))
             selection = Inquire().ask_list_basic('Select port group', pg_list)
@@ -357,7 +360,11 @@ class CloudBase(object):
             raise VMwareDriverError(f"can not create folder {folder_name}: {err}")
 
     def vmware_get_cluster_folder(self) -> str:
-        selection = Inquire().ask_text('Cluster Folder', default="couchbase")
+        if config.catalog_target == CatalogRoot.IMAGE:
+            default = "couchbase"
+        else:
+            default = config.env_name
+        selection = Inquire().ask_text('Cluster Folder', default=default)
         self.vmware_cluster_folder = selection
 
         if self.vmware_create_folder:
