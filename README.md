@@ -1,10 +1,14 @@
-# Couch Formation 3.0
+# Couch Formation 3.0 RC1
 
 ![Logo](doc/couch-formation-1.png)
 
 Toolset for running and managing Couchbase clusters. Supports AWS, GCP, Azure, VMware, and Couchbase Capella.
 
 Runs on any POSIX style client such as macOS and Linux.
+
+## Version 2.0
+> If you need to use the prior version, [access it here](https://github.com/couchbaselabs/couch-formation/tree/Version_2.0).<br>
+> ```git clone -b Version_2.0 https://github.com/couchbaselabs/couch-formation```
 
 ## Disclaimer
 
@@ -17,6 +21,7 @@ Runs on any POSIX style client such as macOS and Linux.
   - [Google Cloud CLI](https://cloud.google.com/sdk/docs/quickstart)
   - [Azure CLI](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli)
 - Homebrew (for macOS)
+- vCenter managed cluster with Distributed Virtual Switches for VMware
 
 ## Quick Start
 Setup Python environment:
