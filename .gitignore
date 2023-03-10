@@ -7,6 +7,7 @@ workload*.dat
 data-load.dat
 *.debug
 test.py
+.pytest_cache/
 
 # ignore standard Eclipse files
 .project
@@ -50,6 +51,12 @@ dev-*/
 test-*/
 prod-*/
 setup.log
-db/*.json
+db/net/
+db/img/
+db/env/
+db/*-*-*-*/
 deploy.log
 build.log
+catalog.backup
+catalog.json
+cf_debug.log

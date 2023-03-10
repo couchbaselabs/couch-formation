@@ -1,0 +1,70 @@
+{
+  "build": {
+    "centos": [
+      {
+        "version": "7",
+        "type": "Linux",
+        "publisher": "OpenLogic",
+        "offer": "CentOS",
+        "sku": "7_9",
+        "user": "centos",
+        "vars": "centos-7.pkrvars.hcl",
+        "hcl": "linux.pkr.hcl"
+      },
+      {
+        "version": "8",
+        "type": "Linux",
+        "publisher": "OpenLogic",
+        "offer": "CentOS",
+        "sku": "8_5",
+        "user": "centos",
+        "vars": "centos-8.pkrvars.hcl",
+        "hcl": "linux.pkr.hcl"
+      }
+    ],
+    "rhel": [
+      {
+        "version": "7",
+        "type": "Linux",
+        "publisher": "RedHat",
+        "offer": "RHEL",
+        "sku": "7_9",
+        "user": "rhel",
+        "vars": "rhel-7.pkrvars.hcl",
+        "hcl": "linux.pkr.hcl"
+      },
+      {
+        "version": "8",
+        "type": "Linux",
+        "publisher": "RedHat",
+        "offer": "RHEL",
+        "sku": "8_6",
+        "user": "rhel",
+        "vars": "rhel-8.pkrvars.hcl",
+        "hcl": "linux.pkr.hcl"
+      }
+    ],
+    "ubuntu": [
+      {
+        "version": "bionic",
+        "type": "Linux",
+        "publisher": "Canonical",
+        "offer": "UbuntuServer",
+        "sku": "18.04-LTS",
+        "user": "ubuntu",
+        "vars": "ubuntu-bionic.pkrvars.hcl",
+        "hcl": "linux.pkr.hcl"
+      },
+      {
+        "version": "focal",
+        "type": "Linux",
+        "publisher": "Canonical",
+        "offer": "0001-com-ubuntu-server-focal",
+        "sku": "20_04-lts",
+        "user": "ubuntu",
+        "vars": "ubuntu-focal.pkrvars.hcl",
+        "hcl": "linux.pkr.hcl"
+      }
+    ]
+  }
+}

@@ -1,9 +1,9 @@
 #!/bin/bash
 #
 SCRIPTDIR=$(cd $(dirname $0) && pwd)
-YUM_PKGS="packer terraform"
-APT_PKGS="python3.9-venv packer terraform"
-MAC_PKGS="python@3.9 terraform packer"
+YUM_PKGS="python39 openssl-devel packer terraform"
+APT_PKGS="python3.9 python3.9-venv packer terraform"
+MAC_PKGS="python@3.9 openssl@1.1 terraform packer"
 MAJOR_REV=3
 MINOR_REV=9
 VENV_NAME=venv

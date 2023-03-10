@@ -4,19 +4,23 @@
 import sys
 import os
 import inspect
+import logging
 
 
-class fatalError(Exception):
+class FatalError(Exception):
 
     def __init__(self, message):
+        import traceback
+        logging.debug(traceback.print_exc())
         frame = inspect.currentframe().f_back
         (filename, line, function, lines, index) = inspect.getframeinfo(frame)
         filename = os.path.basename(filename)
-        print("Error: {} in {} {} at line {}: {}".format(type(self).__name__, filename, function, line, message))
+        logging.debug("Error: {} in {} {} at line {}: {}".format(type(self).__name__, filename, function, line, message))
+        logging.error(f"{message} [{filename}:{line}]")
         sys.exit(1)
 
 
-class nonFatalError(Exception):
+class NonFatalError(Exception):
 
     def __init__(self, message):
         frame = inspect.currentframe().f_back
@@ -27,78 +31,145 @@ class nonFatalError(Exception):
         super().__init__(self.message)
 
 
-class DirectoryStructureError(fatalError):
+class DirectoryStructureError(FatalError):
     pass
 
 
-class VarFileError(fatalError):
+class VarFileError(FatalError):
     pass
 
 
-class PackerRunError(fatalError):
+class PackerRunError(FatalError):
     pass
 
 
-class TerraformRunError(fatalError):
+class TerraformRunError(FatalError):
     pass
 
 
-class ImageMgmtError(fatalError):
+class ImageMgmtError(FatalError):
     pass
 
 
-class RunMgmtError(fatalError):
+class RunMgmtError(FatalError):
     pass
 
 
-class SSHError(fatalError):
+class SSHError(FatalError):
     pass
 
 
-class ImageNameFormatError(fatalError):
+class ImageNameFormatError(FatalError):
     pass
 
 
-class AWSDriverError(fatalError):
+class AWSDriverError(FatalError):
     pass
 
 
-class GCPDriverError(fatalError):
+class GCPDriverError(FatalError):
     pass
 
 
-class AzureDriverError(fatalError):
+class AzureDriverError(FatalError):
     pass
 
 
-class VMwareDriverError(fatalError):
+class VMwareDriverError(FatalError):
     pass
 
 
-class ToolboxError(fatalError):
+class ToolboxError(FatalError):
     pass
 
 
-class TemplateError(fatalError):
+class TemplateError(FatalError):
     pass
 
 
-class EnvMgrError(fatalError):
+class EnvMgrError(FatalError):
     pass
 
 
-class ClusterMgrError(fatalError):
+class ClusterMgrError(FatalError):
     pass
 
 
-class NetworkMgrError(fatalError):
+class NetworkMgrError(FatalError):
     pass
 
 
-class TFGenError(fatalError):
+class TFGenError(FatalError):
     pass
 
 
-class CBReleaseManagerError(fatalError):
+class CBReleaseManagerError(FatalError):
     pass
 
+
+class EmptyResultSet(NonFatalError):
+    pass
+
+
+class MissingParameterError(FatalError):
+    pass
+
+
+class FileManagerError(FatalError):
+    pass
+
+
+class ConfigManagerError(FatalError):
+    pass
+
+
+class AWSDataError(FatalError):
+    pass
+
+
+class GCPDataError(FatalError):
+    pass
+
+
+class AzureDataError(FatalError):
+    pass
+
+
+class VMWareDataError(FatalError):
+    pass
+
+
+class CapellaDriverError(FatalError):
+    pass
+
+
+class CatalogInvalid(FatalError):
+    pass
+
+
+class CapellaMissingSecretKey(FatalError):
+    pass
+
+
+class CapellaMissingAuthKey(FatalError):
+    pass
+
+
+class CapellaNotAuthorized(FatalError):
+    pass
+
+
+class CapellaForbidden(FatalError):
+    pass
+
+
+class CapellaNotImplemented(FatalError):
+    pass
+
+
+class CapellaRequestValidationError(FatalError):
+    pass
+
+
+class CapellaInternalServerError(FatalError):
+    pass

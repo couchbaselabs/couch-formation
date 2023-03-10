@@ -1,0 +1,46 @@
+{
+  "build": {
+    "centos": [
+      {
+        "version": "7",
+        "image": "CentOS 7.9.2009 x86_64",
+        "owner": "125523088429",
+        "user": "centos"
+      },
+      {
+        "version": "8",
+        "image": "CentOS Stream 8 x86_64",
+        "owner": "125523088429",
+        "user": "centos"
+      }
+    ],
+    "rhel": [
+      {
+        "version": "8",
+        "image": "RHEL-8.6.0_HVM-20220503-x86_64-2-Hourly2-GP2",
+        "owner": "309956199498",
+        "user": "ec2-user"
+      }
+    ],
+    "ubuntu": [
+      {
+        "version": "bionic",
+        "image": "ubuntu/images/hvm-ssd/ubuntu-bionic-18.04-amd64-server-20211129",
+        "owner": "099720109477",
+        "user": "ubuntu"
+      },
+      {
+        "version": "focal",
+        "image": "ubuntu/images/hvm-ssd/ubuntu-focal-20.04-amd64-server-20211129",
+        "owner": "099720109477",
+        "user": "ubuntu"
+      }
+    ]
+  },
+  "defaults": {
+    "instance_type": "m5.xlarge",
+    "root_iops": "0",
+    "root_size": "256",
+    "root_type": "gp3"
+  }
+}

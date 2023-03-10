@@ -6,32 +6,43 @@ import subprocess
 import time
 import re
 import json
-import logging
-from logging.handlers import RotatingFileHandler
+import datetime
 from datetime import datetime
 from typing import Union
 from lib.exceptions import *
 from lib.output import spinner
 
 
+class LogFile(object):
+    def __init__(self, name: str, working_dir: str = None):
+        self.log_file = working_dir + '/deploy.log' if working_dir else 'deploy.log'
+        self.name = name
+
+    def write(self, message: str):
+        with open(self.log_file, 'a') as log:
+            timestamp = datetime.utcnow().strftime("%b %d %H:%M:%S")
+            line = f"{timestamp} {self.name}: {message}"
+            log.write(line)
+            if "\n" not in message:
+                log.write('\n')
+            log.flush()
+
+
 class packer_run(object):
 
     def __init__(self, working_dir=None):
-        self.log_file = working_dir + '/build.log' if working_dir else 'build.log'
-        self.logger = logging.getLogger(self.__class__.__name__)
-        self.logger.setLevel(logging.INFO)
-        handler = RotatingFileHandler(self.log_file, maxBytes=1048576, backupCount=5)
-        self.logger.addHandler(handler)
+        self.logger = LogFile(self.__class__.__name__, working_dir)
         self.working_dir = working_dir
         self.check_binary()
 
-    def check_binary(self) -> bool:
+    @staticmethod
+    def check_binary() -> bool:
         if not distutils.spawn.find_executable("packer"):
             raise PackerRunError("can not find packer executable")
-
         return True
 
-    def fix_text(self, data: str) -> str:
+    @staticmethod
+    def fix_text(data: str) -> str:
         data = data.replace('%!(PACKER_COMMA)', ',')
         data = data.replace('\t', ' ')
         data = data.replace('\\n', '')
@@ -44,7 +55,7 @@ class packer_run(object):
             line_string = line_string.rstrip()
         else:
             line_string = line
-        self.logger.info(line_string)
+        self.logger.write(line_string)
 
     def parse_output(self, line: bytes) -> dict:
         message: dict = {
@@ -102,12 +113,9 @@ class packer_run(object):
             raise PackerRunError(f"image build error (see build.log file for details): {error_string}")
 
     def init(self, packer_file: str):
-        cmd = []
+        cmd = ['init', packer_file]
 
-        cmd.append('init')
-        cmd.append(packer_file)
-
-        print("Beginning packer init")
+        print("Initializing image build environment")
         start_time = time.perf_counter()
         self._packer(*cmd, no_output=True)
         end_time = time.perf_counter()
@@ -115,14 +123,19 @@ class packer_run(object):
         print(f"Init complete in {run_time}.")
 
     def build(self, var_file: str, packer_file: str):
-        cmd = []
-
-        cmd.append('build')
-        cmd.append('-var-file')
-        cmd.append(var_file)
-        cmd.append(packer_file)
+        cmd = ['build', '-var-file', var_file, packer_file]
 
         print("Beginning packer build (this can take several minutes)")
+        start_time = time.perf_counter()
+        self._packer(*cmd)
+        end_time = time.perf_counter()
+        run_time = time.strftime("%H hours %M minutes %S seconds.", time.gmtime(end_time - start_time))
+        print(f"Image creation complete in {run_time}.")
+
+    def build_gen(self, packer_file: str):
+        cmd = ['build', packer_file]
+
+        print("Beginning image build (this may take several minutes)")
         start_time = time.perf_counter()
         self._packer(*cmd)
         end_time = time.perf_counter()
@@ -133,11 +146,7 @@ class packer_run(object):
 class tf_run(object):
 
     def __init__(self, working_dir=None):
-        self.log_file = working_dir + '/deploy.log' if working_dir else 'deploy.log'
-        self.logger = logging.getLogger(self.__class__.__name__)
-        self.logger.setLevel(logging.INFO)
-        handler = RotatingFileHandler(self.log_file, maxBytes=1048576, backupCount=5)
-        self.logger.addHandler(handler)
+        self.logger = LogFile(self.__class__.__name__, working_dir)
         self.working_dir = working_dir
         self.deployment_data = None
         self.check_binary()
@@ -154,7 +163,8 @@ class tf_run(object):
 
         return True
 
-    def parse_output(self, line: str) -> Union[dict, None]:
+    @staticmethod
+    def parse_output(line: str) -> Union[dict, None]:
         line_string = line.rstrip()
         try:
             message = json.loads(line_string)
@@ -163,12 +173,17 @@ class tf_run(object):
 
         return message
 
-    def _terraform(self, *args: str, json_output=False, ignore_error=False):
+    def _terraform(self, *args: str, output=False, ignore_error=False):
         command_output = ''
         tf_cmd = [
             'terraform',
             *args
         ]
+        self.logger.write(f">>> Call: {' '.join(tf_cmd)}")
+
+        if logging.DEBUG >= logging.root.level:
+            os.environ["TF_LOG"] = "DEBUG"
+            os.environ["TF_LOG_PATH"] = self.logger.log_file
 
         p = subprocess.Popen(tf_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, cwd=self.working_dir, bufsize=1)
 
@@ -181,10 +196,10 @@ class tf_run(object):
             line_string = line.decode("utf-8")
             escape_char = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
             line_string = escape_char.sub('', line_string)
-            if json_output:
+            if output:
                 command_output += line_string
             else:
-                self.logger.info(line_string.strip())
+                self.logger.write(line_string.strip())
 
         sp.stop()
         p.communicate()
@@ -198,24 +213,25 @@ class tf_run(object):
         if len(command_output) > 0:
             try:
                 self.deployment_data = json.loads(command_output)
-            except json.decoder.JSONDecodeError as err:
-                raise TerraformRunError(f"can not capture deployment output: {err}")
+            except json.decoder.JSONDecodeError:
+                self.deployment_data = command_output
 
+        self.logger.write(">>> Call Completed <<<")
         return True
 
-    def _command(self, cmd: list, json_output=False, quiet=False, ignore_error=False):
+    def _command(self, cmd: list, output=False, quiet=False, ignore_error=False):
         now = datetime.now()
         time_string = now.strftime("%D %I:%M:%S %p")
-        self.logger.info(f" --- start {cmd[0]} at {time_string}")
+        self.logger.write(f" --- start {cmd[0]} at {time_string}")
 
         start_time = time.perf_counter()
-        result = self._terraform(*cmd, json_output=json_output, ignore_error=ignore_error)
+        result = self._terraform(*cmd, output=output, ignore_error=ignore_error)
         end_time = time.perf_counter()
         run_time = time.strftime("%H hours %M minutes %S seconds.", time.gmtime(end_time - start_time))
 
         now = datetime.now()
         time_string = now.strftime("%D %I:%M:%S %p")
-        self.logger.info(f" --- end {cmd[0]} at {time_string}")
+        self.logger.write(f" --- end {cmd[0]} at {time_string}")
 
         if not quiet:
             print(f"Step complete in {run_time}.")
@@ -223,65 +239,61 @@ class tf_run(object):
         return result
 
     def init(self):
-        cmd = []
-
-        cmd.append('init')
-        cmd.append('-input=false')
+        cmd = ['init', '-input=false']
 
         print("Initializing environment")
         self._command(cmd)
 
     def apply(self):
-        cmd = []
-
-        cmd.append('apply')
-        cmd.append('-input=false')
-        cmd.append('-auto-approve')
+        cmd = ['apply', '-input=false', '-auto-approve']
 
         print("Deploying environment")
         self._command(cmd)
 
-    def destroy(self, refresh=True, ignore_error=False):
-        cmd = []
+    def destroy(self, refresh=True, ignore_error=False, quiet=False):
+        cmd = ['destroy', '-input=false', '-auto-approve']
 
-        cmd.append('destroy')
-        cmd.append('-input=false')
-        cmd.append('-auto-approve')
         if not refresh:
             cmd.append('-refresh=false')
         else:
             ignore_error = True
 
-        print("Removing environment")
+        if not quiet:
+            print("Removing resources")
+
         if not self._command(cmd, ignore_error=ignore_error):
             print("First destroy attempt failed, retrying without refresh ...")
             self.destroy(refresh=False, ignore_error=False)
 
     def validate(self):
-        cmd = []
-
-        cmd.append('validate')
+        cmd = ['validate']
 
         return self._command(cmd, ignore_error=True, quiet=True)
 
     def output(self, quiet=False):
-        cmd = []
-
-        cmd.append('output')
-        cmd.append('-json')
+        cmd = ['output', '-json']
 
         if not quiet:
             print("Getting environment information")
-        self._command(cmd, json_output=True, quiet=quiet)
+        self._command(cmd, output=True, quiet=quiet)
 
         return self.deployment_data
 
     def version(self):
-        cmd = []
+        cmd = ['version', '-json']
 
-        cmd.append('version')
-        cmd.append('-json')
-
-        self._command(cmd, json_output=True, quiet=True)
+        self._command(cmd, output=True, quiet=True)
 
         return self.deployment_data
+
+    def list(self):
+        cmd = ['state', 'list']
+
+        self._command(cmd, output=True, quiet=True)
+
+        return self.deployment_data
+
+    def remove(self, resource):
+        cmd = ['state', 'rm', resource]
+
+        self._command(cmd, quiet=True)
