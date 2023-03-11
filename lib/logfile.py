@@ -2,52 +2,31 @@
 ##
 
 import logging
-import os
 
 
-class log_file(object):
+class CustomFormatter(logging.Formatter):
+    grey = "\x1b[38;20m"
+    yellow = "\x1b[33;20m"
+    red = "\x1b[31;20m"
+    bold_red = "\x1b[31;1m"
+    green = "\x1b[32;20m"
+    reset = "\x1b[0m"
+    format_level = "%(levelname)s"
+    format_name = "%(name)s"
+    format_message = "%(message)s"
+    format_line = "(%(filename)s:%(lineno)d)"
+    format_extra = " [%(name)s](%(filename)s:%(lineno)d)"
+    FORMATS = {
+        logging.DEBUG: f"{grey}{format_level}{reset} - {format_message}",
+        logging.INFO: f"{green}{format_level}{reset} - {format_message}",
+        logging.WARNING: f"{yellow}{format_level}{reset} - {format_message}",
+        logging.ERROR: f"{red}{format_level}{reset} - {format_message}",
+        logging.CRITICAL: f"{red}{format_level}{reset} - {format_message}"
+    }
 
-    def __init__(self, name, path=None, filename=None, level=None):
-        if filename:
-            self.default_debug_file = path + '/' + filename if path else filename
-        else:
-            self.default_debug_file = path + '/deploy.log' if path else 'deploy.log'
-        self.debug_file = os.environ.get("CLOUD_MGR_DEBUG_FILE", self.default_debug_file)
-        self._logger = logging.getLogger(name)
-        self.handler = logging.FileHandler(self.debug_file)
-        self.formatter = logging.Formatter(logging.BASIC_FORMAT)
-        self.handler.setFormatter(self.formatter)
-        self.debug = False
-        default_level = 3
-
-        try:
-            default_level = int(os.environ['CLOUD_MGR_DEBUG_LEVEL']) if 'CLOUD_MGR_DEBUG_LEVEL' in os.environ else 1
-        except ValueError:
-            print(f"warning: ignoring logging: environment variable CLOUD_MGR_DEBUG_LEVEL should be a number")
-
-        self.debug_level = level if level else default_level
-
-        try:
-            if self.debug_level == 0:
-                self._logger.setLevel(logging.DEBUG)
-            elif self.debug_level == 1:
-                self._logger.setLevel(logging.INFO)
-            elif self.debug_level == 2:
-                self._logger.setLevel(logging.ERROR)
-            else:
-                self._logger.setLevel(logging.CRITICAL)
-
-            self._logger.addHandler(self.handler)
-            self.debug = True
-        except Exception as err:
-            print(f"warning: can not initialize logging: {err}")
-
-    @property
-    def logger(self):
-        return self._logger
-
-    def clear(self):
-        try:
-            open(self.debug_file, 'w').close()
-        except Exception as err:
-            print(f"warning: can not clear log file {self.debug_file}: {err}")
+    def format(self, record):
+        log_fmt = self.FORMATS.get(record.levelno)
+        if logging.DEBUG >= logging.root.level:
+            log_fmt += self.format_extra
+        formatter = logging.Formatter(log_fmt)
+        return formatter.format(record)
