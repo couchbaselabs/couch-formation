@@ -58,11 +58,6 @@ class CloudManager(object):
         elif self.verb == 'destroy':
             config.cloud_operator().destroy_nodes(self.args.destroy_command)
         elif self.verb == 'remove':
-            for cloud in CloudProviders.clouds:
-                config.cloud = cloud
-                for node_type in NodeTargets.nodes:
-                    config.cloud_operator().destroy_nodes(node_type)
-                config.cloud_operator().destroy_net()
             EnvUtil().env_remove()
         elif self.verb == 'list':
             if self.args.list_command == "images":

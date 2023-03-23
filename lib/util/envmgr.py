@@ -205,6 +205,7 @@ class DatastoreTuple(object):
 class PathMap(object):
 
     def __init__(self, name: str, cloud: str):
+        self.logger = logging.getLogger(self.__class__.__name__)
         self.path = {}
         self.cloud = cloud
         self.name = name
@@ -215,6 +216,7 @@ class PathMap(object):
         self.path['root'] = self.root
         self.cm = CatalogManager(self.root)
         self._last_mapped = None
+        self.logger.debug(f"Catalog Path Map: environment {self.name} cloud {self.cloud}")
 
     def map(self, mode: Enum) -> None:
         if config.catalog_target == CatalogRoot.IMAGE:
@@ -233,7 +235,7 @@ class PathMap(object):
         else:
             self.cm.update('inventory', NodeCatalogEntry.create(self.cloud, mode.name.lower(), path_dir).as_key(self.name))
         self._last_mapped = mode.name.lower()
-        logger.debug(f"mapping path {path_dir} for {self.name}")
+        self.logger.debug(f"mapping mode {mode.name} path {path_dir} for {self.name}")
 
     @staticmethod
     def map_suffix(mode) -> str:
@@ -270,6 +272,7 @@ class PathMap(object):
 
     def exists(self, mode: Enum) -> Union[str, bool]:
         file_name = self.path.get(mode.name.lower(), {}).get('file')
+        self.logger.debug(f"Checking if mode {mode.name} path {file_name} exists")
         if file_name:
             return os.path.exists(file_name)
         else:
@@ -445,6 +448,14 @@ class CatalogManager(object):
             if contents.get('inventory').get(env_name):
                 del contents['inventory'][env_name]
         self.write_file(contents)
+
+    def entry_exists(self, env_name: str, cloud: str, mode: Enum, file_name: str) -> bool:
+        contents = self.read_file()
+        if contents.get('inventory', {}).get(env_name, {}).get(cloud, {}).get(mode.name.lower()):
+            full_path = contents.get('inventory', {}).get(env_name, {}).get(cloud, {}).get(mode.name.lower()) + "/" + file_name
+            return os.path.exists(full_path)
+        else:
+            return False
 
     def catalog_list(self) -> None:
         contents = self.read_file()

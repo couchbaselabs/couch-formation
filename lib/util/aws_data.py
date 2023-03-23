@@ -2,7 +2,6 @@
 ##
 
 import logging
-import time
 from lib.util.filemgr import FileManager
 from lib.util.inquire import Inquire
 from lib.exceptions import AWSDriverError, EmptyResultSet
@@ -11,7 +10,6 @@ from lib.util.envmgr import PathMap, PathType, ConfigFile
 from lib.hcl.aws_image import AWSImageDataRecord
 from lib.util.cfgmgr import ConfigMgr
 from lib.drivers.aws import AWSEbsDiskTypes, AWSImageOwners
-from lib.util.retry import retry
 
 
 class DataCollect(object):

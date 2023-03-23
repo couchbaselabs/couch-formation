@@ -62,11 +62,13 @@ class AWSSettings(object):
 class GCPSettings(object):
     region = attr.ib(validator=attr.validators.optional(io(str)), default=None)
     image = attr.ib(validator=attr.validators.optional(io(str)), default=None)
+    generic_image = attr.ib(validator=attr.validators.optional(io(str)), default=None)
     machine_type = attr.ib(validator=attr.validators.optional(io(str)), default=None)
     private_key = attr.ib(validator=attr.validators.optional(io(str)), default=None)
     network = attr.ib(validator=attr.validators.optional(io(str)), default=None)
     subnet_list = attr.ib(validator=attr.validators.optional(io(list[str])), default=None)
     project = attr.ib(validator=attr.validators.optional(io(str)), default=None)
+    image_project = attr.ib(validator=attr.validators.optional(io(str)), default=None)
     account_email = attr.ib(validator=attr.validators.optional(io(str)), default=None)
     account_file = attr.ib(validator=attr.validators.optional(io(str)), default=None)
     root_size = attr.ib(validator=attr.validators.optional(io(str)), default=None)
@@ -94,6 +96,7 @@ class GCPSettings(object):
 class AzureSettings(object):
     region = attr.ib(validator=attr.validators.optional(io(str)), default=None)
     image = attr.ib(validator=attr.validators.optional(io(str)), default=None)
+    generic_image = attr.ib(validator=attr.validators.optional(io(str)), default=None)
     machine_type = attr.ib(validator=attr.validators.optional(io(str)), default=None)
     private_key = attr.ib(validator=attr.validators.optional(io(str)), default=None)
     network = attr.ib(validator=attr.validators.optional(io(str)), default=None)

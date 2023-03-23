@@ -3,7 +3,7 @@
 
 import logging
 import json
-from lib.util.envmgr import PathMap, PathType, ConfigFile
+from lib.util.envmgr import PathMap, PathType, ConfigFile, CatalogManager
 from lib.exceptions import GCPDriverError
 from lib.drivers.cbrelease import CBRelease
 from lib.drivers.network import NetworkDriver
@@ -22,7 +22,7 @@ from lib.hcl.gcp_instance import NodeConfiguration, TerraformElement, RequiredPr
 
 
 class CloudDriver(object):
-    VERSION = '3.0.0'
+    VERSION = '3.0.1'
     HOST_PREP_REPO = "couchbaselabs/couchbase-hostprep"
     DRIVER_CONFIG = "gcp.json"
     NETWORK_CONFIG = "main.tf.json"
@@ -180,6 +180,7 @@ class CloudDriver(object):
     def create_nodes(self, node_type: str):
         cluster_build = False
         sync_gateway_build = False
+        app_build = False
         locals_block = None
         null_resource_block = None
         swap_disk_block = None
@@ -189,20 +190,20 @@ class CloudDriver(object):
 
         dc.get_infrastructure()
         dc.get_keys()
-        dc.get_image()
-        dc.get_cluster_settings()
-        dc.get_node_settings()
+        dc.get_image(node_type)
+        dc.get_cluster_settings(node_type)
         cluster.create_cloud(node_type, dc)
 
         var_list = [
             ("cf_env_name", config.env_name, "Environment Name"),
             ("region_name", dc.region, "Region name"),
-            ("image", dc.image, "Image name"),
-            ("ssh_user", dc.image_user, "Admin Username"),
+            ("image", dc.generic_image if node_type == "generic" else dc.image, "Image name"),
+            ("ssh_user", dc.generic_image_user if node_type == "generic" else dc.image_user, "Admin Username"),
             ("ssh_public_key", dc.public_key, "SSH public key filename"),
             ("ssh_private_key", dc.private_key, "SSH private key filename"),
             ("network", dc.network, "Network name"),
-            ("gcp_project", dc.gcp_project, "Security group"),
+            ("gcp_project", dc.gcp_project, "GCP project"),
+            ("gcp_image_project", dc.gcp_image_project if node_type == "generic" else dc.gcp_project, "Image project"),
             ("instance_type", dc.instance_type, "Instance type"),
             ("gcp_account_file", dc.gcp_account_file, "Account file"),
             ("gcp_service_account_email", dc.gcp_account_email, "Account email"),
@@ -331,11 +332,27 @@ class CloudDriver(object):
                 .add("sudo /usr/local/hostprep/bin/hostprep.sh -t sgw -g ${var.sgw_version}") \
                 .add("sudo /usr/local/hostprep/bin/clusterinit.sh -m sgw -r ${var.cb_node_1}") \
                 .as_dict
-        else:
+        elif app_build:
             inline_build = InLine.build() \
                 .add("sudo /usr/local/hostprep/bin/refresh.sh") \
                 .add("sudo /usr/local/hostprep/bin/hostprep.sh -t sdk") \
                 .as_dict
+        else:
+            inline_build = None
+
+        if inline_build:
+            provisioner_block = Provisioner.build() \
+                .add(RemoteExec.build().add(Connection.build().add(
+                    ConnectionElements.construct(
+                        "var.use_public_ip ? self.network_interface.0.access_config.0.nat_ip : self.network_interface.0.network_ip",
+                        "ssh_private_key",
+                        "ssh_user")
+                    .as_dict)
+                    .as_dict)
+                 .add(inline_build)
+                 .as_dict).as_contents
+        else:
+            provisioner_block = None
 
         output_block = Output.build().add(
             OutputValue.build()
@@ -369,19 +386,9 @@ class CloudDriver(object):
                     "ssh_public_key",
                     "node_subnet",
                     "gcp_project",
-                    Provisioner.build()
-                    .add(RemoteExec.build().add(Connection.build().add(
-                        ConnectionElements.construct(
-                            "var.use_public_ip ? self.network_interface.0.access_config.0.nat_ip : self.network_interface.0.network_ip",
-                            "ssh_private_key",
-                            "ssh_user")
-                        .as_dict)
-                        .as_dict)
-                         .add(inline_build)
-                         .as_dict)
-                    .as_contents,
                     "gcp_service_account_email",
                     "node_zone",
+                    provisioner_block,
                     swap_disk_block
                 ).as_dict
             ).as_name("couchbase_nodes")
@@ -390,7 +397,7 @@ class CloudDriver(object):
         time_sleep_block = TimeSleep.construct("google_compute_instance", "couchbase_nodes")
 
         data_block = DataResource.build().add(
-            ImageData.construct("cb_image", "image", "gcp_project").as_dict
+            ImageData.construct("cb_image", "image", "gcp_image_project").as_dict
         )
 
         resource_block = ResourceBlock.build()
@@ -503,6 +510,7 @@ class CloudDriver(object):
             raise GCPDriverError(f"can not list nodes: {err}")
 
     def destroy_nodes(self, node_type: str):
+        self.logger.info(f"Removing components for cloud {config.cloud} node type {node_type}")
         if node_type == "app":
             path_type = PathType.APP
             path_file = CloudDriver.MAIN_CONFIG

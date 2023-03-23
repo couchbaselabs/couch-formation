@@ -31,8 +31,58 @@ class GCPDiskTypes(object):
     ]
 
 
+@attr.s
+class GCPImageProjects(object):
+    projects = [
+        {
+            "project": 'centos-cloud',
+            "description": "CentOS Linux"
+        },
+        {
+            "project": 'cos-cloud',
+            "description": "Container-Optimized OS"
+        },
+        {
+            "project": 'debian-cloud',
+            "description": "Debian Linux"
+        },
+        {
+            "project": 'fedora-cloud',
+            "description": "Fedora Linux"
+        },
+        {
+            "project": 'opensuse-cloud',
+            "description": "OpenSUSE Linux"
+        },
+        {
+            "project": 'rhel-cloud',
+            "description": "Red Hat Enterprise Linux"
+        },
+        {
+            "project": 'rocky-linux-cloud',
+            "description": "Rocky Linux"
+        },
+        {
+            "project": 'suse-cloud',
+            "description": "SUSE Linux Enterprise Server"
+        },
+        {
+            "project": 'ubuntu-os-cloud',
+            "description": "Ubuntu Linux"
+        },
+        {
+            "project": 'ubuntu-os-pro-cloud',
+            "description": "Ubuntu Pro Linux"
+        },
+        {
+            "project": 'fedora-coreos-cloud',
+            "description": "Fedora CoreOS Linux"
+        }
+    ]
+
+
 class CloudBase(object):
-    VERSION = '3.0.0'
+    VERSION = '3.0.1'
     PUBLIC_CLOUD = True
     SAAS_CLOUD = False
     NETWORK_SUPER_NET = False
@@ -520,6 +570,9 @@ class Image(CloudBase):
             if response.get('items') is None:
                 break
             for image in response['items']:
+                if 'deprecated' in image:
+                    if (image['deprecated']['state'] == "DEPRECATED") or (image['deprecated']['state'] == "OBSOLETE"):
+                        continue
                 image_block = {'name': image['name'],
                                'link': image['selfLink'],
                                'date': image['creationTimestamp']}

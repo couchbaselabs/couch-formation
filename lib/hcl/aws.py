@@ -3,7 +3,7 @@
 
 import logging
 import json
-from lib.util.envmgr import PathMap, PathType, ConfigFile
+from lib.util.envmgr import PathMap, PathType, ConfigFile, CatalogManager
 from lib.exceptions import AWSDriverError, EmptyResultSet
 from lib.drivers.cbrelease import CBRelease
 from lib.drivers.network import NetworkDriver
@@ -497,23 +497,15 @@ class CloudDriver(object):
 
     def destroy_nodes(self, node_type: str):
         if node_type == "app":
-            if not self.path_map.exists(PathType.APP):
-                return
             path_type = PathType.APP
             path_file = CloudDriver.MAIN_CONFIG
         elif node_type == "sgw":
-            if not self.path_map.exists(PathType.SGW):
-                return
             path_type = PathType.SGW
             path_file = CloudDriver.MAIN_CONFIG
         elif node_type == "generic":
-            if not self.path_map.exists(PathType.GENERIC):
-                return
             path_type = PathType.GENERIC
             path_file = CloudDriver.MAIN_CONFIG
         else:
-            if not self.path_map.exists(PathType.CLUSTER):
-                return
             path_type = PathType.CLUSTER
             path_file = CloudDriver.MAIN_CONFIG
 
@@ -696,8 +688,6 @@ class CloudDriver(object):
             raise AWSDriverError(f"can not list VPC: {err}")
 
     def destroy_net(self):
-        if not self.path_map.exists(PathType.NETWORK):
-            return
         self.path_map.map(PathType.NETWORK)
         cfg_file: ConfigFile
         cfg_file = self.path_map.use(CloudDriver.NETWORK_CONFIG, PathType.NETWORK)

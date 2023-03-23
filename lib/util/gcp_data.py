@@ -11,7 +11,7 @@ import lib.config as config
 from lib.util.envmgr import PathMap, PathType, ConfigFile
 from lib.hcl.gcp_image import GCPImageDataRecord
 from lib.util.cfgmgr import ConfigMgr
-from lib.drivers.gcp import GCPDiskTypes
+from lib.drivers.gcp import GCPDiskTypes, GCPImageProjects
 
 
 class DataCollect(object):
@@ -23,6 +23,7 @@ class DataCollect(object):
         self.subnet_list = []
         self.gcp_account_email = None
         self.gcp_project = None
+        self.gcp_image_project = None
         self.gcp_account_file = None
         self.private_key = None
         self.ssh_fingerprint = None
@@ -31,7 +32,9 @@ class DataCollect(object):
         self.image_type = None
         self.image_version = None
         self.image_user = None
+        self.generic_image_user = None
         self.image = None
+        self.generic_image = None
         self.region = None
         self.cb_index_mem_type = None
         self.disk_iops = 0
@@ -130,7 +133,7 @@ class DataCollect(object):
         self.env_cfg.update(net_use_public_ip=self.use_public_ip)
         self.env_cfg.update(gcp_base_in_progress=False)
 
-    def get_image(self):
+    def get_image(self, node_type: str = None):
         in_progress = self.env_cfg.get("gcp_image_in_progress")
 
         print("")
@@ -138,32 +141,54 @@ class DataCollect(object):
             print("Image is configured")
 
             self.image_user = self.env_cfg.get("ssh_user_name")
+            self.generic_image_user = self.env_cfg.get("ssh_generic_user_name")
             self.image = self.env_cfg.get("gcp_image")
+            self.generic_image = self.env_cfg.get("gcp_generic_image")
+            self.gcp_image_project = self.env_cfg.get("gcp_image_project")
             self.image_version = self.env_cfg.get("cbs_version")
-            print(f"SSH User Name = {self.image_user}")
-            print(f"Image Name    = {self.image}")
-            print(f"CBS Version   = {self.image_version}")
+            print(f"SSH User Name     = {self.image_user}")
+            print(f"Generic User Name = {self.generic_image_user}")
+            print(f"Image Name        = {self.image}")
+            print(f"Generic Image     = {self.generic_image}")
+            print(f"Image Project     = {self.gcp_image_project}")
+            print(f"CBS Version       = {self.image_version}")
 
             if not Inquire().ask_bool("Update settings", recommendation='false'):
                 return
 
         self.env_cfg.update(gcp_image_in_progress=True)
 
-        image_list = config.cloud_image().list(filter_keys_exist=["release_tag", "type_tag", "version_tag"])
+        if node_type == "generic":
+            image_type = Inquire().ask_list_dict('Image distribution', GCPImageProjects.projects)
+            image_list = config.cloud_image().list(project=image_type["project"])
+            self.gcp_image_project = image_type["project"]
+        else:
+            image_list = config.cloud_image().list(filter_keys_exist=["release_tag", "type_tag", "version_tag"])
+            self.gcp_image_project = self.env_cfg.get("gcp_image_project")
 
-        image = Inquire().ask_list_dict(f"Select {config.cloud} image", image_list, sort_key="date", hide_key=["link"])
+        image = Inquire().ask_list_dict(f"Select {config.cloud} image", image_list, sort_key="date", hide_key=["link"], reverse_sort=True)
 
-        self.image = image['name']
-        self.image_release = image['release_tag']
-        self.image_type = image['type_tag']
-        self.image_version = image['version_tag']
-
-        distro_table = GCPImageDataRecord.by_version(self.image_type, self.image_release, config.cloud_operator().config.build)
-
-        self.image_user = distro_table.user
+        if node_type == "generic":
+            self.generic_image_user = "admin"
+            self.image_user = self.env_cfg.get("ssh_user_name")
+            self.image_version = self.env_cfg.get("cbs_version")
+            self.generic_image = image['name']
+            self.image = self.env_cfg.get("gcp_image")
+        else:
+            self.generic_image = self.env_cfg.get("gcp_generic_image")
+            self.image = image['name']
+            self.image_release = image['release_tag']
+            self.image_type = image['type_tag']
+            self.image_version = image['version_tag']
+            distro_table = GCPImageDataRecord.by_version(self.image_type, self.image_release, config.cloud_operator().config.build)
+            self.generic_image_user = self.env_cfg.get("ssh_generic_user_name")
+            self.image_user = distro_table.user
 
         self.env_cfg.update(ssh_user_name=self.image_user)
+        self.env_cfg.update(ssh_generic_user_name=self.generic_image_user)
         self.env_cfg.update(gcp_image=self.image)
+        self.env_cfg.update(gcp_image_project=self.gcp_image_project)
+        self.env_cfg.update(gcp_generic_image=self.generic_image)
         self.env_cfg.update(cbs_version=self.image_version)
         self.env_cfg.update(gcp_image_in_progress=False)
 
@@ -201,7 +226,9 @@ class DataCollect(object):
         self.env_cfg.update(ssh_public_key=self.public_key)
         self.env_cfg.update(ssh_in_progress=False)
 
-    def get_cluster_settings(self):
+    def get_cluster_settings(self, node_type: str = None):
+        if node_type != "cluster":
+            return
         option_list = [
             {
                 'name': 'default',

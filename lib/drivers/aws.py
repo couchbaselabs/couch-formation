@@ -172,7 +172,7 @@ class AWSImageOwners(object):
 
 
 class CloudBase(object):
-    VERSION = '3.0.0'
+    VERSION = '3.0.1'
     PUBLIC_CLOUD = True
     SAAS_CLOUD = False
     NETWORK_SUPER_NET = True

@@ -120,8 +120,8 @@ class InitParams(object):
            [
                {
                    "image": f"${{data.google_compute_image.{image}.self_link}}",
-                   "size": f"${{var.{size}}}",
-                   "type": f"${{var.{vol_type}}}"
+                   "size": f"${{each.value.{size}}}",
+                   "type": f"${{each.value.{vol_type}}}"
                }
            ]
         )
@@ -274,9 +274,9 @@ class NodeConfiguration(object):
     name = attr.ib(validator=io(str))
     network_interface = attr.ib(validator=io(list))
     project = attr.ib(validator=io(str))
-    provisioner = attr.ib(validator=io(dict))
     service_account = attr.ib(validator=io(list))
     zone = attr.ib(validator=io(str))
+    provisioner = attr.ib(validator=attr.validators.optional(io(dict)), default=None)
     attached_disk = attr.ib(validator=attr.validators.optional(io(dict)), default=None)
 
     @classmethod
@@ -290,24 +290,25 @@ class NodeConfiguration(object):
                   public_key: str,
                   subnet: str,
                   project: str,
-                  provisioner: dict,
                   email: str,
                   zone: str,
-                  attached_disk: Union[list, None] = None):
+                  provisioner: Union[dict, None] = None,
+                  attached_disk: Union[dict, None] = None):
         return cls(
             BootDisk.construct(InitParams.construct(image, root_size, root_type).as_dict).as_dict,
             f"${{var.{for_each}}}",
-            f"${{var.{machine_type}}}",
+            f"${{each.value.{machine_type}}}",
             Metadata.construct(user, public_key).as_dict,
             "${each.key}",
             NetworkInterface.construct(subnet, project).as_dict,
             f"${{var.{project}}}",
-            provisioner,
             ServiceAccount.construct(email).as_dict,
             f"${{each.value.{zone}}}",
+            provisioner,
             attached_disk
         )
 
     @property
     def as_dict(self):
-        return self.__dict__
+        block = {k: v for k, v in self.__dict__.items() if v is not None}
+        return block
