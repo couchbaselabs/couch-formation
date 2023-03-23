@@ -4,9 +4,21 @@
 import os
 import warnings
 import argparse
+import attr
 from enum import Enum
 from lib.drivers.network import NetworkDriver
 from lib.util.envmgr import CatalogRoot
+
+
+@attr.s
+class CloudProviders(object):
+    clouds = [
+        "aws",
+        "gcp",
+        "azure",
+        "vmware",
+        "capella"
+    ]
 
 
 class OperatingMode(Enum):

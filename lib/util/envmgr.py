@@ -84,6 +84,16 @@ class PathOrder(ValueOrderedEnum):
 
 
 @attr.s
+class NodeTargets(object):
+    nodes = [
+        "cluster",
+        "app",
+        "sgw",
+        "generic"
+    ]
+
+
+@attr.s
 class ConfigFile(object):
     file_path = attr.ib(validator=io(str))
     file_name = attr.ib(validator=io(str))

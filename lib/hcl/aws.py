@@ -186,7 +186,7 @@ class CloudDriver(object):
         var_list = [
             ("cf_env_name", config.env_name, "Environment Name"),
             ("region_name", dc.region, "Region name"),
-            ("ami_id", dc.ami_id, "AMI Id"),
+            ("ami_id", dc.generic_ami_id if node_type == "generic" else dc.ami_id, "AMI Id"),
             ("ssh_user", dc.image_user, "Admin Username"),
             ("ssh_key", dc.env_ssh_key, "SSH key-pair name"),
             ("ssh_private_key", dc.env_ssh_filename, "SSH filename"),
@@ -326,9 +326,21 @@ class CloudDriver(object):
                 .add("sudo /usr/local/hostprep/bin/hostprep.sh -t sdk")\
                 .as_dict
         else:
-            inline_build = InLine.build()\
-                .add("uname -a")\
-                .as_dict
+            inline_build = None
+
+        if inline_build:
+            provisioner_block = Provisioner.build()\
+                .add(RemoteExec.build().add(Connection.build().add(
+                    ConnectionElements.construct(
+                        "var.use_public_ip ? self.public_ip : self.private_ip",
+                        "ssh_private_key",
+                        "ssh_user")
+                    .as_dict)
+                    .as_dict)
+                .add(inline_build)
+                .as_dict).as_contents
+        else:
+            provisioner_block = None
 
         output_block = Output.build().add(
             OutputValue.build()
@@ -359,17 +371,6 @@ class CloudDriver(object):
                     "cluster_spec",
                     "instance_type",
                     "ssh_key",
-                    Provisioner.build()
-                    .add(RemoteExec.build().add(Connection.build().add(
-                          ConnectionElements.construct(
-                            "var.use_public_ip ? self.public_ip : self.private_ip",
-                            "ssh_private_key",
-                            "ssh_user")
-                          .as_dict)
-                        .as_dict)
-                         .add(inline_build)
-                         .as_dict)
-                    .as_contents,
                     RootElements.construct(
                         "root_volume_iops",
                         "root_volume_size",
@@ -378,6 +379,7 @@ class CloudDriver(object):
                     "node_subnet",
                     "security_group_ids",
                     "node_services",
+                    provisioner_block,
                     swap_disk_block
                 ).as_dict
             ).as_name("couchbase_nodes")
@@ -495,15 +497,23 @@ class CloudDriver(object):
 
     def destroy_nodes(self, node_type: str):
         if node_type == "app":
+            if not self.path_map.exists(PathType.APP):
+                return
             path_type = PathType.APP
             path_file = CloudDriver.MAIN_CONFIG
         elif node_type == "sgw":
+            if not self.path_map.exists(PathType.SGW):
+                return
             path_type = PathType.SGW
             path_file = CloudDriver.MAIN_CONFIG
         elif node_type == "generic":
+            if not self.path_map.exists(PathType.GENERIC):
+                return
             path_type = PathType.GENERIC
             path_file = CloudDriver.MAIN_CONFIG
         else:
+            if not self.path_map.exists(PathType.CLUSTER):
+                return
             path_type = PathType.CLUSTER
             path_file = CloudDriver.MAIN_CONFIG
 

@@ -11,7 +11,8 @@ from lib.args import Parameters
 from lib.util.envmgr import LogViewer
 from lib.util.namegen import get_random_name
 import lib.config as config
-from lib.util.envmgr import PathMap, CatalogManager, EnvUtil, CatalogRoot
+from lib.config import CloudProviders
+from lib.util.envmgr import PathMap, CatalogManager, EnvUtil, CatalogRoot, NodeTargets
 from lib.util.logging import CustomFormatter
 
 VERSION = '3.0.1-rc1'
@@ -57,7 +58,11 @@ class CloudManager(object):
         elif self.verb == 'destroy':
             config.cloud_operator().destroy_nodes(self.args.destroy_command)
         elif self.verb == 'remove':
-            config.cloud_operator().destroy_net()
+            for cloud in CloudProviders.clouds:
+                config.cloud = cloud
+                for node_type in NodeTargets.nodes:
+                    config.cloud_operator().destroy_nodes(node_type)
+                config.cloud_operator().destroy_net()
             EnvUtil().env_remove()
         elif self.verb == 'list':
             if self.args.list_command == "images":

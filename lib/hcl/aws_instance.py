@@ -141,11 +141,11 @@ class NodeConfiguration(object):
     for_each = attr.ib(validator=io(str))
     instance_type = attr.ib(validator=io(str))
     key_name = attr.ib(validator=io(str))
-    provisioner = attr.ib(validator=io(dict))
     root_block_device = attr.ib(validator=io(list))
     subnet_id = attr.ib(validator=io(str))
     vpc_security_group_ids = attr.ib(validator=io(str))
     tags = attr.ib(validator=io(dict))
+    provisioner = attr.ib(validator=attr.validators.optional(io(dict)), default=None)
     ebs_block_device = attr.ib(validator=attr.validators.optional(io(list)), default=None)
 
     @classmethod
@@ -156,11 +156,11 @@ class NodeConfiguration(object):
                   for_each: str,
                   machine_type: str,
                   key_pair: str,
-                  provisioner: dict,
                   root: dict,
                   subnet: str,
                   s_groups: str,
                   services: str,
+                  provisioner: Union[dict, None] = None,
                   swap_disk: Union[list, None] = None):
         return cls(
             f"${{var.{ami_id}}}",
@@ -168,7 +168,6 @@ class NodeConfiguration(object):
             f"${{var.{for_each}}}",
             f"${{each.value.{machine_type}}}",
             f"${{var.{key_pair}}}",
-            provisioner,
             [root],
             f"${{each.value.{subnet}}}",
             f"${{var.{s_groups}}}",
@@ -177,9 +176,11 @@ class NodeConfiguration(object):
                 "Name": "${each.key}",
                 "Services": f"${{each.value.{services}}}"
             },
+            provisioner,
             swap_disk
         )
 
     @property
     def as_dict(self):
-        return self.__dict__
+        block = {k: v for k, v in self.__dict__.items() if v is not None}
+        return block

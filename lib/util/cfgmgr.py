@@ -17,6 +17,7 @@ class SSHSettings(object):
     public_key_data = attr.ib(validator=attr.validators.optional(io(str)), default=None)
     private_key = attr.ib(validator=attr.validators.optional(io(str)), default=None)
     user_name = attr.ib(validator=attr.validators.optional(io(str)), default=None)
+    generic_user_name = attr.ib(validator=attr.validators.optional(io(str)), default=None)
     fingerprint = attr.ib(validator=attr.validators.optional(io(str)), default=None)
     in_progress = attr.ib(validator=attr.validators.optional(io(bool)), default=None)
 
@@ -29,6 +30,7 @@ class SSHSettings(object):
 class AWSSettings(object):
     region = attr.ib(validator=attr.validators.optional(io(str)), default=None)
     ami_id = attr.ib(validator=attr.validators.optional(io(str)), default=None)
+    generic_ami_id = attr.ib(validator=attr.validators.optional(io(str)), default=None)
     machine_type = attr.ib(validator=attr.validators.optional(io(str)), default=None)
     key_pair = attr.ib(validator=attr.validators.optional(io(str)), default=None)
     vpc_id = attr.ib(validator=attr.validators.optional(io(str)), default=None)

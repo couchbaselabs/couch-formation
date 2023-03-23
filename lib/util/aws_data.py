@@ -29,7 +29,9 @@ class DataCollect(object):
         self.image_type = None
         self.image_version = None
         self.image_user = None
+        self.generic_image_user = None
         self.ami_id = None
+        self.generic_ami_id = None
         self.region = None
         self.cb_index_mem_type = None
         self.disk_iops = None
@@ -124,11 +126,15 @@ class DataCollect(object):
             print("Image is configured")
 
             self.image_user = self.env_cfg.get("ssh_user_name")
+            self.generic_image_user = self.env_cfg.get("ssh_generic_user_name")
             self.ami_id = self.env_cfg.get("aws_ami_id")
+            self.generic_ami_id = self.env_cfg.get("aws_generic_ami_id")
             self.image_version = self.env_cfg.get("cbs_version")
-            print(f"SSH User Name = {self.image_user}")
-            print(f"AMI ID        = {self.ami_id}")
-            print(f"Version       = {self.image_version}")
+            print(f"SSH User Name     = {self.image_user}")
+            print(f"Generic User Name = {self.generic_image_user}")
+            print(f"AMI ID            = {self.ami_id}")
+            print(f"Generic AMI ID    = {self.generic_ami_id}")
+            print(f"Version           = {self.image_version}")
 
             if not Inquire().ask_bool("Update settings", recommendation='false'):
                 return
@@ -144,20 +150,26 @@ class DataCollect(object):
 
         image = Inquire().ask_list_dict(f"Select {config.cloud} image", image_list, sort_key="date", reverse_sort=True)
 
-        self.ami_id = image['name']
-
         if node_type == "generic":
-            self.image_user = next(i["user"] for i in AWSImageOwners.image_owner_list if i["owner_id"] == image["owner"])
-            self.image_version = image['description']
+            self.generic_image_user = next(i["user"] for i in AWSImageOwners.image_owner_list if i["owner_id"] == image["owner"])
+            self.image_user = self.env_cfg.get("ssh_user_name")
+            self.image_version = self.env_cfg.get("cbs_version")
+            self.generic_ami_id = image['name']
+            self.ami_id = self.env_cfg.get("aws_ami_id")
         else:
+            self.generic_ami_id = self.env_cfg.get("aws_generic_ami_id")
+            self.ami_id = image['name']
             self.image_release = image['release_tag']
             self.image_type = image['type_tag']
             self.image_version = image['version_tag']
             distro_table = AWSImageDataRecord.by_version(self.image_type, self.image_release, config.cloud_operator().config.build)
+            self.generic_image_user = self.env_cfg.get("ssh_generic_user_name")
             self.image_user = distro_table.user
 
         self.env_cfg.update(ssh_user_name=self.image_user)
+        self.env_cfg.update(ssh_generic_user_name=self.generic_image_user)
         self.env_cfg.update(aws_ami_id=self.ami_id)
+        self.env_cfg.update(aws_generic_ami_id=self.generic_ami_id)
         self.env_cfg.update(cbs_version=self.image_version)
         self.env_cfg.update(aws_image_in_progress=False)
 
