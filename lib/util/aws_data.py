@@ -10,7 +10,7 @@ import lib.config as config
 from lib.util.envmgr import PathMap, PathType, ConfigFile
 from lib.hcl.aws_image import AWSImageDataRecord
 from lib.util.cfgmgr import ConfigMgr
-from lib.drivers.aws import AWSEbsDiskTypes
+from lib.drivers.aws import AWSEbsDiskTypes, AWSImageOwners
 from lib.util.retry import retry
 
 
@@ -116,7 +116,7 @@ class DataCollect(object):
         self.env_cfg.update(net_use_public_ip=self.use_public_ip)
         self.env_cfg.update(aws_base_in_progress=False)
 
-    def get_image(self):
+    def get_image(self, node_type: str = None):
         in_progress = self.env_cfg.get("aws_image_in_progress")
 
         print("")
@@ -128,25 +128,33 @@ class DataCollect(object):
             self.image_version = self.env_cfg.get("cbs_version")
             print(f"SSH User Name = {self.image_user}")
             print(f"AMI ID        = {self.ami_id}")
-            print(f"CBS Version   = {self.image_version}")
+            print(f"Version       = {self.image_version}")
 
             if not Inquire().ask_bool("Update settings", recommendation='false'):
                 return
 
         self.env_cfg.update(aws_image_in_progress=True)
 
-        image_list = config.cloud_image().list(filter_keys_exist=["release_tag", "type_tag", "version_tag"])
+        if node_type == "generic":
+            image_type = Inquire().ask_list_dict('Image distribution', AWSImageOwners.image_owner_list)
+            owner_id = image_type.get("owner_id")
+            image_list = config.cloud_image().list(is_public=True, owner_id=owner_id)
+        else:
+            image_list = config.cloud_image().list(filter_keys_exist=["release_tag", "type_tag", "version_tag"])
 
-        image = Inquire().ask_list_dict(f"Select {config.cloud} image", image_list, sort_key="date")
+        image = Inquire().ask_list_dict(f"Select {config.cloud} image", image_list, sort_key="date", reverse_sort=True)
 
         self.ami_id = image['name']
-        self.image_release = image['release_tag']
-        self.image_type = image['type_tag']
-        self.image_version = image['version_tag']
 
-        distro_table = AWSImageDataRecord.by_version(self.image_type, self.image_release, config.cloud_operator().config.build)
-
-        self.image_user = distro_table.user
+        if node_type == "generic":
+            self.image_user = next(i["user"] for i in AWSImageOwners.image_owner_list if i["owner_id"] == image["owner"])
+            self.image_version = image['description']
+        else:
+            self.image_release = image['release_tag']
+            self.image_type = image['type_tag']
+            self.image_version = image['version_tag']
+            distro_table = AWSImageDataRecord.by_version(self.image_type, self.image_release, config.cloud_operator().config.build)
+            self.image_user = distro_table.user
 
         self.env_cfg.update(ssh_user_name=self.image_user)
         self.env_cfg.update(aws_ami_id=self.ami_id)
@@ -198,7 +206,9 @@ class DataCollect(object):
         self.env_cfg.update(ssh_private_key=self.env_ssh_filename)
         self.env_cfg.update(ssh_in_progress=False)
 
-    def get_cluster_settings(self):
+    def get_cluster_settings(self, node_type: str = None):
+        if node_type != "cluster":
+            return
         option_list = [
             {
                 'name': 'default',

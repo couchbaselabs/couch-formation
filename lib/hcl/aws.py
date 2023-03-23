@@ -24,7 +24,7 @@ from lib.hcl.aws_instance import AWSInstance, BlockDevice, EbsElements, RootElem
 
 
 class CloudDriver(object):
-    VERSION = '3.0.0'
+    VERSION = '3.0.1'
     HOST_PREP_REPO = "couchbaselabs/couchbase-hostprep"
     DRIVER_CONFIG = "aws.json"
     NETWORK_CONFIG = "main.tf.json"
@@ -169,6 +169,7 @@ class CloudDriver(object):
     def create_nodes(self, node_type: str):
         cluster_build = False
         sync_gateway_build = False
+        app_build = False
         locals_block = None
         null_resource_block = None
         swap_disk_block = None
@@ -178,8 +179,8 @@ class CloudDriver(object):
 
         dc.get_infrastructure()
         dc.get_keys()
-        dc.get_image()
-        dc.get_cluster_settings()
+        dc.get_image(node_type)
+        dc.get_cluster_settings(node_type)
         cluster.create_cloud(node_type, dc)
 
         var_list = [
@@ -200,6 +201,7 @@ class CloudDriver(object):
         ]
 
         if node_type == "app":
+            app_build = True
             path_type = PathType.APP
             path_file = CloudDriver.MAIN_CONFIG
         elif node_type == "sgw":
@@ -318,10 +320,14 @@ class CloudDriver(object):
                 .add("sudo /usr/local/hostprep/bin/hostprep.sh -t sgw -g ${var.sgw_version}")\
                 .add("sudo /usr/local/hostprep/bin/clusterinit.sh -m sgw -r ${var.cb_node_1}")\
                 .as_dict
-        else:
+        elif app_build:
             inline_build = InLine.build()\
                 .add("sudo /usr/local/hostprep/bin/refresh.sh")\
                 .add("sudo /usr/local/hostprep/bin/hostprep.sh -t sdk")\
+                .as_dict
+        else:
+            inline_build = InLine.build()\
+                .add("uname -a")\
                 .as_dict
 
         output_block = Output.build().add(
@@ -680,6 +686,8 @@ class CloudDriver(object):
             raise AWSDriverError(f"can not list VPC: {err}")
 
     def destroy_net(self):
+        if not self.path_map.exists(PathType.NETWORK):
+            return
         self.path_map.map(PathType.NETWORK)
         cfg_file: ConfigFile
         cfg_file = self.path_map.use(CloudDriver.NETWORK_CONFIG, PathType.NETWORK)

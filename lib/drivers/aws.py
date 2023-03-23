@@ -120,6 +120,57 @@ class AWSEbsDiskTypes(object):
     ]
 
 
+@attr.s
+class AWSImageOwners(object):
+    image_owner_list = [
+        {
+            "owner_id": "099720109477",
+            "description": "Ubuntu Linux",
+            "user": "ubuntu"
+        },
+        {
+            "owner_id": "125523088429",
+            "description": "CentOS Linux",
+            "user": "centos"
+        },
+        {
+            "owner_id": "309956199498",
+            "description": "RedHat Linux",
+            "user": "ec2-user"
+        },
+        {
+            "owner_id": "013907871322",
+            "description": "Suse Linux",
+            "user": "ec2-user"
+        },
+        {
+            "owner_id": "379101102735",
+            "description": "Debian 9 and earlier",
+            "user": "admin"
+        },
+        {
+            "owner_id": "136693071363",
+            "description": "Debian 10 and later",
+            "user": "admin"
+        },
+        {
+            "owner_id": "131827586825",
+            "description": "Oracle Linux",
+            "user": "ec2-user"
+        },
+        {
+            "owner_id": "125523088429",
+            "description": "Fedora CoreOS Linux",
+            "user": "core"
+        },
+        {
+            "owner_id": "137112412989",
+            "description": "Amazon Linux",
+            "user": "ec2-user"
+        },
+    ]
+
+
 class CloudBase(object):
     VERSION = '3.0.0'
     PUBLIC_CLOUD = True
@@ -343,17 +394,40 @@ class Image(CloudBase):
         super().__init__()
         self.logger = logging.getLogger(self.__class__.__name__)
 
-    def list(self, filter_keys_exist: Union[list[str], None] = None) -> list[dict]:
+    def list(self, filter_keys_exist: Union[list[str], None] = None, is_public: bool = False, owner_id: str = None) -> list[dict]:
         image_list = []
-        ami_filter = {
-            'Name': 'is-public',
-            'Values': [
-                'false',
+        if owner_id:
+            owner_filter = [owner_id]
+        else:
+            owner_filter = []
+        if is_public:
+            ami_filter = [
+                {
+                    'Name': 'architecture',
+                    'Values': [
+                        "x86_64",
+                        "arm64"
+                    ]
+                },
+                {
+                    'Name': 'root-device-type',
+                    'Values': [
+                        "ebs",
+                    ]
+                }
             ]
-        }
+        else:
+            ami_filter = [
+                {
+                    'Name': 'is-public',
+                    'Values': [
+                        'false',
+                    ]
+                }
+            ]
 
         try:
-            images = self.ec2_client.describe_images(Filters=[ami_filter])
+            images = self.ec2_client.describe_images(Filters=ami_filter, Owners=owner_filter)
         except Exception as err:
             raise AWSDriverError(f"error getting AMIs: {err}")
 
@@ -362,6 +436,8 @@ class Image(CloudBase):
                            'description': image['Name'],
                            'date': image['CreationDate'],
                            'arch': image['Architecture']}
+            if is_public:
+                image_block.update({'owner': image['OwnerId']})
             image_block.update(self.process_tags(image))
             if filter_keys_exist:
                 if not all(key in image_block for key in filter_keys_exist):

@@ -170,7 +170,8 @@ class Inquire(object):
                       sort_key: Union[str, None] = None,
                       hide_key: Union[list[str], None] = None,
                       default_value: Union[tuple, None] = None,
-                      page_length: int = 20) -> dict:
+                      page_length: int = 20,
+                      reverse_sort: bool = False) -> dict:
         if len(options) == 1:
             return options[0]
         default_index = None
@@ -179,7 +180,7 @@ class Inquire(object):
         table_header = self.create_header_vector(options, hide_key=hide_key)
 
         if sort_key:
-            options = sorted(options, key=lambda i: i[sort_key] if i[sort_key] else "")
+            options = sorted(options, key=lambda i: i[sort_key] if i[sort_key] else "", reverse=reverse_sort)
 
         if default_value:
             result = list(i for i, d in enumerate(options) if d.get(default_value[0]) == default_value[1])

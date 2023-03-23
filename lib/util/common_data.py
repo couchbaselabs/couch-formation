@@ -107,8 +107,9 @@ class ClusterCollect(object):
 
             node_count = Inquire().ask_int("Node count", min_nodes, min_nodes)
 
-            print("")
-            print("Select services")
+            if len(services) > 0:
+                print("")
+                print("Select services")
 
             for node_svc in services:
                 if node_svc == 'data' or node_svc == 'index' or node_svc == 'query':
