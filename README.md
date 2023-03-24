@@ -47,6 +47,14 @@ Uninstall nodes:
 ````
 $ bin/cloudmgr destroy cluster --name dev03 --cloud capella
 ````
+Entirely remove an environment, and all its components:
+````
+bin/cloudmgr remove --name test01
+````
+To build a blank node without any additional configuration from a public image, use generic mode:
+````
+bin/cloudmgr create generic --name test01 --cloud aws
+````
 
 ## Cloudmgr Utility
 The cloudmgr utility orchestrates environment builds. It accelerates environment build time by attempting to autoconfigure as much as possible, and using multiple choice prompts when possible for any answers it requires.
