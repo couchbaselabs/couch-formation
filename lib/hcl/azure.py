@@ -21,11 +21,11 @@ from lib.hcl.common import Variable, Variables, Locals, LocalVar, NodeMain, Null
     RemoteExec, ForEach, Provisioner, Triggers, Output, OutputValue, Build, Entry, ResourceBlock, NodeBuild, TimeSleep, DataResource, ResourceBuild
 from lib.hcl.azure_instance import NodeConfiguration, TerraformElement, RequiredProvider, AzureInstance, AzureTerraformProvider, AzureProviderBlock, NICConfiguration, \
     NSGData, NICNSGConfiguration, AzureNetworkInterfaceNSG, AzureNetworkInterface, PublicIPConfiguration, DiskConfiguration, \
-    SubnetData, AzureManagedDisk, AzureDiskAttachment, AttachedDiskConfiguration, ImageData, AzurePublicIP
+    SubnetData, AzureManagedDisk, AzureDiskAttachment, AttachedDiskConfiguration, ImageData, AzurePublicIP, SourceImageReference
 
 
 class CloudDriver(object):
-    VERSION = '3.0.0'
+    VERSION = '3.0.1'
     HOST_PREP_REPO = "couchbaselabs/couchbase-hostprep"
     DRIVER_CONFIG = "azure.json"
     NETWORK_CONFIG = "main.tf.json"
@@ -207,6 +207,8 @@ class CloudDriver(object):
     def create_nodes(self, node_type: str):
         cluster_build = False
         sync_gateway_build = False
+        app_build = False
+        generic_build = False
         locals_block = None
         null_resource_block = None
         swap_disk_block = None
@@ -217,16 +219,18 @@ class CloudDriver(object):
 
         dc.get_infrastructure()
         dc.get_keys()
-        dc.get_image()
-        dc.get_cluster_settings()
-        dc.get_node_settings()
+        dc.get_image(node_type)
+        dc.get_cluster_settings(node_type)
         cluster.create_cloud(node_type, dc)
 
         var_list = [
             ("cf_env_name", config.env_name, "Environment Name"),
             ("region_name", dc.region, "Region name"),
             ("image", dc.image, "Image name"),
-            ("ssh_user", dc.image_user, "Admin Username"),
+            ("image_publisher", dc.image_publisher, "Image Publisher"),
+            ("image_offer", dc.image_offer, "Image Offer"),
+            ("image_sku", dc.image_sku, "Image SKU"),
+            ("ssh_user", dc.generic_image_user if node_type == "generic" else dc.image_user, "Admin Username"),
             ("ssh_public_key", dc.public_key, "SSH public key filename"),
             ("ssh_private_key", dc.private_key, "SSH private key filename"),
             ("network", dc.network, "Network name"),
@@ -241,6 +245,7 @@ class CloudDriver(object):
         ]
 
         if node_type == "app":
+            app_build = True
             path_type = PathType.APP
             path_file = CloudDriver.MAIN_CONFIG
         elif node_type == "sgw":
@@ -256,6 +261,7 @@ class CloudDriver(object):
                 ]
             )
         elif node_type == "generic":
+            generic_build = True
             path_type = PathType.GENERIC
             path_file = CloudDriver.MAIN_CONFIG
         else:
@@ -360,11 +366,27 @@ class CloudDriver(object):
                 .add("sudo /usr/local/hostprep/bin/hostprep.sh -t sgw -g ${var.sgw_version}") \
                 .add("sudo /usr/local/hostprep/bin/clusterinit.sh -m sgw -r ${var.cb_node_1}") \
                 .as_dict
-        else:
+        elif app_build:
             inline_build = InLine.build() \
                 .add("sudo /usr/local/hostprep/bin/refresh.sh") \
                 .add("sudo /usr/local/hostprep/bin/hostprep.sh -t sdk") \
                 .as_dict
+        else:
+            inline_build = None
+
+        if inline_build:
+            provisioner_block = Provisioner.build()\
+                    .add(RemoteExec.build().add(Connection.build().add(
+                        ConnectionElements.construct(
+                            "var.use_public_ip ? self.public_ip_address : self.private_ip_address",
+                            "ssh_private_key",
+                            "ssh_user")
+                        .as_dict)
+                        .as_dict)
+                         .add(inline_build)
+                         .as_dict).as_contents
+        else:
+            provisioner_block = None
 
         output_block = Output.build().add(
             OutputValue.build()
@@ -379,12 +401,24 @@ class CloudDriver(object):
         time_sleep_block = TimeSleep.construct("azurerm_linux_virtual_machine", "couchbase_nodes")
 
         data_block = DataResource.build().add(
-            ImageData.construct("cb_image", "image", "image_resource_group").as_dict
-        ).add(
             NSGData.construct("cluster_nsg", "azure_nsg", "azure_resource_group").as_dict
         ).add(
             SubnetData.construct("cb_subnet", "cluster_spec", "node_subnet", "azure_resource_group", "network").as_dict
         )
+
+        if generic_build:
+            source_image_id = None
+            source_image_reference = SourceImageReference.construct(
+                "image_offer",
+                "image_publisher",
+                "image_sku"
+            ).as_dict
+        else:
+            source_image_id = "${data.azurerm_image.cb_image.id}"
+            source_image_reference = None
+            data_block.add(
+                ImageData.construct("cb_image", "image", "image_resource_group").as_dict
+            )
 
         if cluster.node_swap:
             swap_disk_block = AzureManagedDisk.build().add(
@@ -411,7 +445,6 @@ class CloudDriver(object):
         instance_block = AzureInstance.build().add(
             NodeBuild.construct(
                 NodeConfiguration.construct(
-                    "cb_image",
                     "root_volume_size",
                     "root_volume_type",
                     "cluster_spec",
@@ -420,19 +453,11 @@ class CloudDriver(object):
                     "ssh_public_key",
                     "region_name",
                     "azure_resource_group",
-                    Provisioner.build()
-                    .add(RemoteExec.build().add(Connection.build().add(
-                        ConnectionElements.construct(
-                            "var.use_public_ip ? self.public_ip_address : self.private_ip_address",
-                            "ssh_private_key",
-                            "ssh_user")
-                        .as_dict)
-                        .as_dict)
-                         .add(inline_build)
-                         .as_dict)
-                    .as_contents,
                     "node_nic",
                     "node_zone",
+                    provisioner_block,
+                    source_image_id,
+                    source_image_reference
                 ).as_dict
             ).as_name("couchbase_nodes")
         )

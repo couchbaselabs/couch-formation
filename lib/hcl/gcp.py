@@ -214,6 +214,7 @@ class CloudDriver(object):
         ]
 
         if node_type == "app":
+            app_build = True
             path_type = PathType.APP
             path_file = CloudDriver.MAIN_CONFIG
         elif node_type == "sgw":

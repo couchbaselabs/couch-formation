@@ -10,7 +10,7 @@ import lib.config as config
 from lib.util.envmgr import PathMap, PathType, ConfigFile
 from lib.hcl.azure_image import AzureImageDataRecord
 from lib.util.cfgmgr import ConfigMgr
-from lib.drivers.azure import AzureDiskTypes
+from lib.drivers.azure import AzureDiskTypes, AzureImagePublishers
 
 
 class DataCollect(object):
@@ -24,10 +24,14 @@ class DataCollect(object):
         self.instance_type = None
         self.cb_index_mem_type = None
         self.image_user = None
+        self.generic_image_user = None
         self.image_version = None
         self.image_type = None
         self.image_release = None
         self.image = None
+        self.image_publisher = None
+        self.image_offer = None
+        self.image_sku = None
         self.public_key = None
         self.ssh_fingerprint = None
         self.private_key = None
@@ -144,7 +148,7 @@ class DataCollect(object):
         self.env_cfg.update(net_use_public_ip=self.use_public_ip)
         self.env_cfg.update(azure_base_in_progress=False)
 
-    def get_image(self):
+    def get_image(self, node_type: str = None):
         in_progress = self.env_cfg.get("azure_image_in_progress")
 
         print("")
@@ -152,11 +156,19 @@ class DataCollect(object):
             print("Image is configured")
 
             self.image_user = self.env_cfg.get("ssh_user_name")
+            self.generic_image_user = self.env_cfg.get("ssh_generic_user_name")
             self.image = self.env_cfg.get("azure_image")
+            self.image_publisher = self.env_cfg.get("azure_image_publisher")
+            self.image_offer = self.env_cfg.get("azure_image_offer")
+            self.image_sku = self.env_cfg.get("azure_image_sku")
             self.azure_image_rg = self.env_cfg.get("azure_image_resource_group")
             self.image_version = self.env_cfg.get("cbs_version")
             print(f"SSH User Name        = {self.image_user}")
+            print(f"Generic User Name    = {self.generic_image_user}")
             print(f"Image Name           = {self.image}")
+            print(f"Image Publisher      = {self.image_publisher}")
+            print(f"Image Offer          = {self.image_offer}")
+            print(f"Image Sku            = {self.image_sku}")
             print(f"Image Resource Group = {self.azure_image_rg}")
             print(f"CBS Version          = {self.image_version}")
 
@@ -165,22 +177,40 @@ class DataCollect(object):
 
         self.env_cfg.update(azure_image_in_progress=True)
 
-        image_list = config.cloud_image().list(filter_keys_exist=["release_tag", "type_tag", "version_tag"])
-
-        image = Inquire().ask_list_dict(f"Select {config.cloud} image", image_list, sort_key="name", hide_key=["id"])
-
-        self.image = image['name']
-        self.azure_image_rg = image['resource_group']
-        self.image_release = image['release_tag']
-        self.image_type = image['type_tag']
-        self.image_version = image['version_tag']
-
-        distro_table = AzureImageDataRecord.by_version(self.image_type, self.image_release, config.cloud_operator().config.build)
-
-        self.image_user = distro_table.user
+        if node_type == "generic":
+            self.generic_image_user = "sysadmin"
+            self.image_user = self.env_cfg.get("ssh_user_name")
+            self.image_version = self.env_cfg.get("cbs_version")
+            publisher = Inquire().ask_list_dict('Image distribution', AzureImagePublishers.publishers)
+            self.image_publisher = publisher["name"]
+            image_list_struct = config.cloud_image().public(self.region, publisher["name"])
+            offer_list = list(i["name"] for i in image_list_struct)
+            self.image_offer = Inquire().ask_list_basic('Image Offer', offer_list)
+            offer = next(i for i in image_list_struct if i["name"] == self.image_offer)
+            self.image_sku = Inquire().ask_list_basic('Image SKU', offer["skus"], sort=True, reverse_sort=True)
+            self.image = self.env_cfg.get("azure_image")
+            self.azure_image_rg = self.env_cfg.get("azure_image_resource_group")
+        else:
+            image_list = config.cloud_image().list(filter_keys_exist=["release_tag", "type_tag", "version_tag"])
+            image = Inquire().ask_list_dict(f"Select {config.cloud} image", image_list, sort_key="name", hide_key=["id"])
+            self.image = image['name']
+            self.azure_image_rg = image['resource_group']
+            self.image_release = image['release_tag']
+            self.image_type = image['type_tag']
+            self.image_version = image['version_tag']
+            self.image_publisher = self.env_cfg.get("azure_image_publisher")
+            self.image_offer = self.env_cfg.get("azure_image_offer")
+            self.image_sku = self.env_cfg.get("azure_image_sku")
+            self.generic_image_user = self.env_cfg.get("ssh_generic_user_name")
+            distro_table = AzureImageDataRecord.by_version(self.image_type, self.image_release, config.cloud_operator().config.build)
+            self.image_user = distro_table.user
 
         self.env_cfg.update(ssh_user_name=self.image_user)
+        self.env_cfg.update(ssh_generic_user_name=self.generic_image_user)
         self.env_cfg.update(azure_image=self.image)
+        self.env_cfg.update(azure_image_publisher=self.image_publisher)
+        self.env_cfg.update(azure_image_offer=self.image_offer)
+        self.env_cfg.update(azure_image_sku=self.image_sku)
         self.env_cfg.update(azure_image_resource_group=self.azure_image_rg)
         self.env_cfg.update(cbs_version=self.image_version)
         self.env_cfg.update(azure_image_in_progress=False)
@@ -219,7 +249,9 @@ class DataCollect(object):
         self.env_cfg.update(ssh_public_key=self.public_key)
         self.env_cfg.update(ssh_in_progress=False)
 
-    def get_cluster_settings(self):
+    def get_cluster_settings(self, node_type: str = None):
+        if node_type != "cluster":
+            return
         option_list = [
             {
                 'name': 'default',

@@ -125,9 +125,11 @@ class Inquire(object):
         else:
             return options[index]
 
-    def ask_list_basic(self, question: str, options: list[str], page_length: int = 20) -> str:
+    def ask_list_basic(self, question: str, options: list[str], page_length: int = 20, sort: bool = False, reverse_sort: bool = False) -> str:
         if len(options) == 1:
             return options[0]
+        if sort:
+            options = sorted(options, reverse=reverse_sort)
         print("%s:" % question)
         divided_list = list(self.divide_list(options, page_length))
         while True:

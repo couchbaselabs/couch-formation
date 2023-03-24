@@ -96,7 +96,9 @@ class GCPSettings(object):
 class AzureSettings(object):
     region = attr.ib(validator=attr.validators.optional(io(str)), default=None)
     image = attr.ib(validator=attr.validators.optional(io(str)), default=None)
-    generic_image = attr.ib(validator=attr.validators.optional(io(str)), default=None)
+    image_publisher = attr.ib(validator=attr.validators.optional(io(str)), default=None)
+    image_offer = attr.ib(validator=attr.validators.optional(io(str)), default=None)
+    image_sku = attr.ib(validator=attr.validators.optional(io(str)), default=None)
     machine_type = attr.ib(validator=attr.validators.optional(io(str)), default=None)
     private_key = attr.ib(validator=attr.validators.optional(io(str)), default=None)
     network = attr.ib(validator=attr.validators.optional(io(str)), default=None)

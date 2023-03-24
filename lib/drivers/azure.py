@@ -43,8 +43,46 @@ class AzureDiskTypes(object):
     ]
 
 
+@attr.s
+class AzureImagePublishers(object):
+    publishers = [
+        {
+            "name": "Canonical",
+            "description": "Ubuntu Linux"
+        },
+        {
+            "name": "OpenLogic",
+            "description": "CentOS Linux"
+        },
+        {
+            "name": "RedHat",
+            "description": "RedHat Linux"
+        },
+        {
+            "name": "SUSE",
+            "description": "Suse Linux"
+        },
+        {
+            "name": "credativ",
+            "description": "Debian 9 and earlier"
+        },
+        {
+            "name": "Debian",
+            "description": "Debian 10 and later"
+        },
+        {
+            "name": "Oracle-Linux",
+            "description": "Oracle Linux"
+        },
+        {
+            "name": "CoreOS",
+            "description": "CoreOS"
+        },
+    ]
+
+
 class CloudBase(object):
-    VERSION = '3.0.0'
+    VERSION = '3.0.1'
     PUBLIC_CLOUD = True
     SAAS_CLOUD = False
     NETWORK_SUPER_NET = True
@@ -656,7 +694,10 @@ class MachineType(CloudBase):
                 if capability.name == 'vCPUs':
                     vm_cpu = int(capability.value)
                 if capability.name == 'MemoryGB':
-                    vm_mem = int(capability.value) * 1024
+                    try:
+                        vm_mem = int(capability.value) * 1024
+                    except ValueError:
+                        vm_mem = float(capability.value) * 1024
             if vm_cpu == 0 or vm_mem == 0:
                 continue
             config_block = {'name': group.name,
@@ -858,6 +899,36 @@ class Image(CloudBase):
             raise EmptyResultSet(f"no images found")
 
         return image_list
+
+    def public(self, location: str, publisher: str):
+        offer_list = []
+        pruned_offer_list = []
+
+        offers = self.compute_client.virtual_machine_images.list_offers(location, publisher)
+        for group in list(offers):
+            offer_block = {'name': group.name,
+                           'skus': [],
+                           'count': 0}
+            offer_list.append(offer_block)
+
+        for n, offer in enumerate(offer_list):
+            offer_name = offer['name']
+            skus = self.compute_client.virtual_machine_images.list_skus(location, publisher, offer_name)
+            for group in list(skus):
+                sku_name = group.name
+                versions = self.compute_client.virtual_machine_images.list(location, publisher, offer_name, sku_name)
+                if len(list(versions)) > 0:
+                    offer_list[n]['skus'].append(sku_name)
+                    offer_list[n]['count'] = len(offer_list[n]['skus'])
+
+        for offer in offer_list:
+            if offer['count'] != 0:
+                pruned_offer_list.append(offer)
+
+        if len(pruned_offer_list) == 0:
+            raise EmptyResultSet(f"no images found")
+
+        return pruned_offer_list
 
     def details(self, name: str, resource_group: Union[str, None] = None) -> dict:
         if not resource_group:

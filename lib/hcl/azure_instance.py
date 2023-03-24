@@ -2,6 +2,7 @@
 ##
 
 import attr
+from typing import Union
 from attr.validators import instance_of as io
 
 
@@ -223,15 +224,15 @@ class NodeConfiguration(object):
     name = attr.ib(validator=io(str))
     network_interface_ids = attr.ib(validator=io(list))
     os_disk = attr.ib(validator=io(list))
-    provisioner = attr.ib(validator=io(dict))
     resource_group_name = attr.ib(validator=io(str))
     size = attr.ib(validator=io(str))
-    source_image_id = attr.ib(validator=io(str))
     zone = attr.ib(validator=io(str))
+    provisioner = attr.ib(validator=attr.validators.optional(io(dict)), default=None)
+    source_image_id = attr.ib(validator=attr.validators.optional(io(str)), default=None)
+    source_image_reference = attr.ib(validator=attr.validators.optional(io(list)), default=None)
 
     @classmethod
     def construct(cls,
-                  image: str,
                   root_size: str,
                   root_type: str,
                   for_each: str,
@@ -240,9 +241,11 @@ class NodeConfiguration(object):
                   public_key: str,
                   location: str,
                   resource_group: str,
-                  provisioner: dict,
                   nic_name: str,
-                  zone: str):
+                  zone: str,
+                  provisioner: Union[dict, None] = None,
+                  source_id: Union[str, None] = None,
+                  source_image: Union[list, None] = None):
         return cls(
             AdminSSHKey.construct(public_key, user).as_dict,
             f"${{var.{user}}}",
@@ -251,16 +254,18 @@ class NodeConfiguration(object):
             "${each.key}",
             NetworkInterface.construct(nic_name).as_dict,
             OSDisk.construct(root_size, root_type).as_dict,
-            provisioner,
             f"${{var.{resource_group}}}",
             f"${{each.value.{machine_type}}}",
-            f"${{data.azurerm_image.{image}.id}}",
             f"${{each.value.{zone}}}",
+            provisioner,
+            source_id,
+            source_image
         )
 
     @property
     def as_dict(self):
-        return self.__dict__
+        block = {k: v for k, v in self.__dict__.items() if v is not None}
+        return block
 
 
 @attr.s
@@ -523,3 +528,25 @@ class AttachedDiskConfiguration(object):
     @property
     def as_dict(self):
         return self.__dict__
+
+
+@attr.s
+class SourceImageReference(object):
+    source_image_reference = attr.ib(validator=io(list))
+
+    @classmethod
+    def construct(cls, image_offer: str, image_publisher: str, image_sku: str):
+        return cls(
+            [
+                {
+                    "offer": f"${{var.{image_offer}}}",
+                    "publisher": f"${{var.{image_publisher}}}",
+                    "sku": f"${{var.{image_sku}}}",
+                    "version": "latest"
+                }
+            ]
+        )
+
+    @property
+    def as_dict(self):
+        return self.__dict__['source_image_reference']
