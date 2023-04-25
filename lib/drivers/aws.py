@@ -168,6 +168,16 @@ class AWSImageOwners(object):
             "description": "Amazon Linux",
             "user": "ec2-user"
         },
+        {
+            "owner_id": "647457786197",
+            "description": "Arch Linux",
+            "user": "arch"
+        },
+        {
+            "owner_id": "792107900819",
+            "description": "Rocky Linux",
+            "user": "rocky"
+        },
     ]
 
 
