@@ -54,6 +54,7 @@ single_az = False
 cloud_zone = None
 cloud_zone_cycle = None
 test_mode = False
+assume_yes = False
 operating_mode = OperatingMode.CREATE.value
 catalog_target = CatalogRoot.INVENTORY
 cidr_util = NetworkDriver()
@@ -88,7 +89,8 @@ def process_params(parameters: argparse.Namespace) -> None:
         sgw_node_count, \
         update_dns, \
         domain_name, \
-        operating_mode
+        operating_mode, \
+        assume_yes
     if parameters.debug:
         enable_debug = parameters.debug
     if parameters.name:
@@ -103,6 +105,8 @@ def process_params(parameters: argparse.Namespace) -> None:
         cb_node_min = app_node_count = sgw_node_count = parameters.min
     if parameters.dns:
         update_dns = parameters.dns
+    if parameters.yes:
+        assume_yes = parameters.yes
     if 'create' in parameters:
         if parameters.create:
             operating_mode = OperatingMode.CREATE.value

@@ -6,6 +6,7 @@ import sys
 import ipaddress
 import getpass
 import re
+import lib.config as config
 from lib.util.keyboard import get_char
 from typing import Union, Iterable
 from distutils.util import strtobool
@@ -528,7 +529,10 @@ class Inquire(object):
 
         return passanswer
 
-    def ask_yn(self, question, default=False):
+    @staticmethod
+    def ask_yn(question, default=False):
+        if config.assume_yes:
+            return True
         if default:
             default_answer = 'y'
         else:

@@ -29,6 +29,7 @@ class Parameters(object):
         parent_parser.add_argument('--name', action='store', help="Environment name", type=name_arg)
         parent_parser.add_argument('-d', '--debug', action='store_true', help="Debug output")
         parent_parser.add_argument('-v', '--verbose', action='store_true', help="Verbose output")
+        parent_parser.add_argument('-y', '--yes', action='store_true', help="Assume yes confirmation")
         image_parser = argparse.ArgumentParser(add_help=False)
         image_parser.add_argument('--image', action='store', help='Image name')
         image_parser.add_argument('--json', action='store_true', help='Output in JSON format', default=False)
@@ -152,6 +153,8 @@ class Parameters(object):
             config.cb_node_min = config.app_node_count = config.sgw_node_count = self.parameters.min
         if self.parameters.dns:
             config.update_dns = self.parameters.dns
+        if self.parameters.yes:
+            config.assume_yes = self.parameters.yes
         if 'create' in self.parameters:
             if self.parameters.create:
                 config.operating_mode = OperatingMode.CREATE.value
