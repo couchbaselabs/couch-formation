@@ -98,10 +98,6 @@ class ClusterCollect(object):
             selected_services = []
             node_ram = int(machine_data['memory'] / 1024)
 
-            zone_data = next(self.availability_zone_cycle)
-            availability_zone = zone_data['zone']
-            node_subnet = zone_data['name']
-
             print("")
             print(f"Configuring group {group}")
 
@@ -128,6 +124,10 @@ class ClusterCollect(object):
                 node_ip_address = None
                 node_netmask = None
                 node_gateway = None
+
+                zone_data = next(self.availability_zone_cycle)
+                availability_zone = zone_data['zone']
+                node_subnet = zone_data['name']
 
                 if node == 1:
                     install_mode = 'init'
