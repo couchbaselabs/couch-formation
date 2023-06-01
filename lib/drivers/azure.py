@@ -345,9 +345,12 @@ class Network(CloudBase):
 
     @property
     def cidr_list(self):
-        for item in self.list():
-            for net in item['cidr']:
-                yield net
+        try:
+            for item in self.list():
+                for net in item['cidr']:
+                    yield net
+        except EmptyResultSet:
+            return iter(())
 
     def create(self, name: str, cidr: str, resource_group: Union[str, None] = None) -> str:
         if not resource_group:
