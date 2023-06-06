@@ -1,4 +1,4 @@
-# Couch Formation 3.0 RC1
+# Couch Formation 3.0.1 RC3
 
 ![Logo](doc/couch-formation-1.png)
 
