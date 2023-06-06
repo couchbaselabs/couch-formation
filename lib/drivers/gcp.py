@@ -81,6 +81,56 @@ class GCPImageProjects(object):
     ]
 
 
+@attr.s
+class GCPImageUsers(object):
+    users = [
+        {
+            "project": 'centos-cloud',
+            "user": "centos"
+        },
+        {
+            "project": 'cos-cloud',
+            "user": "admin"
+        },
+        {
+            "project": 'debian-cloud',
+            "user": "admin"
+        },
+        {
+            "project": 'fedora-cloud',
+            "user": "admin"
+        },
+        {
+            "project": 'opensuse-cloud',
+            "user": "admin"
+        },
+        {
+            "project": 'rhel-cloud',
+            "user": "rhel"
+        },
+        {
+            "project": 'rocky-linux-cloud',
+            "user": "rocky"
+        },
+        {
+            "project": 'suse-cloud',
+            "user": "admin"
+        },
+        {
+            "project": 'ubuntu-os-cloud',
+            "user": "ubuntu"
+        },
+        {
+            "project": 'ubuntu-os-pro-cloud',
+            "user": "ubuntu"
+        },
+        {
+            "project": 'fedora-coreos-cloud',
+            "user": "core"
+        }
+    ]
+
+
 class CloudBase(object):
     VERSION = '3.0.1'
     PUBLIC_CLOUD = True
