@@ -11,7 +11,7 @@ import lib.config as config
 from lib.util.envmgr import PathMap, PathType, ConfigFile
 from lib.hcl.gcp_image import GCPImageDataRecord
 from lib.util.cfgmgr import ConfigMgr
-from lib.drivers.gcp import GCPDiskTypes, GCPImageProjects
+from lib.drivers.gcp import GCPDiskTypes, GCPImageProjects, GCPImageUsers
 
 
 class DataCollect(object):
@@ -169,7 +169,7 @@ class DataCollect(object):
         image = Inquire().ask_list_dict(f"Select {config.cloud} image", image_list, sort_key="date", hide_key=["link"], reverse_sort=True)
 
         if node_type == "generic":
-            self.generic_image_user = "admin"
+            self.generic_image_user = next(i["user"] for i in GCPImageUsers.users if i["project"] == self.gcp_image_project)
             self.image_user = self.env_cfg.get("ssh_user_name")
             self.image_version = self.env_cfg.get("cbs_version")
             self.generic_image = image['name']
