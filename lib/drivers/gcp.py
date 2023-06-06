@@ -299,9 +299,12 @@ class Network(CloudBase):
 
     @property
     def cidr_list(self):
-        for network in self.list():
-            for item in Subnet().list(network['name']):
-                yield item['cidr']
+        try:
+            for network in self.list():
+                for item in Subnet().list(network['name']):
+                    yield item['cidr']
+        except EmptyResultSet:
+            return iter(())
 
     def create(self, name: str) -> str:
         network_body = {

@@ -365,8 +365,11 @@ class Network(CloudBase):
 
     @property
     def cidr_list(self):
-        for item in self.list():
-            yield item['cidr']
+        try:
+            for item in self.list():
+                yield item['cidr']
+        except EmptyResultSet:
+            return iter(())
 
     def create(self, name: str, cidr: str) -> str:
         vpc_tag = [AWSTagStruct.build("vpc").add(AWSTag("Name", name)).as_dict]
