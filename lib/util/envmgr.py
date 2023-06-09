@@ -524,6 +524,10 @@ class LogViewer(object):
             self.path_map.map(PathType.SGW)
             self.log_path = self.path_map.get_path(PathType.SGW)
             self.log_file = LogViewer.DEPLOY_LOG
+        elif parameters.log_command == "generic":
+            self.path_map.map(PathType.GENERIC)
+            self.log_path = self.path_map.get_path(PathType.GENERIC)
+            self.log_file = LogViewer.DEPLOY_LOG
         else:
             self.path_map.map(PathType.CLUSTER)
             self.log_path = self.path_map.get_path(PathType.CLUSTER)

@@ -15,7 +15,7 @@ from lib.config import CloudProviders
 from lib.util.envmgr import PathMap, CatalogManager, EnvUtil, CatalogRoot, NodeTargets
 from lib.util.logging import CustomFormatter
 
-VERSION = '3.0.1-rc2'
+VERSION = '3.0.1-rc3'
 warnings.filterwarnings("ignore")
 logger = logging.getLogger()
 
