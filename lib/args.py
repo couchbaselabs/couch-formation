@@ -115,6 +115,7 @@ class Parameters(object):
         log_action_cluster = log_action.add_parser('cluster', help="Get cluster build logs", parents=[parent_parser, log_parser], add_help=False)
         log_action_app = log_action.add_parser('app', help="Get app build logs", parents=[parent_parser, log_parser], add_help=False)
         log_action_sgw = log_action.add_parser('sgw', help="Get sgw build logs", parents=[parent_parser, log_parser], add_help=False)
+        log_action_sgw = log_action.add_parser('generic', help="Get sgw build logs", parents=[parent_parser, log_parser], add_help=False)
 
         db_mode = subparsers.add_parser('db', help="Catalog manager", parents=[parent_parser], add_help=False)
         db_action = db_mode.add_subparsers(dest='db_command')
