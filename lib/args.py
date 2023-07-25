@@ -4,7 +4,8 @@
 import argparse
 import re
 import lib.config as config
-from lib.config import OperatingMode
+from lib.util.db_mgr import LocalDB
+from lib.config import OperatingMode, CloudProviders
 
 
 def name_arg(value):
@@ -121,6 +122,9 @@ class Parameters(object):
         db_action = db_mode.add_subparsers(dest='db_command')
         db_action_check = db_action.add_parser('check', help="Check the catalog", parents=[parent_parser, db_parser], add_help=False)
 
+        auth_mode = subparsers.add_parser('auth', help="Configure Authorization", parents=[parent_parser], add_help=False)
+        auth_cloud = auth_mode.add_argument('cloudtype', help="Cloud Name", nargs='?')
+
         self.parser = parser
         self.image_parser = image_mode
         self.create_parser = create_mode
@@ -133,11 +137,25 @@ class Parameters(object):
         self.ssh_parser = ssh_mode
         self.log_parser = log_mode
 
-        self.parameters = parser.parse_args()
+        self.parameters, remainder = parser.parse_known_args()
+
+        # db = LocalDB()
+        # db.init_config()
+        # db.get_config()
+
+        for cloud in CloudProviders().clouds:
+            cloud_parser = argparse.ArgumentParser(add_help=False)
+            for arg in config.cloud_config[cloud].get_values.keys():
+                cloud_parser.add_argument(f"--{arg}", action='store')
+            options, unknown = cloud_parser.parse_known_args(remainder)
+            config.cloud_config[cloud].from_namespace(options)
 
     @property
     def args(self):
         return self.parameters
+
+    def update_options(self):
+        pass
 
     def update_config(self):
         if self.parameters.debug:

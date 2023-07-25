@@ -8,6 +8,8 @@ import attr
 from enum import Enum
 from lib.drivers.network import NetworkDriver
 from lib.util.envmgr import CatalogRoot
+from lib.util.filemgr import FileManager
+from lib.config_values import AWSConfig, GCPConfig, AzureConfig, VMWareConfig, CapellaConfig
 
 
 @attr.s
@@ -58,6 +60,8 @@ assume_yes = False
 operating_mode = OperatingMode.CREATE.value
 catalog_target = CatalogRoot.INVENTORY
 cidr_util = NetworkDriver()
+cloud_auth = None
+cloud_data = None
 cloud_base = None
 cloud_network = None
 cloud_subnet = None
@@ -68,6 +72,13 @@ ssh_key = None
 cloud_image = None
 cloud_operator = None
 default_debug_file = 'cf_debug.log'
+cloud_config = {
+    "aws": AWSConfig(),
+    "gcp": GCPConfig(),
+    "azure": AzureConfig(),
+    "vmware": VMWareConfig(),
+    "capella": CapellaConfig()
+}
 
 lib_dir = os.path.dirname(os.path.realpath(__file__))
 package_dir = os.path.dirname(lib_dir)
@@ -76,6 +87,13 @@ if 'CLOUD_MANAGER_DATABASE_LOCATION' in os.environ:
     catalog_root = os.environ['CLOUD_MANAGER_DATABASE_LOCATION']
 else:
     catalog_root = f"{package_dir}/db"
+
+if 'CLOUD_MANAGER_CONFIGURATION' in os.environ:
+    cfg_dir = os.environ['CLOUD_MANAGER_CONFIGURATION']
+else:
+    cfg_dir = f"{os.environ.get('HOME')}/.config/couch-formation"
+
+FileManager().create_dir(cfg_dir)
 
 
 def process_params(parameters: argparse.Namespace) -> None:
@@ -122,6 +140,7 @@ def enable_cloud(name: str) -> None:
     driver = None
     operator = None
     global cloud_base, \
+        cloud_auth, \
         cloud_network, \
         cloud_subnet, \
         cloud_security_group, \
@@ -158,6 +177,7 @@ def enable_cloud(name: str) -> None:
         driver = module.drivers.capella
         module = __import__('lib.hcl.capella')
         operator = module.hcl.capella
+    cloud_auth = getattr(driver, 'CloudInit')
     cloud_base = getattr(driver, 'CloudBase')
     cloud_network = getattr(driver, 'Network')
     cloud_subnet = getattr(driver, 'Subnet')

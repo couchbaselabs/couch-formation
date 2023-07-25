@@ -5,6 +5,9 @@ import logging
 import boto3
 import os
 import attr
+import webbrowser
+import time
+from datetime import datetime
 from Crypto.PublicKey import RSA
 from attr.validators import instance_of as io
 from typing import Iterable, Union
@@ -12,6 +15,12 @@ from itertools import cycle
 from lib.exceptions import AWSDriverError, EmptyResultSet
 from lib.util.filemgr import FileManager
 import lib.config as config
+
+logger = logging.getLogger('cf.driver.aws')
+logger.addHandler(logging.NullHandler())
+logging.getLogger("botocore").setLevel(logging.ERROR)
+logging.getLogger("urllib3").setLevel(logging.ERROR)
+CLOUD_KEY = "aws"
 
 
 @attr.s
@@ -181,16 +190,104 @@ class AWSImageOwners(object):
     ]
 
 
+class CloudInit(object):
+    VERSION = '4.0.0'
+
+    def __init__(self):
+        self.db = None
+
+    def auth(self):
+        if config.cloud_config[CLOUD_KEY].sso_url and config.cloud_config[CLOUD_KEY].account:
+            self.sso_auth()
+        elif config.cloud_config[CLOUD_KEY].access_key and config.cloud_config[CLOUD_KEY].secret_key:
+            pass
+        else:
+            self.default_auth()
+
+        if config.cloud_config[CLOUD_KEY].expiration:
+            timestamp = config.cloud_config[CLOUD_KEY].expiration / 1000
+            expires = datetime.fromtimestamp(timestamp)
+            if datetime.now() < expires:
+                return
+            else:
+                raise AWSDriverError("session token expired")
+
+    @staticmethod
+    def default_auth():
+        session = boto3.Session(profile_name='default')
+        credentials = session.get_credentials()
+        config.cloud_config[CLOUD_KEY].access_key = credentials.access_key
+        config.cloud_config[CLOUD_KEY].secret_key = credentials.secret_key
+        config.cloud_config[CLOUD_KEY].session_token = credentials.token
+
+    @staticmethod
+    def sso_auth():
+        token = {}
+
+        session = boto3.Session()
+        account_id = config.cloud_config[CLOUD_KEY].account
+        start_url = config.cloud_config[CLOUD_KEY].sso_url
+        region = config.cloud_config[CLOUD_KEY].region
+        sso_oidc = session.client('sso-oidc', region_name=region)
+        client_creds = sso_oidc.register_client(
+            clientName='couch-formation',
+            clientType='public',
+        )
+        device_authorization = sso_oidc.start_device_authorization(
+            clientId=client_creds['clientId'],
+            clientSecret=client_creds['clientSecret'],
+            startUrl=start_url,
+        )
+        url = device_authorization['verificationUriComplete']
+        device_code = device_authorization['deviceCode']
+        expires_in = device_authorization['expiresIn']
+        interval = device_authorization['interval']
+        webbrowser.open(url, autoraise=True)
+        for n in range(1, expires_in // interval + 1):
+            time.sleep(interval)
+            try:
+                token = sso_oidc.create_token(
+                    grantType='urn:ietf:params:oauth:grant-type:device_code',
+                    deviceCode=device_code,
+                    clientId=client_creds['clientId'],
+                    clientSecret=client_creds['clientSecret'],
+                )
+                break
+            except sso_oidc.exceptions.AuthorizationPendingException:
+                pass
+
+        access_token = token['accessToken']
+        sso = session.client('sso', region_name=region)
+        account_roles = sso.list_account_roles(
+            accessToken=access_token,
+            accountId=account_id,
+        )
+        roles = account_roles['roleList']
+        role = roles[0]
+        role_creds = sso.get_role_credentials(
+            roleName=role['roleName'],
+            accountId=account_id,
+            accessToken=access_token,
+        )
+
+        session_creds = role_creds['roleCredentials']
+
+        config.cloud_config[CLOUD_KEY].access_key = session_creds['accessKeyId']
+        config.cloud_config[CLOUD_KEY].secret_key = session_creds['secretAccessKey']
+        config.cloud_config[CLOUD_KEY].session_token = session_creds['sessionToken']
+        config.cloud_config[CLOUD_KEY].expiration = session_creds['expiration']
+
+    def data(self):
+        pass
+
+
 class CloudBase(object):
-    VERSION = '3.0.1'
+    VERSION = '4.0.0'
     PUBLIC_CLOUD = True
     SAAS_CLOUD = False
     NETWORK_SUPER_NET = True
 
     def __init__(self):
-        self.logger = logging.getLogger(self.__class__.__name__)
-        logging.getLogger("botocore").setLevel(logging.ERROR)
-        logging.getLogger("urllib3").setLevel(logging.ERROR)
         self.aws_region = None
         self.zone_list = []
 
@@ -213,8 +310,8 @@ class CloudBase(object):
         self.set_zone()
 
     def get_info(self):
-        self.logger.info(f"Region:          {self.aws_region}")
-        self.logger.info(f"Available Zones: {','.join(self.zone_list)}")
+        logger.info(f"Region:          {self.aws_region}")
+        logger.info(f"Available Zones: {','.join(self.zone_list)}")
 
     @property
     def client(self):

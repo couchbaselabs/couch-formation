@@ -15,7 +15,7 @@ from lib.config import CloudProviders
 from lib.util.envmgr import PathMap, CatalogManager, EnvUtil, CatalogRoot, NodeTargets
 from lib.util.logging import CustomFormatter
 
-VERSION = '3.0.1-rc3'
+VERSION = '4.0.0-a1'
 warnings.filterwarnings("ignore")
 logger = logging.getLogger()
 
@@ -31,7 +31,11 @@ class CloudManager(object):
     def __init__(self, parameters):
         self.args = parameters
         self.verb = self.args.command
-        config.enable_cloud(self.args.cloud)
+        if self.args.cloudtype:
+            config.cloud = self.args.cloudtype
+            config.enable_cloud(self.args.cloudtype)
+        else:
+            config.enable_cloud(self.args.cloud)
 
     def run(self):
         logger.info(f"Couch Formation ({VERSION})")
@@ -88,6 +92,9 @@ class CloudManager(object):
                 path_map = PathMap(config.env_name, config.cloud)
                 cm = CatalogManager(path_map.get_root)
                 cm.check(fix=self.args.fix)
+        elif self.verb == 'auth':
+            config.cloud_auth().auth()
+            print(config.cloud_config[config.cloud].as_dict)
 
 
 def main():

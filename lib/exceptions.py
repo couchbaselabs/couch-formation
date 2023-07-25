@@ -173,3 +173,7 @@ class CapellaRequestValidationError(FatalError):
 
 class CapellaInternalServerError(FatalError):
     pass
+
+
+class DBError(FatalError):
+    pass
