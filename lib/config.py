@@ -23,6 +23,14 @@ class CloudProviders(object):
     ]
 
 
+class CloudConfig(Enum):
+    aws = AWSConfig
+    gcp = GCPConfig
+    azure = AzureConfig
+    vmware = VMWareConfig
+    capella = CapellaConfig
+
+
 class OperatingMode(Enum):
     CREATE = 0
     DESTROY = 1
@@ -72,13 +80,7 @@ ssh_key = None
 cloud_image = None
 cloud_operator = None
 default_debug_file = 'cf_debug.log'
-cloud_config = {
-    "aws": AWSConfig(),
-    "gcp": GCPConfig(),
-    "azure": AzureConfig(),
-    "vmware": VMWareConfig(),
-    "capella": CapellaConfig()
-}
+cloud_config = AWSConfig()
 
 lib_dir = os.path.dirname(os.path.realpath(__file__))
 package_dir = os.path.dirname(lib_dir)
@@ -96,6 +98,19 @@ else:
 FileManager().create_dir(cfg_dir)
 
 
+def update_options(settings: dict) -> None:
+    cloud_config.from_dict(settings)
+
+
+def process_options(remainder: list[str]) -> None:
+    global cloud_config
+    cloud_parser = argparse.ArgumentParser(add_help=False)
+    for arg in cloud_config.get_values.keys():
+        cloud_parser.add_argument(f"--{arg}", action='store')
+    options, unknown = cloud_parser.parse_known_args(remainder)
+    cloud_config.from_namespace(options)
+
+
 def process_params(parameters: argparse.Namespace) -> None:
     global enable_debug, \
         env_name, \
@@ -108,7 +123,8 @@ def process_params(parameters: argparse.Namespace) -> None:
         update_dns, \
         domain_name, \
         operating_mode, \
-        assume_yes
+        assume_yes, \
+        cloud_config
     if parameters.debug:
         enable_debug = parameters.debug
     if parameters.name:
@@ -134,6 +150,7 @@ def process_params(parameters: argparse.Namespace) -> None:
     if 'build' in parameters:
         if parameters.build:
             operating_mode = OperatingMode.BUILD.value
+    cloud_config = CloudConfig[cloud].value()
 
 
 def enable_cloud(name: str) -> None:

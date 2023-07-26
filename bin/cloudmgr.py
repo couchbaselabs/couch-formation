@@ -11,8 +11,8 @@ from lib.args import Parameters
 from lib.util.envmgr import LogViewer
 from lib.util.namegen import get_random_name
 import lib.config as config
-from lib.config import CloudProviders
-from lib.util.envmgr import PathMap, CatalogManager, EnvUtil, CatalogRoot, NodeTargets
+from lib.util.db_mgr import LocalDB
+from lib.util.envmgr import PathMap, CatalogManager, EnvUtil, CatalogRoot
 from lib.util.logging import CustomFormatter
 
 VERSION = '4.0.0-a1'
@@ -31,11 +31,8 @@ class CloudManager(object):
     def __init__(self, parameters):
         self.args = parameters
         self.verb = self.args.command
-        if self.args.cloudtype:
-            config.cloud = self.args.cloudtype
-            config.enable_cloud(self.args.cloudtype)
-        else:
-            config.enable_cloud(self.args.cloud)
+        self.db = LocalDB()
+        config.enable_cloud(self.args.cloud)
 
     def run(self):
         logger.info(f"Couch Formation ({VERSION})")
@@ -94,13 +91,15 @@ class CloudManager(object):
                 cm.check(fix=self.args.fix)
         elif self.verb == 'auth':
             config.cloud_auth().auth()
-            print(config.cloud_config[config.cloud].as_dict)
+            self.db.update_config()
+            logger.debug(f"Final config: {config.cloud_config.as_dict}")
 
 
 def main():
     global logger
     arg_parser = Parameters()
     arg_parser.update_config()
+    arg_parser.update_options()
     parameters = arg_parser.args
     signal.signal(signal.SIGINT, break_signal_handler)
 

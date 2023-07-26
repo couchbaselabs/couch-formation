@@ -11,7 +11,8 @@ AWS_CONFIG = """CREATE TABLE IF NOT EXISTS aws_config(
               region TEXT,
               access_key TEXT,
               secret_key TEXT,
-              session_token TEXT)
+              session_token TEXT
+              expiration INTEGER)
 """
 
 GCP_CONFIG = """CREATE TABLE IF NOT EXISTS gcp_config(

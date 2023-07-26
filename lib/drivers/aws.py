@@ -197,37 +197,39 @@ class CloudInit(object):
         self.db = None
 
     def auth(self):
-        if config.cloud_config[CLOUD_KEY].sso_url and config.cloud_config[CLOUD_KEY].account:
-            self.sso_auth()
-        elif config.cloud_config[CLOUD_KEY].access_key and config.cloud_config[CLOUD_KEY].secret_key:
-            pass
-        else:
-            self.default_auth()
-
-        if config.cloud_config[CLOUD_KEY].expiration:
-            timestamp = config.cloud_config[CLOUD_KEY].expiration / 1000
+        if config.cloud_config.expiration:
+            timestamp = config.cloud_config.expiration / 1000
             expires = datetime.fromtimestamp(timestamp)
             if datetime.now() < expires:
                 return
-            else:
-                raise AWSDriverError("session token expired")
+
+        if config.cloud_config.sso_url and config.cloud_config.account:
+            self.sso_auth()
+        elif config.cloud_config.access_key and config.cloud_config.secret_key:
+            if config.cloud_config.expiration:
+                timestamp = config.cloud_config.expiration / 1000
+                expires = datetime.fromtimestamp(timestamp)
+                if datetime.now() > expires:
+                    raise AWSDriverError("session token expired")
+        else:
+            self.default_auth()
 
     @staticmethod
     def default_auth():
         session = boto3.Session(profile_name='default')
         credentials = session.get_credentials()
-        config.cloud_config[CLOUD_KEY].access_key = credentials.access_key
-        config.cloud_config[CLOUD_KEY].secret_key = credentials.secret_key
-        config.cloud_config[CLOUD_KEY].session_token = credentials.token
+        config.cloud_config.access_key = credentials.access_key
+        config.cloud_config.secret_key = credentials.secret_key
+        config.cloud_config.session_token = credentials.token
 
     @staticmethod
     def sso_auth():
         token = {}
 
         session = boto3.Session()
-        account_id = config.cloud_config[CLOUD_KEY].account
-        start_url = config.cloud_config[CLOUD_KEY].sso_url
-        region = config.cloud_config[CLOUD_KEY].region
+        account_id = config.cloud_config.account
+        start_url = config.cloud_config.sso_url
+        region = config.cloud_config.region
         sso_oidc = session.client('sso-oidc', region_name=region)
         client_creds = sso_oidc.register_client(
             clientName='couch-formation',
@@ -272,10 +274,10 @@ class CloudInit(object):
 
         session_creds = role_creds['roleCredentials']
 
-        config.cloud_config[CLOUD_KEY].access_key = session_creds['accessKeyId']
-        config.cloud_config[CLOUD_KEY].secret_key = session_creds['secretAccessKey']
-        config.cloud_config[CLOUD_KEY].session_token = session_creds['sessionToken']
-        config.cloud_config[CLOUD_KEY].expiration = session_creds['expiration']
+        config.cloud_config.access_key = session_creds['accessKeyId']
+        config.cloud_config.secret_key = session_creds['secretAccessKey']
+        config.cloud_config.session_token = session_creds['sessionToken']
+        config.cloud_config.expiration = session_creds['expiration']
 
     def data(self):
         pass
