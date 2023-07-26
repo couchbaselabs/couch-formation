@@ -3,6 +3,8 @@
 
 import logging
 import boto3
+import botocore.exceptions
+from botocore.config import Config
 import os
 import attr
 import webbrowser
@@ -14,6 +16,7 @@ from typing import Iterable, Union
 from itertools import cycle
 from lib.exceptions import AWSDriverError, EmptyResultSet
 from lib.util.filemgr import FileManager
+from lib.util.db_mgr import LocalDB
 import lib.config as config
 
 logger = logging.getLogger('cf.driver.aws')
@@ -194,7 +197,7 @@ class CloudInit(object):
     VERSION = '4.0.0'
 
     def __init__(self):
-        self.db = None
+        self.db = LocalDB()
 
     def auth(self):
         if config.cloud_config.expiration:
@@ -279,8 +282,39 @@ class CloudInit(object):
         config.cloud_config.session_token = session_creds['sessionToken']
         config.cloud_config.expiration = session_creds['expiration']
 
-    def data(self):
-        pass
+    def init(self):
+        session = boto3.Session(
+            region_name=config.cloud_config.region,
+            aws_access_key_id=config.cloud_config.access_key,
+            aws_secret_access_key=config.cloud_config.secret_key,
+            aws_session_token=config.cloud_config.session_token,
+        )
+        ec2 = session.client('ec2')
+        regions = ec2.describe_regions(AllRegions=False)
+
+        for region in regions['Regions']:
+            try:
+                print(region['RegionName'])
+                ec2_config = Config(
+                    connect_timeout=2,
+                    read_timeout=2,
+                    retries={'max_attempts': 1}
+                )
+                ec2_region = session.client('ec2', region_name=region['RegionName'], config=ec2_config)
+                zone_list = ec2_region.describe_availability_zones()
+                zones = []
+                for zone in zone_list['AvailabilityZones']:
+                    zones.append(zone['ZoneName'])
+                zones = sorted(set(zones))
+
+                row = {
+                    "name": region['RegionName'],
+                    "zones": ','.join(zones),
+                    "cloud": CLOUD_KEY
+                }
+                print(row)
+            except (botocore.exceptions.ClientError, botocore.exceptions.ConnectTimeoutError):
+                continue
 
 
 class CloudBase(object):
@@ -290,6 +324,7 @@ class CloudBase(object):
     NETWORK_SUPER_NET = True
 
     def __init__(self):
+        self.db = LocalDB()
         self.aws_region = None
         self.zone_list = []
 

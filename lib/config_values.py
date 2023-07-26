@@ -5,29 +5,94 @@ from __future__ import annotations
 import attr
 import argparse
 from typing import Optional
+from enum import Enum
 
 
 @attr.s
-class CloudAsset:
+class CloudRegion:
+    id: Optional[int] = attr.ib(default=None, metadata={'pk': True})
+    name: Optional[str] = attr.ib(default=None)
+    zones: Optional[str] = attr.ib(default=None)
     cloud: Optional[str] = attr.ib(default=None)
-    environment: Optional[str] = attr.ib(default=None)
+
+    @property
+    def get_values(self):
+        return self.__annotations__
+
+    @property
+    def get_pk(self):
+        for a in attr.fields(self.__class__):
+            if 'pk' in a.metadata and a.metadata['pk'] is True:
+                return a.name
+        return None
+
+    def from_dict(self, args: dict):
+        if args.get("id"):
+            self.id = args.get("id")
+        if args.get("name"):
+            self.name = args.get("name")
+        if args.get("zones"):
+            self.zones = args.get("zones")
+        if args.get("cloud"):
+            self.cloud = args.get("cloud")
+
+
+@attr.s
+class Compute:
+    id: Optional[int] = attr.ib(default=None, metadata={'pk': True})
+    name: Optional[str] = attr.ib(default=None)
+    cpu: Optional[int] = attr.ib(default=None)
+    memory: Optional[int] = attr.ib(default=None)
+    architecture: Optional[str] = attr.ib(default=None)
+
+    @property
+    def get_values(self):
+        return self.__annotations__
+
+    @property
+    def get_pk(self):
+        for a in attr.fields(self.__class__):
+            if 'pk' in a.metadata and a.metadata['pk'] is True:
+                return a.name
+        return None
+
+    def from_dict(self, args: dict):
+        if args.get("id"):
+            self.id = args.get("id")
+        if args.get("name"):
+            self.name = args.get("name")
+        if args.get("cpu"):
+            self.cpu = args.get("cpu")
+        if args.get("memory"):
+            self.memory = args.get("memory")
+        if args.get("architecture"):
+            self.architecture = args.get("architecture")
+
+
+@attr.s
+class CloudEnvironment:
+    cloud: Optional[str] = attr.ib(default=None)
+    environment: Optional[str] = attr.ib(default=None, metadata={'pk': True})
     region: Optional[str] = attr.ib(default=None)
     project: Optional[str] = attr.ib(default=None)
     resource_group: Optional[str] = attr.ib(default=None)
     image: Optional[str] = attr.ib(default=None)
     image_group: Optional[str] = attr.ib(default=None)
-    compute: Optional[str] = attr.ib(default=None)
-    key_name: Optional[str] = attr.ib(default=None)
+    user_name: Optional[str] = attr.ib(default=None)
+    ssh_key: Optional[str] = attr.ib(default=None)
     network: Optional[str] = attr.ib(default=None)
-    subnets: Optional[str] = attr.ib(default=None)
-    security_group: Optional[str] = attr.ib(default=None)
-    disk_iops: Optional[str] = attr.ib(default=None)
-    disk_size: Optional[str] = attr.ib(default=None)
-    disk_type: Optional[str] = attr.ib(default=None)
+    nodes: Optional[str] = attr.ib(default=None)
 
     @property
     def get_values(self):
         return self.__annotations__
+
+    @property
+    def get_pk(self):
+        for a in attr.fields(self.__class__):
+            if 'pk' in a.metadata and a.metadata['pk'] is True:
+                return a.name
+        return None
 
     def from_dict(self, args: dict):
         if args.get("cloud"):
@@ -44,22 +109,14 @@ class CloudAsset:
             self.image = args.get("image")
         if args.get("image_group"):
             self.image_group = args.get("image_group")
-        if args.get("compute"):
-            self.compute = args.get("compute")
-        if args.get("key_name"):
-            self.key_name = args.get("key_name")
+        if args.get("user_name"):
+            self.user_name = args.get("user_name")
+        if args.get("ssh_key"):
+            self.ssh_key = args.get("ssh_key")
         if args.get("network"):
             self.network = args.get("network")
-        if args.get("subnets"):
-            self.subnets = args.get("subnets")
-        if args.get("security_group"):
-            self.security_group = args.get("security_group")
-        if args.get("disk_iops"):
-            self.disk_iops = args.get("disk_iops")
-        if args.get("disk_size"):
-            self.disk_size = args.get("disk_size")
-        if args.get("disk_type"):
-            self.disk_type = args.get("disk_type")
+        if args.get("nodes"):
+            self.nodes = args.get("nodes")
 
     def from_namespace(self, namespace: argparse.Namespace):
         args = vars(namespace)
@@ -78,22 +135,14 @@ class CloudAsset:
             self.image = args.get("image")
         if args.get("image_group"):
             self.image_group = args.get("image_group")
-        if args.get("compute"):
-            self.compute = args.get("compute")
-        if args.get("key_name"):
-            self.key_name = args.get("key_name")
+        if args.get("user_name"):
+            self.user_name = args.get("user_name")
+        if args.get("ssh_key"):
+            self.ssh_key = args.get("ssh_key")
         if args.get("network"):
             self.network = args.get("network")
-        if args.get("subnets"):
-            self.subnets = args.get("subnets")
-        if args.get("security_group"):
-            self.security_group = args.get("security_group")
-        if args.get("disk_iops"):
-            self.disk_iops = args.get("disk_iops")
-        if args.get("disk_size"):
-            self.disk_size = args.get("disk_size")
-        if args.get("disk_type"):
-            self.disk_type = args.get("disk_type")
+        if args.get("nodes"):
+            self.nodes = args.get("nodes")
 
 
 @attr.s
@@ -103,12 +152,20 @@ class Network:
     cidr: Optional[str] = attr.ib(default=None)
     subnets: Optional[str] = attr.ib(default=None)
     id: Optional[str] = attr.ib(default=None)
-    name: Optional[str] = attr.ib(default=None)
+    name: Optional[str] = attr.ib(default=None, metadata={'pk': True})
     default: Optional[bool] = attr.ib(default=False)
+    security_group: Optional[str] = attr.ib(default=None)
 
     @property
     def get_values(self):
         return self.__annotations__
+
+    @property
+    def get_pk(self):
+        for a in attr.fields(self.__class__):
+            if 'pk' in a.metadata and a.metadata['pk'] is True:
+                return a.name
+        return None
 
     def from_dict(self, args: dict):
         if args.get("cloud"):
@@ -125,6 +182,8 @@ class Network:
             self.name = args.get("name")
         if args.get("default"):
             self.default = args.get("default")
+        if args.get("security_group"):
+            self.security_group = args.get("security_group")
 
     def from_namespace(self, namespace: argparse.Namespace):
         args = vars(namespace)
@@ -143,6 +202,8 @@ class Network:
             self.name = args.get("name")
         if args.get("default"):
             self.default = args.get("default")
+        if args.get("security_group"):
+            self.security_group = args.get("security_group")
 
 
 @attr.s
@@ -152,7 +213,7 @@ class Subnet:
     cidr: Optional[str] = attr.ib(default=None)
     gateway: Optional[str] = attr.ib(default=None)
     routes: Optional[str] = attr.ib(default=None)
-    name: Optional[str] = attr.ib(default=None)
+    name: Optional[str] = attr.ib(default=None, metadata={'pk': True})
     id: Optional[str] = attr.ib(default=None)
     network: Optional[str] = attr.ib(default=None)
     zone: Optional[str] = attr.ib(default=None)
@@ -165,6 +226,13 @@ class Subnet:
     @property
     def get_values(self):
         return self.__annotations__
+
+    @property
+    def get_pk(self):
+        for a in attr.fields(self.__class__):
+            if 'pk' in a.metadata and a.metadata['pk'] is True:
+                return a.name
+        return None
 
     def from_dict(self, args: dict):
         if args.get("cloud"):
@@ -234,7 +302,7 @@ class Node:
     cloud: Optional[str] = attr.ib(default=None)
     region: Optional[str] = attr.ib(default=None)
     id: Optional[int] = attr.ib(default=None)
-    name: Optional[str] = attr.ib(default=None)
+    name: Optional[str] = attr.ib(default=None, metadata={'pk': True})
     type: Optional[str] = attr.ib(default=None)
     config_flags: Optional[str] = attr.ib(default=None)
     environment: Optional[str] = attr.ib(default=None)
@@ -255,6 +323,13 @@ class Node:
     @property
     def get_values(self):
         return self.__annotations__
+
+    @property
+    def get_pk(self):
+        for a in attr.fields(self.__class__):
+            if 'pk' in a.metadata and a.metadata['pk'] is True:
+                return a.name
+        return None
 
     def from_dict(self, args: dict):
         if args.get("cloud"):
@@ -341,6 +416,62 @@ class Node:
             self.netmask = args.get("netmask")
         if args.get("gateway"):
             self.gateway = args.get("gateway")
+
+
+@attr.s
+class SSHKey:
+    name: Optional[str] = attr.ib(default=None, metadata={'pk': True})
+    cloud_id: Optional[str] = attr.ib(default=None)
+    private_key: Optional[str] = attr.ib(default=None)
+    public_key: Optional[str] = attr.ib(default=None)
+    private_key_data: Optional[str] = attr.ib(default=None)
+    public_key_data: Optional[str] = attr.ib(default=None)
+    fingerprint: Optional[str] = attr.ib(default=None)
+
+    @property
+    def get_values(self):
+        return self.__annotations__
+
+    @property
+    def get_pk(self):
+        for a in attr.fields(self.__class__):
+            if 'pk' in a.metadata and a.metadata['pk'] is True:
+                return a.name
+        return None
+
+    def from_dict(self, args: dict):
+        if args.get("name"):
+            self.name = args.get("name")
+        if args.get("cloud_id"):
+            self.cloud_id = args.get("cloud_id")
+        if args.get("private_key"):
+            self.private_key = args.get("private_key")
+        if args.get("public_key"):
+            self.public_key = args.get("public_key")
+        if args.get("private_key_data"):
+            self.private_key_data = args.get("private_key_data")
+        if args.get("public_key_data"):
+            self.public_key_data = args.get("public_key_data")
+        if args.get("fingerprint"):
+            self.fingerprint = args.get("fingerprint")
+
+    def from_namespace(self, namespace: argparse.Namespace):
+        args = vars(namespace)
+
+        if args.get("name"):
+            self.name = args.get("name")
+        if args.get("cloud_id"):
+            self.cloud_id = args.get("cloud_id")
+        if args.get("private_key"):
+            self.private_key = args.get("private_key")
+        if args.get("public_key"):
+            self.public_key = args.get("public_key")
+        if args.get("private_key_data"):
+            self.private_key_data = args.get("private_key_data")
+        if args.get("public_key_data"):
+            self.public_key_data = args.get("public_key_data")
+        if args.get("fingerprint"):
+            self.fingerprint = args.get("fingerprint")
 
 
 @attr.s
@@ -546,3 +677,10 @@ class CapellaConfig:
     @property
     def as_dict(self):
         return self.__dict__
+
+
+class CloudTable(Enum):
+    REGION = CloudRegion
+    COMPUTE = Compute
+    NETWORK = Network
+    SUBNET = Subnet

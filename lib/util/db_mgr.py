@@ -1,11 +1,10 @@
 ##
 ##
 
-import sqlite3
 from sqlite_utils import Database
-from lib.exceptions import DBError
+from enum import Enum
+from lib.config_values import CloudTable
 import lib.config as config
-from lib.util.db_config import *
 
 
 class LocalDB(object):
@@ -13,20 +12,6 @@ class LocalDB(object):
     def __init__(self):
         self.config = f"{config.cfg_dir}/config.db"
         self.cloud = f"{config.cfg_dir}/cloud.db"
-
-    def init_config(self):
-        connection = sqlite3.connect(self.config)
-        cursor = connection.cursor()
-
-        try:
-            cursor.execute(AWS_CONFIG)
-            cursor.execute(GCP_CONFIG)
-            cursor.execute(AZURE_CONFIG)
-            cursor.execute(VMWARE_CONFIG)
-            cursor.execute(CAPELLA_CONFIG)
-            connection.commit()
-        except Exception as err:
-            raise DBError(f"auth db init error: {err}")
 
     def get_config(self):
         db = Database(self.config)
@@ -45,3 +30,16 @@ class LocalDB(object):
         records.update({"id": 1})
 
         db[table].upsert(records, pk="id")
+
+    def get_cloud(self, data_type: Enum):
+        pass
+
+    def update_cloud(self, table_type: Enum, values: dict):
+        db = Database(self.config)
+        table = f"{config.cloud}_{table_type.name.lower()}"
+        table_obj = CloudTable[table_type.name].value()
+
+        table_obj.from_dict(values)
+        records = dict(table_obj.as_dict)
+
+        db[table].upsert(records, pk=table_obj.get_pk)

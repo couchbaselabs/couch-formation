@@ -128,6 +128,8 @@ class Parameters(object):
 
         subparsers.add_parser('auth', help="Configure Authorization", parents=[parent_parser], add_help=False)
 
+        subparsers.add_parser('init', help="Configure Authorization", parents=[parent_parser], add_help=False)
+
         self.parser = parser
         self.image_parser = image_mode
         self.create_parser = create_mode

@@ -46,6 +46,7 @@ config_version = 1
 cloud_driver_version = None
 cloud_operator_version = None
 cloud = "aws"
+region = None
 debug_level = 3
 enable_debug: False
 env_name = None

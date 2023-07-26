@@ -93,6 +93,8 @@ class CloudManager(object):
             config.cloud_auth().auth()
             self.db.update_config()
             logger.debug(f"Final config: {config.cloud_config.as_dict}")
+        elif self.verb == 'init':
+            config.cloud_auth().init()
 
 
 def main():
