@@ -35,7 +35,7 @@ class LocalDB(object):
         pass
 
     def update_cloud(self, table_type: Enum, values: dict):
-        db = Database(self.config)
+        db = Database(self.cloud)
         table = f"{config.cloud}_{table_type.name.lower()}"
         table_obj = CloudTable[table_type.name].value()
 

@@ -36,6 +36,10 @@ class CloudRegion:
         if args.get("cloud"):
             self.cloud = args.get("cloud")
 
+    @property
+    def as_dict(self):
+        return self.__dict__
+
 
 @attr.s
 class Compute:
@@ -67,6 +71,10 @@ class Compute:
             self.memory = args.get("memory")
         if args.get("architecture"):
             self.architecture = args.get("architecture")
+
+    @property
+    def as_dict(self):
+        return self.__dict__
 
 
 @attr.s
@@ -144,6 +152,10 @@ class CloudEnvironment:
         if args.get("nodes"):
             self.nodes = args.get("nodes")
 
+    @property
+    def as_dict(self):
+        return self.__dict__
+
 
 @attr.s
 class Network:
@@ -204,6 +216,10 @@ class Network:
             self.default = args.get("default")
         if args.get("security_group"):
             self.security_group = args.get("security_group")
+
+    @property
+    def as_dict(self):
+        return self.__dict__
 
 
 @attr.s
@@ -295,6 +311,10 @@ class Subnet:
             self.environment = args.get("environment")
         if args.get("tag"):
             self.tag = args.get("tag")
+
+    @property
+    def as_dict(self):
+        return self.__dict__
 
 
 @attr.s
@@ -417,6 +437,10 @@ class Node:
         if args.get("gateway"):
             self.gateway = args.get("gateway")
 
+    @property
+    def as_dict(self):
+        return self.__dict__
+
 
 @attr.s
 class SSHKey:
@@ -472,6 +496,10 @@ class SSHKey:
             self.public_key_data = args.get("public_key_data")
         if args.get("fingerprint"):
             self.fingerprint = args.get("fingerprint")
+
+    @property
+    def as_dict(self):
+        return self.__dict__
 
 
 @attr.s

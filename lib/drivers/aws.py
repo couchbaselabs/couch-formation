@@ -17,6 +17,7 @@ from itertools import cycle
 from lib.exceptions import AWSDriverError, EmptyResultSet
 from lib.util.filemgr import FileManager
 from lib.util.db_mgr import LocalDB
+from lib.config_values import CloudTable
 import lib.config as config
 
 logger = logging.getLogger('cf.driver.aws')
@@ -198,6 +199,11 @@ class CloudInit(object):
 
     def __init__(self):
         self.db = LocalDB()
+        self.timeouts = Config(
+            connect_timeout=1,
+            read_timeout=1,
+            retries={'max_attempts': 2}
+        )
 
     def auth(self):
         if config.cloud_config.expiration:
@@ -283,36 +289,21 @@ class CloudInit(object):
         config.cloud_config.expiration = session_creds['expiration']
 
     def init(self):
-        session = boto3.Session(
-            region_name=config.cloud_config.region,
-            aws_access_key_id=config.cloud_config.access_key,
-            aws_secret_access_key=config.cloud_config.secret_key,
-            aws_session_token=config.cloud_config.session_token,
-        )
-        ec2 = session.client('ec2')
-        regions = ec2.describe_regions(AllRegions=False)
-
-        for region in regions['Regions']:
+        logger.info(f"importing region and zone information")
+        regions = config.cloud_base().get_all_regions()
+        count = 1
+        for region in regions:
             try:
-                print(region['RegionName'])
-                ec2_config = Config(
-                    connect_timeout=2,
-                    read_timeout=2,
-                    retries={'max_attempts': 1}
-                )
-                ec2_region = session.client('ec2', region_name=region['RegionName'], config=ec2_config)
-                zone_list = ec2_region.describe_availability_zones()
-                zones = []
-                for zone in zone_list['AvailabilityZones']:
-                    zones.append(zone['ZoneName'])
-                zones = sorted(set(zones))
-
+                logger.info(f" ... importing {region}")
+                zones = config.cloud_base(region=region).zones()
                 row = {
-                    "name": region['RegionName'],
+                    "id": count,
+                    "name": region,
                     "zones": ','.join(zones),
                     "cloud": CLOUD_KEY
                 }
-                print(row)
+                self.db.update_cloud(CloudTable.REGION, row)
+                count += 1
             except (botocore.exceptions.ClientError, botocore.exceptions.ConnectTimeoutError):
                 continue
 
@@ -323,15 +314,32 @@ class CloudBase(object):
     SAAS_CLOUD = False
     NETWORK_SUPER_NET = True
 
-    def __init__(self):
+    def __init__(self, region: str = None):
         self.db = LocalDB()
         self.aws_region = None
         self.zone_list = []
+        self.timeouts = Config(
+            connect_timeout=1,
+            read_timeout=1,
+            retries={'max_attempts': 2}
+        )
 
-        if 'AWS_REGION' in os.environ:
-            self.aws_region = os.environ['AWS_REGION']
-        elif 'AWS_DEFAULT_REGION' in os.environ:
+        if region:
+            os.environ['AWS_DEFAULT_REGION'] = region
+        elif config.cloud_config.region:
+            os.environ['AWS_DEFAULT_REGION'] = config.cloud_config.region
+
+        if config.cloud_config.access_key:
+            os.environ['AWS_ACCESS_KEY_ID'] = config.cloud_config.access_key
+        if config.cloud_config.secret_key:
+            os.environ['AWS_SECRET_ACCESS_KEY'] = config.cloud_config.secret_key
+        if config.cloud_config.session_token:
+            os.environ['AWS_SESSION_TOKEN'] = config.cloud_config.session_token
+
+        if 'AWS_DEFAULT_REGION' in os.environ:
             self.aws_region = os.environ['AWS_DEFAULT_REGION']
+        elif 'AWS_REGION' in os.environ:
+            self.aws_region = os.environ['AWS_REGION']
         elif boto3.DEFAULT_SESSION:
             self.aws_region = boto3.DEFAULT_SESSION.region_name
         elif boto3.Session().region_name:
@@ -380,6 +388,11 @@ class CloudBase(object):
             if tags[i]['Key'] == key:
                 return tags[i]['Value']
         return None
+
+    def get_all_regions(self) -> list:
+        regions = self.ec2_client.describe_regions(AllRegions=False)
+        region_list = list(r['RegionName'] for r in regions['Regions'])
+        return region_list
 
     def zones(self) -> list:
         try:

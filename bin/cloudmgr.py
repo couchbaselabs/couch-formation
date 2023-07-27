@@ -35,14 +35,14 @@ class CloudManager(object):
         config.enable_cloud(self.args.cloud)
 
     def run(self):
-        logger.info(f"Couch Formation ({VERSION})")
-        logger.info(f"Cloud Driver {config.cloud.upper()} version {config.cloud_driver_version}")
-        logger.info(f"Cloud Operator {config.cloud.upper()} version {config.cloud_operator_version}")
+        logger.debug(f"Couch Formation ({VERSION})")
+        logger.debug(f"Cloud Driver {config.cloud.upper()} version {config.cloud_driver_version}")
+        logger.debug(f"Cloud Operator {config.cloud.upper()} version {config.cloud_operator_version}")
 
         if self.verb == 'version':
             sys.exit(0)
 
-        if self.args.verbose:
+        if self.args.debug:
             config.cloud_base().get_info()
 
         if self.verb == 'image':
