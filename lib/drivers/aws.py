@@ -194,6 +194,18 @@ class AWSImageOwners(object):
     ]
 
 
+@attr.s
+class ComputeTypes(object):
+    general_purpose = 'm5'
+    compute_optimized = 'c5'
+    memory_optimized = 'r5'
+
+
+@attr.s
+class ArchitectureTypes(object):
+    list = ['x86_64']
+
+
 class CloudInit(object):
     VERSION = '4.0.0'
 
@@ -307,6 +319,29 @@ class CloudInit(object):
             except (botocore.exceptions.ClientError, botocore.exceptions.ConnectTimeoutError):
                 continue
 
+        logger.info(f"importing compute information")
+        count = 1
+        for region in regions:
+            logger.info(f" ... generating compute for {region}")
+            compute_list = config.cloud_machine_type(region=region).list()
+            compute_list = sorted(compute_list, key=lambda c: c['name'])
+            subset = set()
+            compute_list = [x for x in compute_list if [(x['cpu'], x['memory']) not in subset, subset.add((x['cpu'], x['memory']))][0]]
+            for compute in compute_list:
+                config_str = f"{compute['cpu']}x{int(compute['memory'] / 1024)}"
+                row = {
+                    "id": count,
+                    "name": compute['name'],
+                    "config": config_str,
+                    "cpu": compute['cpu'],
+                    "memory": compute['memory'],
+                    "architecture": compute['arch'][0],
+                    "cloud": CLOUD_KEY,
+                    "region": region
+                }
+                self.db.update_cloud(CloudTable.COMPUTE, row)
+                count += 1
+
 
 class CloudBase(object):
     VERSION = '4.0.0'
@@ -417,8 +452,8 @@ class CloudBase(object):
 
 class SecurityGroup(CloudBase):
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.logger = logging.getLogger(self.__class__.__name__)
 
     def list(self, vpc_id: str, filter_keys_exist: Union[list[str], None] = None) -> list[dict]:
@@ -476,8 +511,8 @@ class SecurityGroup(CloudBase):
 
 class Network(CloudBase):
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.logger = logging.getLogger(self.__class__.__name__)
 
     def list(self, filter_keys_exist: Union[list[str], None] = None) -> list[dict]:
@@ -550,8 +585,8 @@ class Network(CloudBase):
 
 class Image(CloudBase):
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.logger = logging.getLogger(self.__class__.__name__)
 
     def list(self, filter_keys_exist: Union[list[str], None] = None, is_public: bool = False, owner_id: str = None) -> list[dict]:
@@ -662,8 +697,8 @@ class Image(CloudBase):
 
 class SSHKey(CloudBase):
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.logger = logging.getLogger(self.__class__.__name__)
 
     def list(self, filter_keys_exist: Union[list[str], None] = None) -> list[dict]:
@@ -768,8 +803,8 @@ class SSHKey(CloudBase):
 
 class Subnet(CloudBase):
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.logger = logging.getLogger(self.__class__.__name__)
 
     def list(self, vpc_id: str, zone: Union[str, None] = None, filter_keys_exist: Union[list[str], None] = None) -> list[dict]:
@@ -842,8 +877,8 @@ class Subnet(CloudBase):
 
 class Instance(CloudBase):
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.logger = logging.getLogger(self.__class__.__name__)
 
     def run(self, name: str, ami: str, ssh_key: str, sg_id: str, subnet: str, root_type="gp3", root_size=100, instance_type="t2.micro"):
@@ -897,17 +932,36 @@ class Instance(CloudBase):
 
 class MachineType(CloudBase):
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.logger = logging.getLogger(self.__class__.__name__)
 
     def list(self) -> list:
         type_list = []
         types = []
+        filters = []
+        prefix_list = []
         extra_args = {}
+
+        for prefix in [ComputeTypes.compute_optimized, ComputeTypes.general_purpose, ComputeTypes.memory_optimized]:
+            prefix_list.append(f"{prefix}.*")
+
+        filters.append(
+            {
+                'Name': 'instance-type',
+                'Values': prefix_list
+            }
+        )
+        filters.append(
+            {
+                'Name': 'processor-info.supported-architecture',
+                'Values': ArchitectureTypes.list
+            }
+        )
+
         try:
             while True:
-                result = self.ec2_client.describe_instance_types(**extra_args)
+                result = self.ec2_client.describe_instance_types(Filters=filters, **extra_args)
                 types.extend(result['InstanceTypes'])
                 if 'NextToken' not in result:
                     break

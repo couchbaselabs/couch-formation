@@ -45,9 +45,12 @@ class CloudRegion:
 class Compute:
     id: Optional[int] = attr.ib(default=None, metadata={'pk': True})
     name: Optional[str] = attr.ib(default=None)
+    config: Optional[str] = attr.ib(default=None)
     cpu: Optional[int] = attr.ib(default=None)
     memory: Optional[int] = attr.ib(default=None)
     architecture: Optional[str] = attr.ib(default=None)
+    cloud: Optional[str] = attr.ib(default=None)
+    region: Optional[str] = attr.ib(default=None)
 
     @property
     def get_values(self):
@@ -65,12 +68,18 @@ class Compute:
             self.id = args.get("id")
         if args.get("name"):
             self.name = args.get("name")
+        if args.get("config"):
+            self.name = args.get("config")
         if args.get("cpu"):
             self.cpu = args.get("cpu")
         if args.get("memory"):
             self.memory = args.get("memory")
         if args.get("architecture"):
             self.architecture = args.get("architecture")
+        if args.get("cloud"):
+            self.cloud = args.get("cloud")
+        if args.get("region"):
+            self.region = args.get("region")
 
     @property
     def as_dict(self):
