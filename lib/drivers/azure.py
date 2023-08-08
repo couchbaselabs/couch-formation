@@ -17,6 +17,13 @@ from lib.util.filemgr import FileManager
 from itertools import cycle
 from lib.exceptions import AzureDriverError, EmptyResultSet
 import lib.config as config
+from lib.util.db_mgr import LocalDB
+
+logger = logging.getLogger('cf.driver.azure')
+logger.addHandler(logging.NullHandler())
+logging.getLogger("azure").setLevel(logging.ERROR)
+logging.getLogger("urllib3").setLevel(logging.ERROR)
+CLOUD_KEY = "azure"
 
 
 @attr.s
@@ -81,13 +88,26 @@ class AzureImagePublishers(object):
     ]
 
 
+class CloudInit(object):
+    VERSION = '4.0.0'
+
+    def __init__(self):
+        self.db = LocalDB()
+
+    def auth(self):
+        pass
+
+    def init(self):
+        pass
+
+
 class CloudBase(object):
     VERSION = '3.0.1'
     PUBLIC_CLOUD = True
     SAAS_CLOUD = False
     NETWORK_SUPER_NET = True
 
-    def __init__(self, null_init: bool = True):
+    def __init__(self, region: str = None, null_init: bool = True, cloud: str = CLOUD_KEY):
         self.logger = logging.getLogger(self.__class__.__name__)
         logging.getLogger("azure").setLevel(logging.ERROR)
         logging.getLogger("urllib3").setLevel(logging.ERROR)
@@ -102,6 +122,7 @@ class CloudBase(object):
         self.azure_location = None
         self.azure_availability_zones = []
         self.azure_zone = None
+        self.cloud = cloud
 
         self.read_config()
 
@@ -138,7 +159,9 @@ class CloudBase(object):
                     if 'resource_group_name' in config['all']:
                         self.azure_resource_group = config['all']['resource_group_name']
 
-        if 'AZURE_LOCATION' in os.environ:
+        if region:
+            self.azure_location = region
+        elif 'AZURE_LOCATION' in os.environ:
             self.azure_location = os.environ['AZURE_LOCATION']
         elif self.azure_resource_group:
             resource_group = self.resource_client.resource_groups.list()

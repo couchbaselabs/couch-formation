@@ -17,6 +17,25 @@ from lib.util.filemgr import FileManager
 from lib.util.inquire import Inquire
 import lib.config as config
 from lib.util.envmgr import CatalogRoot
+from lib.util.db_mgr import LocalDB
+
+logger = logging.getLogger('cf.driver.vmware')
+logger.addHandler(logging.NullHandler())
+logging.getLogger("pyvmomi").setLevel(logging.ERROR)
+CLOUD_KEY = "vmware"
+
+
+class CloudInit(object):
+    VERSION = '4.0.0'
+
+    def __init__(self):
+        self.db = LocalDB()
+
+    def auth(self):
+        pass
+
+    def init(self):
+        pass
 
 
 class CloudBase(object):
@@ -149,7 +168,7 @@ class CloudBase(object):
         }
     ]
 
-    def __init__(self):
+    def __init__(self, region: str = None, cloud: str = CLOUD_KEY):
         self.logger = logging.getLogger(self.__class__.__name__)
         logging.getLogger("pyvmomi").setLevel(logging.ERROR)
         self.vmware_hostname = None
@@ -170,8 +189,12 @@ class CloudBase(object):
         self.vmware_build_pwd_encrypted = None
         self.vmware_templates = []
         self.vmware_hosts = []
+        self.cloud = cloud
 
         self.read_config()
+
+        if region:
+            self.vmware_datacenter = region
 
     def read_config(self):
         config_directory = os.environ['HOME'] + '/.config'

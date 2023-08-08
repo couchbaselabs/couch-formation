@@ -349,10 +349,11 @@ class CloudBase(object):
     SAAS_CLOUD = False
     NETWORK_SUPER_NET = True
 
-    def __init__(self, region: str = None):
+    def __init__(self, region: str = None, cloud: str = CLOUD_KEY):
         self.db = LocalDB()
         self.aws_region = None
         self.zone_list = []
+        self.cloud = cloud
         self.timeouts = Config(
             connect_timeout=1,
             read_timeout=1,

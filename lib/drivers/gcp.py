@@ -14,6 +14,12 @@ from typing import Union
 from itertools import cycle
 import lib.config as config
 import time
+from lib.util.db_mgr import LocalDB
+
+logger = logging.getLogger('cf.driver.gcp')
+logger.addHandler(logging.NullHandler())
+logging.getLogger("googleapiclient").setLevel(logging.ERROR)
+CLOUD_KEY = "gcp"
 
 
 @attr.s
@@ -131,13 +137,26 @@ class GCPImageUsers(object):
     ]
 
 
+class CloudInit(object):
+    VERSION = '4.0.0'
+
+    def __init__(self):
+        self.db = LocalDB()
+
+    def auth(self):
+        pass
+
+    def init(self):
+        pass
+
+
 class CloudBase(object):
     VERSION = '3.0.1'
     PUBLIC_CLOUD = True
     SAAS_CLOUD = False
     NETWORK_SUPER_NET = False
 
-    def __init__(self):
+    def __init__(self, region: str = None, cloud: str = CLOUD_KEY):
         self.logger = logging.getLogger(self.__class__.__name__)
         logging.getLogger("googleapiclient").setLevel(logging.ERROR)
         self.auth_directory = os.environ['HOME'] + '/.config/gcloud'
@@ -149,6 +168,7 @@ class CloudBase(object):
         self.gcp_account_email = None
         self.gcp_zone_list = []
         self.gcp_zone = None
+        self.cloud = cloud
 
         self.read_config()
 
@@ -167,7 +187,9 @@ class CloudBase(object):
         if not self.gcp_account_email:
             raise GCPDriverError(f"can not get account email from auth file {self.gcp_account_file}")
 
-        if 'GCP_DEFAULT_REGION' in os.environ:
+        if region:
+            self.gcp_region = region
+        elif 'GCP_DEFAULT_REGION' in os.environ:
             self.gcp_region = os.environ['GCP_DEFAULT_REGION']
         if not self.gcp_region:
             print("Please set GCP_DEFAULT_REGION to specify a GCP region")

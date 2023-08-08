@@ -5,6 +5,25 @@ import logging
 import os
 from lib.util.sessionmgr import CapellaSession
 from lib.exceptions import CapellaDriverError, CapellaNotImplemented, EmptyResultSet
+from lib.util.db_mgr import LocalDB
+
+logger = logging.getLogger('cf.driver.capella')
+logger.addHandler(logging.NullHandler())
+logging.getLogger("urllib3").setLevel(logging.ERROR)
+CLOUD_KEY = "capella"
+
+
+class CloudInit(object):
+    VERSION = '4.0.0'
+
+    def __init__(self):
+        self.db = LocalDB()
+
+    def auth(self):
+        pass
+
+    def init(self):
+        pass
 
 
 class CloudBase(object):
@@ -285,13 +304,13 @@ class CloudBase(object):
     ]
     SERVICES = ["data", "index", "query", "fts", "analytics", "eventing"]
 
-    def __init__(self, cloud: str = "aws"):
+    def __init__(self, region: str = None, cloud: str = "aws"):
         self.logger = logging.getLogger(self.__class__.__name__)
         self.projects = []
         # self.cluster_name = None
         # self.single_az = True
         # self.provider = "aws"
-        # self.region = None
+        self.region = region
         # self.cidr = "10.1.0.0/16"
         # self.support_package = "DeveloperPro"
         # self.cluster_size = 3
