@@ -315,7 +315,7 @@ class DiskConfiguration(object):
             f"${{each.value.{disk_size}}}",
             f"${{var.{for_each}}}",
             f"${{var.{location}}}",
-            "${each.key}-swap",
+            "${each.key}-disk",
             f"${{var.{resource_group}}}",
             f"${{each.value.{disk_type}}}",
             f"${{each.value.{zone}}}",
