@@ -52,6 +52,11 @@ class DataCollect(object):
         self.disk_iops = 0
         self.disk_size = config.cloud_base().VMWARE_DISK_SIZE
         self.disk_type = config.cloud_base().VMWARE_DISK_TYPE
+        self.disk_tier = None
+        self.root_iops = None
+        self.root_size = None
+        self.root_type = None
+        self.root_tier = None
 
         self.path_map = PathMap(config.env_name, config.cloud)
         self.path_map.map(PathType.CONFIG)
@@ -288,7 +293,7 @@ class DataCollect(object):
         self.env_cfg.update(cbs_index_memory=self.cb_index_mem_type)
         self.env_cfg.update(cbs_in_progress=False)
 
-    def get_node_settings(self, default: bool = True):
+    def get_node_settings(self, default: bool = True, load: bool = False):
         in_progress = self.env_cfg.get("vmware_node_in_progress")
 
         print("")
@@ -302,7 +307,7 @@ class DataCollect(object):
             print(f"CPU Size        = {self.vm_cpu_cores}")
             print(f"Memory Size     = {self.vm_mem_size}")
 
-            if not Inquire().ask_bool("Update settings", recommendation='false'):
+            if load or not Inquire().ask_bool("Update settings", recommendation='false'):
                 return
 
         self.env_cfg.update(vmware_node_in_progress=True)

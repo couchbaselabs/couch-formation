@@ -213,6 +213,9 @@ class CloudDriver(object):
         null_resource_block = None
         swap_disk_block = None
         swap_disk_block_attach = None
+        data_disk_block = None
+        data_disk_block_attach = None
+        disk_caching = "ReadWrite"
 
         dc = DataCollect()
         cluster = ClusterCollect()
@@ -238,11 +241,19 @@ class CloudDriver(object):
             ("image_resource_group", dc.azure_image_rg, "Image security group"),
             ("instance_type", dc.instance_type, "Instance type"),
             ("azure_nsg", dc.azure_nsg, "Account file"),
-            ("root_volume_size", str(dc.disk_size), "Volume size"),
-            ("root_volume_type", dc.disk_type, "Disk type"),
+            ("root_volume_size", dc.root_size, "Volume size"),
+            ("root_volume_type", dc.root_type, "Disk type"),
+            ("root_volume_tier", dc.root_tier, "Disk tier"),
+            ("data_volume_size", dc.disk_size, "Disk Size"),
+            ("data_volume_type", dc.disk_type, "Disk Type"),
+            ("data_volume_tier", dc.disk_tier, "Disk Tier"),
+            ("data_volume_iops", dc.disk_iops, "Disk IOPS"),
             ("use_public_ip", dc.use_public_ip, "Use public or private IP for SSH"),
             ("cluster_spec", cluster.cluster_map, "Node map"),
         ]
+
+        if int(dc.disk_size) > 4095:
+            disk_caching = "None"
 
         if node_type == "app":
             app_build = True
@@ -311,6 +322,8 @@ class CloudDriver(object):
                     .add(Provisioner.build()
                          .add(RemoteExec.build()
                               .add(InLine.build()
+                                   .add("sudo /usr/local/hostprep/bin/configure-data.sh")
+                                   .add("sudo /usr/local/hostprep/bin/configure-swap.sh -o ${each.value.node_swap}")
                                    .add("sudo /usr/local/hostprep/bin/clusterinit.sh -m config -r ${local.rally_node} -n ${local.cluster_init_name}")
                                    .as_dict)
                               .as_dict)
@@ -351,7 +364,6 @@ class CloudDriver(object):
 
             inline_build = InLine.build() \
                 .add("sudo /usr/local/hostprep/bin/refresh.sh") \
-                .add("sudo /usr/local/hostprep/bin/configure-swap.sh -o ${each.value.node_swap} -d /dev/xvdb") \
                 .add("sudo /usr/local/hostprep/bin/clusterinit.sh "
                      "-m write "
                      "-i ${self.private_ip_address} "
@@ -420,6 +432,47 @@ class CloudDriver(object):
                 ImageData.construct("cb_image", "image", "image_resource_group").as_dict
             )
 
+        if cluster_build:
+            if dc.disk_type == "Premium_LRS":
+                data_disk_block = AzureManagedDisk.build().add(
+                    ResourceBuild.construct(
+                        DiskConfiguration.construct(
+                            "data_volume_size",
+                            "cluster_spec",
+                            "region_name",
+                            "azure_resource_group",
+                            "data_volume_type",
+                            "node_zone",
+                            "data_volume_tier",
+                            None).as_dict
+                    ).as_name("data_disk")
+                )
+            else:
+                data_disk_block = AzureManagedDisk.build().add(
+                    ResourceBuild.construct(
+                        DiskConfiguration.construct(
+                            "node_ram",
+                            "cluster_spec",
+                            "region_name",
+                            "azure_resource_group",
+                            "root_volume_type",
+                            "node_zone",
+                            None,
+                            "data_volume_iops").as_dict
+                    ).as_name("data_disk")
+                )
+            data_disk_block_attach = AzureDiskAttachment.build().add(
+                ResourceBuild.construct(
+                    AttachedDiskConfiguration.construct(
+                        "cluster_spec",
+                        "data_disk",
+                        "couchbase_nodes",
+                        disk_caching,
+                        "0"
+                    ).as_dict
+                ).as_name("data_disk")
+            )
+
         if cluster.node_swap:
             swap_disk_block = AzureManagedDisk.build().add(
                 ResourceBuild.construct(
@@ -429,7 +482,9 @@ class CloudDriver(object):
                         "region_name",
                         "azure_resource_group",
                         "root_volume_type",
-                        "node_zone").as_dict
+                        "node_zone",
+                        "root_volume_tier",
+                        None).as_dict
                 ).as_name("swap_disk")
             )
             swap_disk_block_attach = AzureDiskAttachment.build().add(
@@ -437,7 +492,9 @@ class CloudDriver(object):
                     AttachedDiskConfiguration.construct(
                         "cluster_spec",
                         "swap_disk",
-                        "couchbase_nodes"
+                        "couchbase_nodes",
+                        "ReadWrite",
+                        "1"
                     ).as_dict
                 ).as_name("swap_disk")
             )
@@ -504,6 +561,8 @@ class CloudDriver(object):
         resource_block.add(time_sleep_block.as_dict)
 
         if cluster_build:
+            resource_block.add(data_disk_block.as_dict)
+            resource_block.add(data_disk_block_attach.as_dict)
             resource_block.add(null_resource_block.as_dict)
 
         if cluster.node_swap:

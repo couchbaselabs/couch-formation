@@ -10,7 +10,7 @@ import lib.config as config
 from lib.util.envmgr import PathMap, PathType, ConfigFile
 from lib.hcl.azure_image import AzureImageDataRecord
 from lib.util.cfgmgr import ConfigMgr
-from lib.drivers.azure import AzureDiskTypes, AzureImagePublishers
+from lib.drivers.azure import AzureDiskTypes, AzureImagePublishers, AzureDiskTiers
 
 
 class DataCollect(object):
@@ -21,6 +21,11 @@ class DataCollect(object):
         self.disk_iops = 0
         self.disk_size = None
         self.disk_type = None
+        self.disk_tier = None
+        self.root_iops = None
+        self.root_size = "256"
+        self.root_type = "Premium_LRS"
+        self.root_tier = "P50"
         self.instance_type = None
         self.cb_index_mem_type = None
         self.image_user = None
@@ -283,7 +288,7 @@ class DataCollect(object):
         self.env_cfg.update(cbs_index_memory=self.cb_index_mem_type)
         self.env_cfg.update(cbs_in_progress=False)
 
-    def get_node_settings(self, default: bool = True):
+    def get_node_settings(self, default: bool = True, load: bool = False):
         in_progress = self.env_cfg.get("azure_node_in_progress")
 
         print("")
@@ -291,13 +296,23 @@ class DataCollect(object):
             print("Node settings")
 
             self.instance_type = self.env_cfg.get("azure_machine_type")
-            self.disk_type = self.env_cfg.get("azure_root_type")
-            self.disk_size = self.env_cfg.get("azure_root_size")
+            self.root_type = self.env_cfg.get("azure_root_type")
+            self.root_size = self.env_cfg.get("azure_root_size")
+            self.root_tier = self.env_cfg.get("azure_root_tier")
+            self.disk_type = self.env_cfg.get("azure_disk_type")
+            self.disk_size = self.env_cfg.get("azure_disk_size")
+            self.disk_tier = self.env_cfg.get("azure_disk_tier")
+            self.disk_iops = self.env_cfg.get("azure_disk_iops")
             print(f"Machine Type = {self.instance_type}")
+            print(f"Root Type    = {self.root_type}")
+            print(f"Root Size    = {self.root_size}")
+            print(f"Root Tier    = {self.root_tier}")
             print(f"Disk Type    = {self.disk_type}")
             print(f"Disk Size    = {self.disk_size}")
+            print(f"Disk Tier    = {self.disk_tier}")
+            print(f"Disk IOPS    = {self.disk_iops}")
 
-            if not Inquire().ask_bool("Update settings", recommendation='false'):
+            if load or not Inquire().ask_bool("Update settings", recommendation='false'):
                 return
 
         self.env_cfg.update(azure_node_in_progress=True)
@@ -310,9 +325,17 @@ class DataCollect(object):
 
         selection = Inquire().ask_list_dict("Select disk type", AzureDiskTypes.disk_type_list, default_value=("type", "StandardSSD_LRS"))
         self.disk_type = selection['type']
-        self.disk_size = Inquire().ask_int("Volume size", 250, 100)
+        selection = Inquire().ask_list_dict("Select disk tier", AzureDiskTiers.disk_tier_list, default_value=("disk_size", "256"))
+        self.disk_size = selection['disk_size']
+        self.disk_tier = selection['disk_tier']
+        self.disk_iops = selection['disk_iops']
 
         self.env_cfg.update(azure_machine_type=self.instance_type)
-        self.env_cfg.update(azure_root_type=self.disk_type)
-        self.env_cfg.update(azure_root_size=self.disk_size)
+        self.env_cfg.update(azure_root_type=self.root_type)
+        self.env_cfg.update(azure_root_size=self.root_size)
+        self.env_cfg.update(azure_root_tier=self.root_tier)
+        self.env_cfg.update(azure_disk_type=self.disk_type)
+        self.env_cfg.update(azure_disk_size=self.disk_size)
+        self.env_cfg.update(azure_disk_tier=self.disk_tier)
+        self.env_cfg.update(azure_disk_iops=self.disk_iops)
         self.env_cfg.update(azure_node_in_progress=False)

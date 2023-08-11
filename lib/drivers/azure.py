@@ -30,22 +30,61 @@ CLOUD_KEY = "azure"
 class AzureDiskTypes(object):
     disk_type_list = [
         {
-            "type": 'Standard_LRS'
-        },
-        {
-            "type": 'StandardSSD_ZRS'
-        },
-        {
             "type": 'Premium_LRS'
         },
         {
-            "type": 'Premium_ZRS'
-        },
-        {
-            "type": 'StandardSSD_LRS'
-        },
-        {
             "type": 'UltraSSD_LRS'
+        }
+    ]
+
+
+@attr.s
+class AzureDiskTiers(object):
+    disk_tier_list = [
+        {
+            "disk_size": "64",
+            "disk_tier": "P50",
+            "disk_iops": "16000"
+        },
+        {
+            "disk_size": "128",
+            "disk_tier": "P50",
+            "disk_iops": "16000"
+        },
+        {
+            "disk_size": "256",
+            "disk_tier": "P50",
+            "disk_iops": "16000"
+        },
+        {
+            "disk_size": "512",
+            "disk_tier": "P50",
+            "disk_iops": "16000"
+        },
+        {
+            "disk_size": "1024",
+            "disk_tier": "P50",
+            "disk_iops": "16000"
+        },
+        {
+            "disk_size": "2048",
+            "disk_tier": "P50",
+            "disk_iops": "16000"
+        },
+        {
+            "disk_size": "4096",
+            "disk_tier": "P50",
+            "disk_iops": "16000"
+        },
+        {
+            "disk_size": "8192",
+            "disk_tier": "P80",
+            "disk_iops": "16000"
+        },
+        {
+            "disk_size": "16384",
+            "disk_tier": "P80",
+            "disk_iops": "16000"
         }
     ]
 

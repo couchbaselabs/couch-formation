@@ -204,8 +204,8 @@ class OSDisk(object):
             [
                 {
                     "caching": "ReadWrite",
-                    "disk_size_gb": f"${{each.value.{size}}}",
-                    "storage_account_type": f"${{each.value.{vol_type}}}"
+                    "disk_size_gb": f"${{var.{size}}}",
+                    "storage_account_type": f"${{var.{vol_type}}}"
                 }
             ]
         )
@@ -297,6 +297,8 @@ class DiskConfiguration(object):
     resource_group_name = attr.ib(validator=io(str))
     storage_account_type = attr.ib(validator=io(str))
     zone = attr.ib(validator=io(str))
+    tier = attr.ib(validator=attr.validators.optional(io(str)), default=None)
+    disk_iops_read_write = attr.ib(validator=attr.validators.optional(io(str)), default=None)
 
     @classmethod
     def construct(cls,
@@ -305,7 +307,9 @@ class DiskConfiguration(object):
                   location: str,
                   resource_group: str,
                   disk_type: str,
-                  zone: str):
+                  zone: str,
+                  disk_tier: Union[str, None] = None,
+                  disk_iops: Union[str, None] = None):
         return cls(
             f"Empty",
             f"${{each.value.{disk_size}}}",
@@ -315,11 +319,14 @@ class DiskConfiguration(object):
             f"${{var.{resource_group}}}",
             f"${{each.value.{disk_type}}}",
             f"${{each.value.{zone}}}",
+            f"${{each.value.{disk_tier}}}" if disk_tier else None,
+            f"${{each.value.{disk_iops}}}" if disk_iops else None,
         )
 
     @property
     def as_dict(self):
-        return self.__dict__
+        block = {k: v for k, v in self.__dict__.items() if v is not None}
+        return block
 
 
 @attr.s
@@ -516,11 +523,13 @@ class AttachedDiskConfiguration(object):
     def construct(cls,
                   for_each: str,
                   disk_name: str,
-                  node_name: str):
+                  node_name: str,
+                  caching: str = "ReadWrite",
+                  lun_num: str = "0"):
         return cls(
-            "ReadWrite",
+            caching,
             f"${{var.{for_each}}}",
-            "0",
+            lun_num,
             f"${{azurerm_managed_disk.{disk_name}[each.key].id}}",
             f"${{azurerm_linux_virtual_machine.{node_name}[each.key].id}}",
         )

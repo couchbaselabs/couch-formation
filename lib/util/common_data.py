@@ -73,6 +73,7 @@ class ClusterCollect(object):
 
             print("")
             if not Inquire().ask_bool("Create new node configuration", recommendation='false'):
+                dc.get_node_settings(load=True)
                 return
 
         self.env_cfg.update(**{f"{config.cloud}_map_in_progress_{node_type}": True})
@@ -151,9 +152,14 @@ class ClusterCollect(object):
                                 str(node_ram),
                                 self.node_swap,
                                 dc.instance_type,
+                                str(dc.root_iops if dc.root_iops else dc.disk_iops),
+                                str(dc.root_size if dc.root_size else dc.disk_size),
+                                dc.root_type if dc.root_type else dc.disk_type,
+                                dc.root_tier if dc.root_tier else dc.disk_tier,
                                 str(dc.disk_iops),
                                 str(dc.disk_size),
                                 dc.disk_type,
+                                dc.disk_tier,
                                 node_gateway,
                                 node_ip_address,
                                 node_netmask

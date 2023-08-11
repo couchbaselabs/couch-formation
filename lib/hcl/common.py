@@ -92,6 +92,11 @@ class ClusterMapElement(object):
     root_volume_iops = attr.ib(validator=io(str))
     root_volume_size = attr.ib(validator=io(str))
     root_volume_type = attr.ib(validator=io(str))
+    root_volume_tier = attr.ib(validator=attr.validators.optional(io(str)), default=None)
+    data_volume_iops = attr.ib(validator=attr.validators.optional(io(str)), default=None)
+    data_volume_size = attr.ib(validator=attr.validators.optional(io(str)), default=None)
+    data_volume_type = attr.ib(validator=attr.validators.optional(io(str)), default=None)
+    data_volume_tier = attr.ib(validator=attr.validators.optional(io(str)), default=None)
     node_gateway = attr.ib(validator=attr.validators.optional(io(str)), default=None)
     node_ip_address = attr.ib(validator=attr.validators.optional(io(str)), default=None)
     node_netmask = attr.ib(validator=attr.validators.optional(io(str)), default=None)
@@ -110,6 +115,11 @@ class ClusterMapElement(object):
                   root_volume_iops: str,
                   root_volume_size: str,
                   root_volume_type: str,
+                  root_volume_tier: Union[str, None] = None,
+                  data_volume_iops: Union[str, None] = None,
+                  data_volume_size: Union[str, None] = None,
+                  data_volume_type: Union[str, None] = None,
+                  data_volume_tier: Union[str, None] = None,
                   gateway: Union[str, None] = None,
                   ip_address: Union[str, None] = None,
                   netmask: Union[str, None] = None):
@@ -126,6 +136,11 @@ class ClusterMapElement(object):
             root_volume_iops,
             root_volume_size,
             root_volume_type,
+            root_volume_tier,
+            data_volume_iops,
+            data_volume_size,
+            data_volume_type,
+            data_volume_tier,
             gateway,
             ip_address,
             netmask

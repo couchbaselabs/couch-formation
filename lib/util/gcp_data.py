@@ -40,6 +40,11 @@ class DataCollect(object):
         self.disk_iops = 0
         self.disk_size = None
         self.disk_type = None
+        self.disk_tier = None
+        self.root_iops = None
+        self.root_size = None
+        self.root_type = None
+        self.root_tier = None
         self.instance_type = None
 
         self.path_map = PathMap(config.env_name, config.cloud)
@@ -260,7 +265,7 @@ class DataCollect(object):
         self.env_cfg.update(cbs_index_memory=self.cb_index_mem_type)
         self.env_cfg.update(cbs_in_progress=False)
 
-    def get_node_settings(self, default: bool = True):
+    def get_node_settings(self, default: bool = True, load: bool = False):
         in_progress = self.env_cfg.get("gcp_node_in_progress")
 
         print("")
@@ -274,7 +279,7 @@ class DataCollect(object):
             print(f"Disk Type    = {self.disk_type}")
             print(f"Disk Size    = {self.disk_size}")
 
-            if not Inquire().ask_bool("Update settings", recommendation='false'):
+            if load or not Inquire().ask_bool("Update settings", recommendation='false'):
                 return
 
         self.env_cfg.update(gcp_node_in_progress=True)
