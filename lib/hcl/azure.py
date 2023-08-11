@@ -248,6 +248,7 @@ class CloudDriver(object):
             ("data_volume_type", dc.disk_type, "Disk Type"),
             ("data_volume_tier", dc.disk_tier, "Disk Tier"),
             ("data_volume_iops", dc.disk_iops, "Disk IOPS"),
+            ("node_swap", dc.node_swap, "Use Swap"),
             ("use_public_ip", dc.use_public_ip, "Use public or private IP for SSH"),
             ("cluster_spec", cluster.cluster_map, "Node map"),
         ]
@@ -323,7 +324,7 @@ class CloudDriver(object):
                          .add(RemoteExec.build()
                               .add(InLine.build()
                                    .add("sudo /usr/local/hostprep/bin/configure-data.sh")
-                                   .add("sudo /usr/local/hostprep/bin/configure-swap.sh -o ${each.value.node_swap}")
+                                   .add("sudo /usr/local/hostprep/bin/configure-swap.sh -o ${var.node_swap}")
                                    .add("sudo /usr/local/hostprep/bin/clusterinit.sh -m config -r ${local.rally_node} -n ${local.cluster_init_name}")
                                    .as_dict)
                               .as_dict)

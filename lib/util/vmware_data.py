@@ -57,6 +57,7 @@ class DataCollect(object):
         self.root_size = None
         self.root_type = None
         self.root_tier = None
+        self.node_swap = None
 
         self.path_map = PathMap(config.env_name, config.cloud)
         self.path_map.map(PathType.CONFIG)
@@ -300,6 +301,7 @@ class DataCollect(object):
         if in_progress is not None and (in_progress is False or default is False):
             print("Node settings")
 
+            self.node_swap = self.env_cfg.get("vmware_node_swap")
             self.instance_type = self.env_cfg.get("vmware_machine_type")
             self.vm_cpu_cores = self.env_cfg.get("vmware_vm_cpu_cores")
             self.vm_mem_size = self.env_cfg.get("vmware_vm_mem_size")
@@ -314,10 +316,13 @@ class DataCollect(object):
 
         selection = Inquire().ask_list_dict("Select machine type", config.cloud_base().VMWARE_MACHINE_TYPES)
 
+        self.node_swap = Inquire.ask_bool('Configure swap', recommendation='false')
+
         self.instance_type = selection['name']
         self.vm_cpu_cores = selection['cpu']
         self.vm_mem_size = selection['memory']
 
+        self.env_cfg.update(vmware_node_swap=self.node_swap)
         self.env_cfg.update(vmware_machine_type=self.instance_type)
         self.env_cfg.update(vmware_vm_cpu_cores=self.vm_cpu_cores)
         self.env_cfg.update(vmware_vm_mem_size=self.vm_mem_size)

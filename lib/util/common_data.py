@@ -86,8 +86,6 @@ class ClusterCollect(object):
         else:
             self.availability_zone_cycle = cycle(dc.subnet_list)
 
-        self.node_swap = Inquire.ask_bool('Configure swap', recommendation='false')
-
         var_map = VariableMap.build()
         net = NetworkUtil()
 
@@ -150,7 +148,7 @@ class ClusterCollect(object):
                                 node_subnet,
                                 availability_zone,
                                 str(node_ram),
-                                self.node_swap,
+                                dc.node_swap,
                                 dc.instance_type,
                                 str(dc.root_iops if dc.root_iops else dc.disk_iops),
                                 str(dc.root_size if dc.root_size else dc.disk_size),

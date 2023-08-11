@@ -29,6 +29,7 @@ class DataCollect(object):
         self.root_size = None
         self.root_type = None
         self.root_tier = None
+        self.node_swap = None
 
         self.path_map = PathMap(config.env_name, config.cloud)
         self.path_map.map(PathType.CONFIG)

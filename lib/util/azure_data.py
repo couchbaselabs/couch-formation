@@ -26,6 +26,7 @@ class DataCollect(object):
         self.root_size = "256"
         self.root_type = "Premium_LRS"
         self.root_tier = "P50"
+        self.node_swap = None
         self.instance_type = None
         self.cb_index_mem_type = None
         self.image_user = None
@@ -295,6 +296,7 @@ class DataCollect(object):
         if in_progress is not None and (in_progress is False or default is False):
             print("Node settings")
 
+            self.node_swap = self.env_cfg.get("azure_node_swap")
             self.instance_type = self.env_cfg.get("azure_machine_type")
             self.root_type = self.env_cfg.get("azure_root_type")
             self.root_size = self.env_cfg.get("azure_root_size")
@@ -319,6 +321,8 @@ class DataCollect(object):
 
         machine_list = config.cloud_machine_type().list()
 
+        self.node_swap = Inquire.ask_bool('Configure swap', recommendation='false')
+
         selection = Inquire().ask_machine_type("Select machine type", machine_list)
 
         self.instance_type = selection['name']
@@ -330,6 +334,7 @@ class DataCollect(object):
         self.disk_tier = selection['disk_tier']
         self.disk_iops = selection['disk_iops']
 
+        self.env_cfg.update(azure_node_swap=self.node_swap)
         self.env_cfg.update(azure_machine_type=self.instance_type)
         self.env_cfg.update(azure_root_type=self.root_type)
         self.env_cfg.update(azure_root_size=self.root_size)

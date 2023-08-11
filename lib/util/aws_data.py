@@ -40,6 +40,7 @@ class DataCollect(object):
         self.root_size = None
         self.root_type = None
         self.root_tier = None
+        self.node_swap = None
         self.instance_type = None
 
         self.path_map = PathMap(config.env_name, config.cloud)
@@ -262,6 +263,7 @@ class DataCollect(object):
         if in_progress is not None and (in_progress is False or default is False):
             print("Node settings")
 
+            self.node_swap = self.env_cfg.get("aws_node_swap")
             self.instance_type = self.env_cfg.get("aws_machine_type")
             self.disk_type = self.env_cfg.get("aws_root_type")
             self.disk_size = self.env_cfg.get("aws_root_size")
@@ -278,6 +280,8 @@ class DataCollect(object):
 
         machine_list = config.cloud_machine_type().list()
 
+        self.node_swap = Inquire.ask_bool('Configure swap', recommendation='false')
+
         selection = Inquire().ask_machine_type("Select machine type", machine_list)
 
         self.instance_type = selection['name']
@@ -289,6 +293,7 @@ class DataCollect(object):
         if selection['iops']:
             self.disk_iops = Inquire().ask_int("Volume IOPS", selection['iops'], selection['iops'], selection['max'])
 
+        self.env_cfg.update(aws_node_swap=self.node_swap)
         self.env_cfg.update(aws_machine_type=self.instance_type)
         self.env_cfg.update(aws_root_type=self.disk_type)
         self.env_cfg.update(aws_root_size=self.disk_size)
