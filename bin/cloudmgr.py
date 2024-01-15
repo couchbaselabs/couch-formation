@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 #
 #
-# Couchbase Cluster Manager 3.0
+# Couchbase Cluster Manager 3.1
 #
 
 import signal
@@ -11,11 +11,10 @@ from lib.args import Parameters
 from lib.util.envmgr import LogViewer
 from lib.util.namegen import get_random_name
 import lib.config as config
-from lib.config import CloudProviders
-from lib.util.envmgr import PathMap, CatalogManager, EnvUtil, CatalogRoot, NodeTargets
+from lib.util.envmgr import PathMap, CatalogManager, EnvUtil, CatalogRoot
 from lib.util.logging import CustomFormatter
 
-VERSION = '3.0.1-rc3'
+VERSION = '3.1'
 warnings.filterwarnings("ignore")
 logger = logging.getLogger()
 
