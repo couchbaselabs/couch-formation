@@ -1,13 +1,11 @@
-# Couch Formation 3.1
-
+> **⚠️ This project has been replaced by Couch Formation 4.**<br> [Find it here](https://github.com/couchbaselabs/couch-formation-core).
+-----
+## Couch Formation 3.1
 ![Logo](doc/couch-formation-1.png)
 
 Toolset for running and managing Couchbase clusters. Supports AWS, GCP, Azure, VMware, and Couchbase Capella.
 
 Runs on any POSIX style client such as macOS and Linux.
-
-## Version 4.0
-> Couch Formation 3 will soon be replaced by Couch Formation 4. [Find more information here](https://github.com/couchbaselabs/couch-formation-core). <br>
 
 ## Disclaimer
 
